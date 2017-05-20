@@ -1,0 +1,208 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using I2PCore.Tunnel.I2NP.Messages;
+using I2PCore.Data;
+using System.Net;
+using I2PCore.Utils;
+using I2PCore.Router;
+using I2PCore.Transport.NTCP;
+using Org.BouncyCastle.Security;
+
+namespace I2PCore.Tunnel.I2NP
+{
+    public class I2NPClient
+    {
+        NTCPClient Transport;
+
+        Thread Worker;
+        bool Terminated = false;
+
+        public event NTCPClient.ConnectionEvent ConnectionShutDown;
+
+        public delegate void ReceivedRouterInfoCallback( I2PRouterInfo ri );
+        public event ReceivedRouterInfoCallback ReceivedRouterInfo;
+
+        public delegate void ReceivedLeaseSetCallback( I2PLeaseSet ls );
+        public event ReceivedLeaseSetCallback ReceivedLeaseSet;
+
+        RouterContext Context;
+
+        public I2NPClient( RouterContext context, NTCPClient transport )
+        {
+            Context = context;
+            Transport = transport;
+
+            Transport.ConnectionEstablished += new NTCPClient.ConnectionEvent( Transport_ConnectionEstablished );
+            Transport.ConnectionShutDown += new NTCPClient.ConnectionEvent( Transport_ConnectionShutDown );
+            Transport.DataBlockReceived += new NTCPClient.DataBlockReceivedEvent( Transport_DataBlockReceived );
+        }
+
+        void Transport_ConnectionShutDown()
+        {
+            Terminate();
+        }
+
+        public void Terminate()
+        {
+            Terminated = true;
+            if ( Worker != null ) 
+            {
+                Worker.Abort();
+                Worker = null;
+            }
+        }
+
+        void Send( I2NPMessage msg )
+        {
+            Transport.Send( ( new I2NPHeader16( msg ) ).ToByteArray() );
+        }
+
+        Random Rnd = new Random();
+
+        void Run()
+        {
+            try
+            {
+                try
+                {
+                    while ( !Terminated )
+                    {
+                        Thread.Sleep( 2000 );
+                        //if ( Rnd.Next( 1000 ) < 15 ) Transport.Send( null );
+
+                        //if ( Rnd.Next( 10000 ) < 15 ) Transport.Send( BufUtils.Random( 13673 ) );
+
+                        if ( Rnd.Next( 1000 ) < 8 )
+                        {
+                            BuildTunnel();
+                        }
+                        if ( Rnd.Next( 1000 ) < 8 )
+                        {
+                            /*
+                            Send( new DatabaseLookup(
+                                new I2PIdentHash( true ),
+                                Context.MyRouterIdentity.IdentHash,
+                                DatabaseLookup.LookupTypes.Normal ) ); ;
+                             */
+                        }
+                    }
+                }
+                catch ( ThreadAbortException ex )
+                {
+                    DebugUtils.Log( ex );
+                }
+                catch ( Exception ex )
+                {
+                    DebugUtils.Log( ex );
+                }
+            }
+
+            finally
+            {
+                if ( ConnectionShutDown != null ) ConnectionShutDown();
+                Terminated = true;
+                Worker = null;
+            }
+        }
+
+        void Transport_ConnectionEstablished()
+        {
+            /*
+            var ds = new DatabaseStore( Context.MyRouterIdentity.IdentHash, Transport.MyRouterInfo, 0x4242 );
+            Send( ds );
+             */
+            /*
+            var ls = new I2PLeaseSet( Context.MyRouterIdentity,
+                    new I2PLease[] {
+                        new I2PLease(
+                            Context.MyRouterIdentity.IdentHash, 
+                            0, 
+                            new I2PDate( DateTime.UtcNow.AddHours( 0.5 ) ) )
+                    },
+                    new I2PLeaseInfo(
+                        Context.PublicKey,
+                        Context.PrivateKey,
+                        Context.PrivateSigningKey,
+                        Context.PublicSigningKey ) );
+            DebugUtils.Log( ls.ToString() );
+            var ds = new DatabaseStore( Context.MyRouterIdentity.IdentHash, ls, 0 );
+            */
+
+            // If Floodfill...
+            //(netdb.knownLeaseSets:99)(netdb.knownRouters:4324)
+            // ds.RouterInfo.Options["netdb.knownLeaseSets"] = "7";
+            // ds.RouterInfo.Options["netdb.knownRouters"] = "42";
+
+            /*
+            DebugUtils.Log( "=========================================" );
+            DebugUtils.Log( "Sending: " + ds.ToString() );
+            DebugUtils.Log( "=========================================" );
+             */
+
+            //Transport.Send( null );
+
+            if ( Worker == null )
+            {
+                Worker = new Thread( () => Run() );
+                Worker.IsBackground = true;
+                Worker.Start();
+<<<<<<< Updated upstream
+
+                var vtb = new VariableTunnelBuild(
+                    Context.Db,
+                    Context.RemoteRouterIdentity, 
+                    Context.MyRouterIdentity, 
+                    new I2PTunnelId(),
+                    BufUtils.RandomUint(),
+                    0
+                    );
+
+                DebugUtils.Log( vtb.ToString() );
+                Send( vtb );
+=======
+>>>>>>> Stashed changes
+            }
+        }
+
+        void Transport_DataBlockReceived( byte[] data )
+        {
+            int ix = 0;
+            var header = new I2NPHeader16( data, ref ix );
+
+            DebugUtils.Log( string.Format( "I2NP received {0} with {1} bytes [0x{1:X}]", header.MessageType, header.PayloadLength ) );
+
+            switch ( header.MessageType )
+            {
+                case I2NPMessage.MessageTypes.DatabaseStore:
+                    HandleDatabaseStore( new DatabaseStore( data, ref ix ) );
+                    break;
+            }
+        }
+
+        private void HandleDatabaseStore( DatabaseStore dstore )
+        {
+            DebugUtils.Log( dstore.ToString() );
+            if ( dstore.Content == DatabaseStore.MessageContent.RouterInfo )
+            {
+                if ( ReceivedRouterInfo != null ) ReceivedRouterInfo( dstore.RouterInfo );
+            }
+            else
+            {
+                if ( ReceivedLeaseSet != null ) ReceivedLeaseSet( dstore.LeaseSet );
+            }
+
+            BuildTunnel();
+
+        }
+
+        private void BuildTunnel()
+        {
+            var vtb = new VariableTunnelBuild( Context.RemoteRouterIdentity, Context.MyRouterIdentity, Context.Db, 0 );
+            DebugUtils.Log( vtb.ToString() );
+            Send( vtb );
+        }
+    }
+}

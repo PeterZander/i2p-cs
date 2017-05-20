@@ -1,0 +1,234 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.21022</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{383410B1-C0B4-4957-8F36-0107C7F109E3}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>I2PCore</RootNamespace>
+    <AssemblyName>I2PCore</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;NO_LOG_ALL_TRANSPORT, LOG_ALL_TUNNEL_TRANSFER, NO_LOG_MUCH_TRANSPORT</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE;NO_LOG_ALL_TRANSPORT, NO_LOG_ALL_TUNNEL_TRANSFER</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Security" />
+    <Reference Include="System.Xml.Linq">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data.DataSetExtensions">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ChecksumFailureException.cs" />
+    <Compile Include="Data\I2PDestinationInfo.cs" />
+    <Compile Include="NetDb\IdentResolver.cs" />
+    <Compile Include="RouterUnresolvable.cs" />
+    <Compile Include="Data\I2PDateShort.cs" />
+    <Compile Include="Data\I2PCertificate.cs" />
+    <Compile Include="Data\I2PConstants.cs" />
+    <Compile Include="Data\I2PDate.cs" />
+    <Compile Include="Data\I2PDestination.cs" />
+    <Compile Include="Data\I2PIdentHash.cs" />
+    <Compile Include="Data\I2PIdentHashComparer.cs" />
+    <Compile Include="Data\I2PKeyType.cs" />
+    <Compile Include="Data\I2PLeaseInfo.cs" />
+    <Compile Include="Data\I2PMapping.cs" />
+    <Compile Include="Data\I2PMessagePayload.cs" />
+    <Compile Include="Data\I2PRawData.cs" />
+    <Compile Include="Data\I2PRoutingKey.cs" />
+    <Compile Include="Data\I2PSessionConfig.cs" />
+    <Compile Include="Data\I2PSigningKey.cs" />
+    <Compile Include="Data\I2PHashSHA256.cs" />
+    <Compile Include="Data\I2PStringComparer.cs" />
+    <Compile Include="Data\I2PStringEqualityComparer.cs" />
+    <Compile Include="Data\I2PType.cs" />
+    <Compile Include="Data\I2PKeysAndCert.cs" />
+    <Compile Include="Data\I2PLease.cs" />
+    <Compile Include="Data\I2PLeaseSet.cs" />
+    <Compile Include="Data\I2PPrivateKey.cs" />
+    <Compile Include="Data\I2PPublicKey.cs" />
+    <Compile Include="Data\I2PRouterAddress.cs" />
+    <Compile Include="Data\I2PRouterIdentity.cs" />
+    <Compile Include="Data\I2PRouterInfo.cs" />
+    <Compile Include="Data\I2PSessionKey.cs" />
+    <Compile Include="Data\I2PSessionTag.cs" />
+    <Compile Include="Data\I2PSignature.cs" />
+    <Compile Include="Data\I2PSigningPrivateKey.cs" />
+    <Compile Include="Data\I2PSigningPublicKey.cs" />
+    <Compile Include="Data\I2PString.cs" />
+    <Compile Include="Data\I2PTunnelId.cs" />
+    <Compile Include="EndOfStreamEncounteredException.cs" />
+    <Compile Include="FailedToConnectException.cs" />
+    <Compile Include="NetDb\DestinationStatistics.cs" />
+    <Compile Include="NetDb\FloodfillUpdater.cs" />
+    <Compile Include="NetDb\PublishedBandwidth.cs" />
+    <Compile Include="NetDb\SessionStatistics.cs" />
+    <Compile Include="NetDb\NetDb.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Router\Router.cs" />
+    <Compile Include="Router\RouterContext.cs" />
+    <Compile Include="Router\Watchdog.cs" />
+    <Compile Include="SignatureCheckFailureException.cs" />
+    <Compile Include="Transport\DecayingIPBlockFilter.cs" />
+    <Compile Include="Transport\ITransport.cs" />
+    <Compile Include="Transport\LookupDestination.cs" />
+    <Compile Include="Transport\NTCP\DHHandshakeContext.cs" />
+    <Compile Include="Transport\NTCP\NTCPClient.cs" />
+    <Compile Include="Transport\NTCP\NTCPClientIncoming.cs" />
+    <Compile Include="Transport\NTCP\NTCPClientOutgoing.cs" />
+    <Compile Include="Transport\NTCP\NTCPHost.cs" />
+    <Compile Include="Transport\NTCP\NTCPReader.cs" />
+    <Compile Include="Transport\NTCP\NTCPRunningContext.cs" />
+    <Compile Include="Transport\NTCP\SessionConfirmA.cs" />
+    <Compile Include="Transport\NTCP\SessionConfirmB.cs" />
+    <Compile Include="Transport\NTCP\SessionCreated.cs" />
+    <Compile Include="Transport\NTCP\SessionRequest.cs" />
+    <Compile Include="Transport\SSU\DataFragmenter.cs" />
+    <Compile Include="Transport\SSU\Data\DataFragment.cs" />
+    <Compile Include="Transport\SSU\DataDefragmenter.cs" />
+    <Compile Include="Transport\SSU\Data\DataMessage.cs" />
+    <Compile Include="Transport\SSU\Data\IntroducerInfo.cs" />
+    <Compile Include="Transport\SSU\Data\PeerTest.cs" />
+    <Compile Include="Transport\SSU\Data\RelayResponse.cs" />
+    <Compile Include="Transport\SSU\FragmentedMessage.cs" />
+    <Compile Include="Transport\SSU\PeerTestState.cs" />
+    <Compile Include="Transport\SSU\SendBufferPool.cs" />
+    <Compile Include="Transport\SSU\States\EstablishedState.cs" />
+    <Compile Include="Transport\SSU\RebuildI2NPMessage.cs" />
+    <Compile Include="Transport\SSU\States\RelayRequestState.cs" />
+    <Compile Include="Transport\SSU\States\SessionConfirmedState.cs" />
+    <Compile Include="Transport\SSU\Data\SessionCreated.cs" />
+    <Compile Include="Transport\SSU\States\SessionCreatedState.cs" />
+    <Compile Include="Transport\SSU\Data\SessionRequest.cs" />
+    <Compile Include="Transport\SSU\States\SessionRequestState.cs" />
+    <Compile Include="Transport\SSU\Data\SSUHeader.cs" />
+    <Compile Include="Transport\SSU\SSUHost.cs" />
+    <Compile Include="Transport\SSU\SSUSession.cs" />
+    <Compile Include="Transport\SSU\States\SSUState.cs" />
+    <Compile Include="Transport\TransportProvider.cs" />
+    <Compile Include="Transport\UnknownRouterQueue.cs" />
+    <Compile Include="Transport\UnresolvableRouters.cs" />
+    <Compile Include="Tunnel\Destination\ClientDestination.cs" />
+    <Compile Include="Tunnel\Destination\TagsTransferWindow.cs" />
+    <Compile Include="Tunnel\ExplorationTunnelProvider.cs" />
+    <Compile Include="Tunnel\GatewayTunnel.cs" />
+    <Compile Include="Tunnel\EndpointTunnel.cs" />
+    <Compile Include="Tunnel\I2NP\Data\AesEGBuildRequestRecord.cs" />
+    <Compile Include="Tunnel\I2NP\Data\BuildRequestRecord.cs" />
+    <Compile Include="Tunnel\Destination\DestinationSession.cs" />
+    <Compile Include="Tunnel\I2NP\Data\Garlic.cs" />
+    <Compile Include="Tunnel\I2NP\Data\EGGarlic.cs" />
+    <Compile Include="Tunnel\I2NP\Data\GarlicClove.cs" />
+    <Compile Include="Tunnel\I2NP\Data\GarlicCloveDelivery.cs" />
+    <Compile Include="Tunnel\Destination\GarlicCreationInfo.cs" />
+    <Compile Include="Tunnel\I2NP\Data\I2NPHeader.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\DatabaseSearchReplyMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Data\I2NPHeader5.cs" />
+    <Compile Include="Tunnel\ClientTunnelProvider.cs" />
+    <Compile Include="Tunnel\Destination\DestinationSessions.cs" />
+    <Compile Include="Tunnel\I2NP\Data\GarlicAESBlock.cs" />
+    <Compile Include="Tunnel\Destination\ReceivedSessions.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\DataMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\DeliveryStatusMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Data\EGBuildRequestRecord.cs" />
+    <Compile Include="Tunnel\I2NP\Data\HopInfo.cs" />
+    <Compile Include="Tunnel\I2NP\Data\TunnelInfo.cs" />
+    <Compile Include="Tunnel\I2NP\I2NPUtil.cs" />
+    <Compile Include="Tunnel\I2NP\Data\BuildResponseRecord.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\DatabaseLookupMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Data\I2NPHeader16.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\DatabaseStoreMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\GarlicMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\I2NPMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelBuildMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelBuildReplyMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelDataMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelDataFragment.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelDataFragmentCreation.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelGatewayMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\TunnelMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\VariableTunnelBuildMessage.cs" />
+    <Compile Include="Tunnel\I2NP\Messages\VariableTunnelBuildReplyMessage.cs" />
+    <Compile Include="Tunnel\InboundTunnel.cs" />
+    <Compile Include="Tunnel\OutboundTunnel.cs" />
+    <Compile Include="Tunnel\PassthroughTunnelProvider.cs" />
+    <Compile Include="Tunnel\PassthroughTunnel.cs" />
+    <Compile Include="Tunnel\TunnelConfig.cs" />
+    <Compile Include="Tunnel\Tunnel.cs" />
+    <Compile Include="Tunnel\TunnelDataFragmentReassembly.cs" />
+    <Compile Include="Tunnel\TunnelProvider.cs" />
+    <Compile Include="Tunnel\TunnelSettings.cs" />
+    <Compile Include="Tunnel\TunnelTester.cs" />
+    <Compile Include="Utils\Bandwidth.cs" />
+    <Compile Include="Utils\BandwidthLimiter.cs" />
+    <Compile Include="Utils\BandwidthStatistics.cs" />
+    <Compile Include="Utils\BufRef.cs" />
+    <Compile Include="Utils\BufUtils.cs" />
+    <Compile Include="Utils\DebugUtils.cs" />
+    <Compile Include="Utils\ElGamalCrypto.cs" />
+    <Compile Include="Utils\FreenetBase64.cs" />
+    <Compile Include="Utils\HashedItemGroup.cs" />
+    <Compile Include="Utils\I2PHMACMD5Digest.cs" />
+    <Compile Include="Utils\ItemFilterWindow.cs" />
+    <Compile Include="Utils\LZUtils.cs" />
+    <Compile Include="Utils\RefPair.cs" />
+    <Compile Include="Utils\PeriodicAction.cs" />
+    <Compile Include="Utils\PeriodicLogger.cs" />
+    <Compile Include="Utils\RouletteSelection.cs" />
+    <Compile Include="Utils\RunBatchWait.cs" />
+    <Compile Include="Utils\Store.cs" />
+    <Compile Include="Utils\StreamUtils.cs" />
+    <Compile Include="Utils\TickCounter.cs" />
+    <Compile Include="Utils\TimeWindowDictionary.cs" />
+    <Compile Include="Utils\UPnp.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\submodules\BouncyCastle\crypto\crypto.csproj">
+      <Project>{38872A5F-E87E-4FAD-B109-8EB7B2E6A4A0}</Project>
+      <Name>crypto</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\submodules\Chaos.NaCl\Chaos.NaCl\Chaos.NaCl.csproj">
+      <Project>{AE28FD14-7985-4707-A963-C94B8597AE50}</Project>
+      <Name>Chaos.NaCl</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Streaming\" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

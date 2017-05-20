@@ -1,0 +1,215 @@
+﻿#define BOUNCY_CRYPTO
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using I2PCore.Data;
+using I2PCore.Utils;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Engines;
+
+namespace I2PCore.Tunnel.I2NP.Messages
+{
+    public class BuildRequestRecord: I2PType
+    {
+        public I2PTunnelId ReceiveTunnel;
+        public I2PIdentHash OurIdent;
+        public I2PTunnelId NextTunnel;
+        public I2PIdentHash NextIdent;
+        public I2PSessionKey LayerKey;
+        public I2PSessionKey IVKey;
+        public I2PSessionKey ReplyKey;
+        public I2PRawData ReplyIV; // 16 bytes
+        public byte Flag;
+        public uint RequestTime; // Another DT format... Hours since 1970.
+        public uint SendMessageId;
+        public byte[] Padding;
+
+        I2PKeysAndCert Destination;
+
+        protected BuildRequestRecord()
+        {
+        }
+
+        public BuildRequestRecord( 
+<<<<<<< Updated upstream
+            I2PTunnelId rectunnel,
+            I2PKeysAndCert dest,
+            I2PTunnelId nexttunnel,
+            I2PKeysAndCert next,
+            I2PSessionKey replykey,
+            I2PRawData replyiv,
+            uint sendmessageid
+=======
+            I2PKeysAndCert dest, 
+            I2PKeysAndCert next, 
+            I2PTunnelId rectunnel 
+>>>>>>> Stashed changes
+            )
+        {
+            Destination = dest;
+
+            ReceiveTunnel = rectunnel;
+            OurIdent = Destination.IdentHash;
+<<<<<<< Updated upstream
+            NextTunnel = nexttunnel;
+=======
+            NextTunnel = I2PTunnelId.Zero;
+>>>>>>> Stashed changes
+            NextIdent = next.IdentHash;
+            LayerKey = new I2PSessionKey();
+            IVKey = new I2PSessionKey();
+            ReplyKey = replykey;
+            ReplyIV = replyiv;
+            RequestTime = (uint)( DateTime.UtcNow - I2PDate.RefDate ).TotalHours;
+<<<<<<< Updated upstream
+            SendMessageId = sendmessageid;
+=======
+            SendMessageId = BufUtils.RandomUint();
+>>>>>>> Stashed changes
+            Padding = BufUtils.Random( 29 );
+        }
+
+        public BuildRequestRecord( byte[] data, ref int ix )
+        {
+            ReceiveTunnel = new I2PTunnelId( data, ref ix );
+            OurIdent = new I2PIdentHash( data, ref ix );
+            NextTunnel = new I2PTunnelId( data, ref ix );
+            NextIdent = new I2PIdentHash( data, ref ix );
+            LayerKey = new I2PSessionKey( data, ref ix );
+            IVKey = new I2PSessionKey( data, ref ix );
+            ReplyKey = new I2PSessionKey( data, ref ix );
+            ReplyIV = new I2PRawData( data, ref ix, 16 );
+            Flag = BufUtils.Read8( data, ref ix );
+            RequestTime = BufUtils.ReadFlip32( data, ref ix );
+            SendMessageId = BufUtils.Read32( data, ref ix );
+            Padding = data.Copy( ref ix, 29 );
+        }
+
+        /// <summary>
+        /// Is inbound gateway.
+        /// </summary>
+        public bool FromAnyone
+        {
+            get
+            {
+                return ( Flag & 0x80 ) != 0;
+            }
+            set
+            {
+                if ( ToAnyone && value ) throw new InvalidOperationException( "Both To and From anyone cannot be set at the same time!" );
+                Flag = (byte)( ( Flag & 0x7F ) | ( value ? 0x80 : 0 ) );
+            }
+        }
+
+        /// <summary>
+        /// Is outbound endpoint.
+        /// </summary>
+        public bool ToAnyone
+        {
+            get
+            {
+                return ( Flag & 0x40 ) != 0;
+            }
+            set
+            {
+                if ( FromAnyone && value ) throw new InvalidOperationException( "Both To and From anyone cannot be set at the same time!" );
+                Flag = (byte)( ( Flag & 0xBF ) | ( value ? 0x40 : 0 ) );
+            }
+        }
+
+        // 222 bytes
+        public void WriteClear( List<byte> dest )
+        {
+            ReceiveTunnel.Write( dest );
+            OurIdent.Write( dest );
+            NextTunnel.Write( dest );
+            NextIdent.Write( dest );
+            LayerKey.Write( dest );
+            IVKey.Write( dest );
+            ReplyKey.Write( dest );
+            ReplyIV.Write( dest );
+            dest.Add( Flag );
+            dest.AddRange( EndianUtils.Flip32B( RequestTime ) );
+            dest.AddRange( BitConverter.GetBytes( SendMessageId ) );
+            dest.AddRange( Padding );
+        }
+
+        byte[] WriteBuf;
+        public void Encrypt( BufferedBlockCipher cipher )
+        {
+            if ( WriteBuf == null )
+            {
+                var buf = new List<byte>();
+                WriteElGamal( buf );
+                cipher.Reset();
+                WriteBuf = cipher.ProcessBytes( buf.ToArray() );
+            }
+            else
+            {
+                cipher.Reset();
+                WriteBuf = cipher.ProcessBytes( WriteBuf );
+            }
+        }
+
+        public void Encrypt()
+        {
+            var buf = new List<byte>();
+            WriteElGamal( buf );
+            WriteBuf = buf.ToArray();
+        }
+
+        // 528 bytes
+        public void WriteElGamal( List<byte> dest )
+        {
+            var buf = new List<byte>();
+            WriteClear( buf );
+            var ar = buf.ToArray();
+
+#if BOUNCY_CRYPTO
+            var key = new ElGamalPublicKeyParameters( Destination.PublicKey.Key, 
+                new ElGamalParameters( I2PConstants.ElGamalP, I2PConstants.ElGamalG ) );
+            var eng = new ElGamalEngine();
+            eng.Init( true, key );
+            var encrypted = eng.ProcessBlock( ar, ar.Length, 0 );
+#else
+            var crypto2 = new ElGamalCrypto( Destination.PublicKey.Key );
+            var encrypted2 = crypto2.Encrypt( ar, ar.Length, false );
+#endif
+
+            //var ok = BufUtils.Equal( encrypted, encrypted2 );
+
+            dest.AddRange( Destination.IdentHash.Hash16 );
+            dest.AddRange( encrypted );
+        }
+
+        public virtual void Write( List<byte> dest )
+        {
+            dest.AddRange( WriteBuf );
+        }
+
+        public void SetNext( BuildRequestRecord next )
+        {
+            NextIdent = next.OurIdent;
+            NextTunnel = next.ReceiveTunnel;
+            ToAnyone = false;
+        }
+
+        public override string ToString()
+        {
+            var result = new StringBuilder();
+
+            result.AppendLine( "BuildRequestRecord" );
+            result.AppendLine( "OurIdent      : " + OurIdent.ToString() );
+            result.AppendLine( "ReceiveTunnel : " + ReceiveTunnel.ToString() );
+            result.AppendLine( "NextTunnel    : " + NextTunnel.ToString() );
+            result.AppendLine( "NextIdent     : " + NextIdent.ToString() );
+            result.AppendLine( "ToAnyone      : " + ToAnyone.ToString() );
+            result.AppendLine( "FromAnyone    : " + FromAnyone.ToString() );
+
+            return result.ToString();
+        }
+    }
+}
