@@ -141,7 +141,7 @@ namespace I2PCore
         {
             get
             {
-                return Path.GetFullPath( StreamUtils.AppPath + "NetDb\\" );
+				return Path.GetFullPath( Path.Combine( StreamUtils.AppPath, "NetDb" ) );
             }
         }
 
@@ -153,7 +153,7 @@ namespace I2PCore
         public string GetFullPath( I2PRouterInfo ri )
         {
             var hash = ri.Identity.IdentHash.Id64;
-            return GetFullPath( "r" + hash[0] + "\\routerInfo-" + hash + ".dat" );
+			return GetFullPath( Path.Combine( "r" + hash[0], "routerInfo-" + hash + ".dat" ) );
         }
 
         List<string> GetNetDbFiles()

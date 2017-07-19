@@ -12,7 +12,7 @@ namespace I2PCore.Utils
         { 
             get 
             {
-                return Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData ) + "\\I2Pz\\";
+				return Path.Combine( Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData ), "I2Pz" );
             } 
         }
 
