@@ -113,6 +113,8 @@ namespace I2PCore
             {
                 lock ( Destinations )
                 {
+                    if ( !Destinations.Any() ) return;
+
                     var avgageage = Destinations.Average( ds => (double)(ulong)ds.Value.LastSeen );
 
                     foreach ( var one in Destinations.ToArray() )
@@ -126,6 +128,7 @@ namespace I2PCore
                             }
                             Destinations.Remove( one.Key );
                             ++deleted;
+                            continue;
                         }
 
                         var rec = new BufLen[] { (BufLen)(int)StoreRecordId.DestinationStatistics, new BufLen( one.Value.ToByteArray() ) };
@@ -171,7 +174,7 @@ namespace I2PCore
 
         public void SlowHandshakeConnect( I2PIdentHash hash )
         {
-            Update( hash, ds => Interlocked.Increment( ref ds.SlowHandshakeConnect ), true );
+            Update( hash, ds => Interlocked.Increment( ref ds.SlowHandshakeConnect ), false );
         }
 
         public void SuccessfulTunnelMember( I2PIdentHash hash )
@@ -256,17 +259,32 @@ namespace I2PCore
             }
         }
 
-        const ulong oneweek = 1000 * 60 * 60 * 24 * 7;
+        const double oneweek = 1000d * 60 * 60 * 24 * 7;
 
         internal IEnumerable<I2PIdentHash> GetInactive()
         {
             lock ( Destinations )
             {
+                if ( !Destinations.Any() ) return Enumerable.Empty<I2PIdentHash>();
+
                 var recent = Destinations.Average( d => (double)(ulong)d.Value.LastSeen );
                 return Destinations.Where( d => 
                     d.Value.Score < ScoreAverage - 2f * ScoreMaxStdDev ||
-                    recent - (ulong)d.Value.LastSeen > oneweek
+                    recent - (double)(ulong)d.Value.LastSeen > oneweek ||
+                    ( d.Value.FailedTunnelTest > 20 && d.Value.FailedTunnelTest > 2 * d.Value.SuccessfulTunnelTest ) ||
+                    ( d.Value.FailedConnects > 5 && d.Value.FailedConnects > 2 * d.Value.SuccessfulConnects )
                     ).Select( d => d.Key ).ToArray();
+            }
+        }
+
+        internal void RemoveInactive()
+        {
+            lock ( Destinations )
+            {
+                foreach( var one in GetInactive() )
+                {
+                    Destinations.Remove( one );
+                }
             }
         }
 

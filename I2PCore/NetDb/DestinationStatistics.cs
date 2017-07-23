@@ -53,24 +53,14 @@ namespace I2PCore
         float CachedScore;
         internal void UpdateScore()
         {
-            var plus = 0f;
-            var minus = 0f;
-            float plusmin;
-            
-            // These can grow indefiniely, and could balance out.
-            plusmin = SuccessfulConnects * 1.0f - FailedConnects * 3.00f - SlowHandshakeConnect * 0.5f;
-            if ( plusmin >= 0f ) plus += plusmin; else minus += plusmin;
-
-            plusmin = SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f - TunnelBuildTimeout * 2.0f
+            var score = SuccessfulConnects * 1.0f - FailedConnects * 3.00f 
+                - SlowHandshakeConnect * 0.5f;
+            score += SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f 
+                - TunnelBuildTimeout * 2.0f
                 + FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f;
-            if ( plusmin >= 0f ) plus += plusmin; else minus += plusmin;
+            score += SuccessfulTunnelTest * 0.01f - FailedTunnelTest * 0.003f;
 
-            plusmin = SuccessfulTunnelTest * 0.5f - FailedTunnelTest * 1.5f;
-            if ( plusmin >= 0f ) plus += plusmin; else minus += plusmin;
-
-            CachedScore = 
-                    DiminishingReturns( plus + MaxBandwidthSeen / 1E5f ) + minus
-                    //- (float)( DateTime.UtcNow - (DateTime)LastSeen ).TotalDays * 0.3f
+            CachedScore = score + MaxBandwidthSeen / 1E5f
                     - TunnelBuildTimeMsPerHop / 1000f
                     - InformationFaulty * 15.00f;
         }

@@ -20,7 +20,6 @@ namespace I2PCore
         public const int RouterInfoExpiryTimeSeconds = 60 * 60; // From HandleDatabaseLookupMessageJob.java
 
         const int RouterInfoCountLowWaterMark = 100;
-        const float RouletteMaxScaleFactor = 20f;
 
         class RouterInfoMeta
         {
@@ -68,6 +67,17 @@ namespace I2PCore
 
         protected NetDb()
         {
+            var dirname = RouterContext.RouterPath;
+            if ( !Directory.Exists( dirname ) )
+            {
+                Directory.CreateDirectory( dirname );
+            }
+            dirname = NetDbPath;
+            if ( !Directory.Exists( dirname ) )
+            {
+                Directory.CreateDirectory( dirname );
+            }
+
             Worker = new Thread( () => Run() );
             Worker.Name = "NetDb";
             Worker.IsBackground = true;
@@ -177,7 +187,7 @@ namespace I2PCore
                 var sw2 = new Stopwatch();
                 sw2.Start();
                 var ix = 0;
-                while ( ( ix = s.Next( ix ) ) > 0 )
+                while ( s != null && ( ix = s.Next( ix ) ) > 0 )
                 {
                     var reader = new BufRefLen( s.Read( ix ) );
                     var recordtype = (StoreRecordId)reader.Read32();
@@ -220,18 +230,24 @@ namespace I2PCore
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.LogDebug( "NetDb: Load: Store exception, ix [" + ix.ToString() + "] removed. " + ex.ToString() );
+                        DebugUtils.LogDebug( $"NetDb: Load: Store exception, ix [{ix}] removed. {ex}" );
                         s.Delete( ix );
                     }
                 }
                 sw2.Stop();
-                DebugUtils.Log( "Store: " + sw2.Elapsed.ToString() );
+                DebugUtils.Log( $"Store: {sw2.Elapsed}" );
             }
 
             var files = GetNetDbFiles();
             foreach ( var file in files )
             {
                 AddRouterInfo( file );
+            }
+
+            lock ( RouterInfos )
+                if ( RouterInfos.Count == 0 )
+            {
+                DebugUtils.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
             }
 
             Statistics.Load();
@@ -252,17 +268,17 @@ namespace I2PCore
             lock ( RouterInfos )
             {
                 Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( RouterInfos.Values.Select( p => p.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score, RouletteMaxScaleFactor );
+                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 Statistics.UpdateScoreAverages( Roulette.AverageFit, Roulette.StdDevFit );
 
                 RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     RouterInfos.Where( p => p.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score, RouletteMaxScaleFactor );
+                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     RouterInfos.Where( ri => !ri.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score, RouletteMaxScaleFactor );
+                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 DebugUtils.LogInformation( "All routers" );
                 ShowRouletteStatistics( Roulette );
@@ -271,11 +287,14 @@ namespace I2PCore
                 DebugUtils.LogInformation( "Non floodfill routers" );
                 ShowRouletteStatistics( RouletteNonFloodFill );
             }
+
+            DebugUtils.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
         }
 
         private void ShowRouletteStatistics( RouletteSelection<I2PRouterInfo, I2PIdentHash> roulette )
         {
             if ( DebugUtils.LogLevel > DebugUtils.LogLevels.Information ) return;
+            if ( !roulette.Wheel.Any() ) return;
 
             float Mode = 0f;
             var bins = 20;
@@ -286,14 +305,16 @@ namespace I2PCore
                 Mode = hist.Where( b => b.Count == maxcount ).First().Start + ( hist[1].Start - hist[0].Start ) / 2f;
             }
 
-            DebugUtils.LogInformation( string.Format( "Roulette stats: Count {3}, Min {0:0.00}, Avg {1:0.00}, Mode {6:0.00}, Max {2:0.00}, Stddev: {5:0.00}, Skew {4:0.00}",
+            DebugUtils.LogInformation( string.Format( 
+                "Roulette stats: Count {3}, Min {0:0.00}, Avg {1:0.00} ({7:0.00}), Mode {6:0.00}, Max {2:0.00}, Stddev: {5:0.00}, Skew {4:0.00}",
                 roulette.MinFit,
                 roulette.AverageFit,
                 roulette.MaxFit,
                 roulette.Wheel.Count,
                 roulette.Wheel.Skew( sp => sp.Fit ),
                 roulette.StdDevFit,
-                Mode ) );
+                Mode,
+                RouletteSelection<I2PRouterInfo, I2PIdentHash>.RandomFitEMA ) );
 
             if ( DebugUtils.LogLevel > DebugUtils.LogLevels.Debug ) return;
 
@@ -444,6 +465,7 @@ namespace I2PCore
 
             sw.Stop();
             DebugUtils.Log( "NetDB: Save: " + sw.Elapsed.ToString() );
+
         }
 
         public void AddRouterInfo( I2PRouterInfo info )
@@ -598,19 +620,21 @@ namespace I2PCore
             return GetRandomRouterInfo( Roulette, exploratory );
         }
 
-        ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 12 ), 1 );
+        ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 3 ), 1 );
 
-        public I2PRouterInfo GetRandomRouterInfoForTunnelBuild( bool exploratory )
+        public I2PIdentHash GetRandomRouterForTunnelBuild( bool exploratory )
         {
-            I2PRouterInfo result;
+            I2PIdentHash result;
+
+            if ( exploratory ) GetRandomRouter( Roulette, exploratory );
 
             int retries = 0;
             do
             {
-                result = GetRandomRouterInfo( exploratory );
-            } while ( ++retries < 100 && !RecentlyUsedForTunnel.Test( result.Identity.IdentHash ) );
+                result = GetRandomRouter( Roulette, exploratory );
+            } while ( ++retries < 100 && !RecentlyUsedForTunnel.Test( result ) );
 
-            RecentlyUsedForTunnel.Update( result.Identity.IdentHash );
+            RecentlyUsedForTunnel.Update( result );
             return result;
         }
 
