@@ -31,7 +31,7 @@ namespace I2PCore.Transport.SSU
 
             if ( Introducers.Count == 0 )
             {
-                throw new FailedToConnectException( "SSU +" + Session.TransportInstance.ToString() + "+ Failed to find a non established introducer" );
+                throw new FailedToConnectException( "SSU +{Session.TransportInstance}+ Failed to find a non established introducer" );
             }
             else
             {
@@ -57,28 +57,28 @@ namespace I2PCore.Transport.SSU
             if ( Timeout( HandshakeStateTimeoutSeconds ) )
             {
                 Session.Host.RelayResponseReceived -= Host_RelayResponseReceived; 
-                throw new FailedToConnectException( "SSU RelayRequestState " + Session.DebugId + " Failed to connect. Timeout." );
+                throw new FailedToConnectException( "SSU RelayRequestState {Session.DebugId} Failed to connect. Timeout." );
             }
 
             ResendRelayRequestAction.Do( () =>
             {
                 if ( ++Retries > RelayRequestStateMaxRetries )
                 {
-                    DebugUtils.LogDebug( "SSU RelayRequestState: " + Session.DebugId +
-                        " Using introducer '" + CurrentIntroducer.ToString() + "' timed out." );
+                    DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId}" +
+                        $" Using introducer '{CurrentIntroducer.EndPoint}' timed out." );
 
                     if ( Introducers.Count == 0 )
                     {
                         Session.Host.RelayResponseReceived -= Host_RelayResponseReceived;
-                        throw new FailedToConnectException( "SSU +" + Session.TransportInstance.ToString() + "+ Failed to find a non established introducer" );
+                        throw new FailedToConnectException( $"SSU +{Session.TransportInstance}+ Failed to find a non established introducer" );
                     }
                     else
                     {
                         CurrentIntroducer = Introducers[0];
                         Introducers.RemoveAt( 0 );
 
-                        DebugUtils.LogDebug( "SSU RelayRequestState: +" + Session.TransportInstance.ToString() +
-                            "+ Trying introducer '" + CurrentIntroducer.EndPoint.ToString() + "' next." );
+                        DebugUtils.LogDebug( $"SSU RelayRequestState: +{Session.TransportInstance}+ " +
+                            $"Trying introducer '{CurrentIntroducer.EndPoint}' next." );
 
                         Retries = 0;
                     }
@@ -94,7 +94,7 @@ namespace I2PCore.Transport.SSU
         {
             if ( CurrentIntroducer == null ) return;
 
-            DebugUtils.LogDebug( "SSU RelayRequestState: " + Session.DebugId + " Sending RelayRequest to " + CurrentIntroducer.EndPoint.ToString() );
+            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {CurrentIntroducer.EndPoint}" );
 
             SendMessage(
                 CurrentIntroducer.EndPoint,
@@ -137,9 +137,8 @@ namespace I2PCore.Transport.SSU
                 }
                 else
                 {
-                    DebugUtils.LogDebug( () => string.Format( 
-                        "SSU RelayRequestState: {0} RelayResponse from {1} received. Waiting for response from {2}.",
-                        Session.DebugId, ep.Address, CurrentIntroducer.EndPoint.Address ) );
+                    DebugUtils.LogDebug( () =>  
+                        $"SSU RelayRequestState: {Session.DebugId} RelayResponse from {ep.Address} received. Waiting for response from {CurrentIntroducer.EndPoint.Address}." );
                 }
             }
         }
@@ -147,10 +146,10 @@ namespace I2PCore.Transport.SSU
         SSUState HandleRelayResponse( RelayResponse response )
         {
             var cep = response.CharlieEndpoint;
-            DebugUtils.LogDebug( "SSU RelayRequestState: " + Session.DebugId + " RelayResponse " + response.ToString() );
+            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} RelayResponse {response}" );
 
             var noncematch = Nonce == response.Nonce.Peek32( 0 );
-            DebugUtils.LogDebug( "SSU RelayRequestState: " + Session.DebugId + " Nonce match: " + noncematch.ToString() );
+            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Nonce match: {noncematch}" );
             if ( !noncematch ) return this;
 
             Session.RemoteEP = response.CharlieEndpoint;
@@ -163,7 +162,7 @@ namespace I2PCore.Transport.SSU
         public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
         {
 #if LOG_ALL_TRANSPORT
-            DebugUtils.LogDebug( "SSU RelayRequestState: " + Session.DebugId + " Received " + header.MessageType.ToString() );
+            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Received {header.MessageType}" );
 #endif
 
             if ( header.MessageType == SSUHeader.MessageTypes.RelayResponse )

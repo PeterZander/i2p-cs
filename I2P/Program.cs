@@ -49,9 +49,13 @@ namespace I2P
                             RouterContext.Inst.DefaultUDPPort = port;
                         }
                         break;
+                        
+                    case "--nofw":
+                        RouterContext.Inst.IsFirewalled = false;
+                        break;
 
                     default:
-                        Console.WriteLine( "Usage: I2P.exe --addr 12.34.56.78 --port 8081" );
+                        Console.WriteLine( "Usage: I2P.exe --addr 12.34.56.78 --port 8081 --nofw" );
                         break;
                 }
             }

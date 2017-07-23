@@ -11,6 +11,7 @@ using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Data;
+using I2PCore.Transport.SSU.Data;
 
 namespace I2PCore.Transport.SSU
 {
@@ -108,6 +109,16 @@ namespace I2PCore.Transport.SSU
             {
                 throw new SignatureCheckFailureException( "SSU SessionRequestState " + Session.DebugId + ": Received SessionCreated signature check failed." +
                     Session.RemoteRouter.Certificate.ToString() );
+            }
+
+            var relaytag = SCMessage.RelayTag.PeekFlip32( 0 );
+            if ( relaytag != 0 )
+            {
+                Session.Host.IntroductionRelayOffered( 
+                    new IntroducerInfo( 
+                        Session.RemoteEP.Address, 
+                        (ushort)Session.RemoteEP.Port, 
+                        Session.IntroKey, relaytag ) );
             }
 
             DebugUtils.Log( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );

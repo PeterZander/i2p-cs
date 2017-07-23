@@ -169,24 +169,24 @@ namespace I2PCore.Transport.SSU
 
                 for ( int i = 0; i < 3; ++i )
                 {
-                    if ( !RemoteAddr.Options.Contains( "ihost" + i.ToString() ) ) break;
-                    if ( !RemoteAddr.Options.Contains( "iport" + i.ToString() ) ) break;
-                    if ( !RemoteAddr.Options.Contains( "ikey" + i.ToString() ) ) break;
-                    if ( !RemoteAddr.Options.Contains( "itag" + i.ToString() ) )
+                    if ( !RemoteAddr.Options.Contains( $"ihost{i}" ) ) break;
+                    if ( !RemoteAddr.Options.Contains( $"iport{i}" ) ) break;
+                    if ( !RemoteAddr.Options.Contains( $"ikey{i}" ) ) break;
+                    if ( !RemoteAddr.Options.Contains( $"itag{i}" ) )
                     {
-                        DebugUtils.LogWarning( "SSUSession: Connect +" + TransportInstance.ToString() + "+: itag# not present! " +
-                            RemoteAddr.Options.ToString() );
+                        DebugUtils.LogWarning(
+                          $"SSUSession: Connect +{TransportInstance}+: itag# not present! {RemoteAddr.Options}" );
                         break;
                     }
 
-                    if ( !RemoteAddr.Options["ihost" + i.ToString()].Contains( '.' ) ) break;  // TODO: Support IPV6
+                    if ( !RemoteAddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
 
                     //DebugUtils.LogWarning( "SSUSession: Connect " + DebugId + ": " + RemoteAddr.Options.ToString() );
 
-                    var intro = new IntroducerInfo( RemoteAddr.Options["ihost" + i.ToString()],
-                        RemoteAddr.Options["iport" + i.ToString()],
-                        RemoteAddr.Options["ikey" + i.ToString()],
-                        RemoteAddr.Options["itag" + i.ToString()] );
+                    var intro = new IntroducerInfo( RemoteAddr.Options[$"ihost{i}"],
+                        RemoteAddr.Options[$"iport{i}"],
+                        RemoteAddr.Options[$"ikey{i}"],
+                        RemoteAddr.Options[$"itag{i}"] );
 
 #if LOG_ALL_TRANSPORT
                     DebugUtils.LogDebug( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Adding introducer '" +

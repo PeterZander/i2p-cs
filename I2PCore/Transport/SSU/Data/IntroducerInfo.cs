@@ -23,5 +23,13 @@ namespace I2PCore.Transport.SSU.Data
             IntroKey = new BufLen( FreenetBase64.Decode( ikey ) );
             IntroTag = uint.Parse( tag );
         }
+
+        internal IntroducerInfo( IPAddress host, ushort port, BufLen ikey, uint tag )
+        {
+            Host = host;
+            Port = port;
+            IntroKey = ikey;
+            IntroTag = tag;
+        }
     }
 }

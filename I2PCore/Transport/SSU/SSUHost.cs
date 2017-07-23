@@ -27,6 +27,8 @@ namespace I2PCore.Transport.SSU
         object RelayResponseReceivedLock = new object();
         internal event RelayResponseInfo RelayResponseReceived;
 
+        long IncommingConnectionAttempts;
+
 #if DEBUG
         const int SessionCallWarningLevelMilliseconds = 450;
 #endif
@@ -316,6 +318,8 @@ namespace I2PCore.Transport.SSU
                             return;
                         }
 
+                        ++IncommingConnectionAttempts;
+
                         session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
                         Sessions[key] = session;
                         DebugUtils.LogDebug( "SSUHost: incoming connection " + session.DebugId + " from " + key.ToString() + " created." );
@@ -553,6 +557,31 @@ namespace I2PCore.Transport.SSU
             LastIPReport.SetNow();
             MyRouterContext.SSUReportedAddr( ipaddr );
         }
+
+        #region Introduction
+
+
+        TimeWindowDictionary<IPAddress, IntroducerInfo> CurrentIntroducers =
+            new TimeWindowDictionary<IPAddress, IntroducerInfo>( TickSpan.Minutes( 10 ) );
+        
+        internal void IntroductionRelayOffered( IntroducerInfo intro )
+        {
+            if ( !RouterContext.Inst.IsFirewalled ) 
+            {
+                if ( CurrentIntroducers.Count() == 0 )
+                {
+                    MyRouterContext.NoIntroducers();
+                }
+                return;
+            }
+
+            if ( CurrentIntroducers.Count() >= 3 ) return;
+
+            CurrentIntroducers.Set( intro.Host, intro );
+            MyRouterContext.SetIntroducers( CurrentIntroducers.Select( i => i.Value ) );
+        }
+
+        #endregion
 
         DecayingIPBlockFilter IPFilter = new DecayingIPBlockFilter();
         public int BlockedIPCount { get { return IPFilter.Count; } }

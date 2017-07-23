@@ -8,6 +8,7 @@ using System.IO;
 using I2PCore.Utils;
 using I2PCore.Transport.SSU;
 using System.Net.Sockets;
+using I2PCore.Transport.SSU.Data;
 
 // Todo list for all of I2PCore
 // TODO: I need to test my tunnels, because the cascade of tunnel losses, is probably due to really slow or faulty return/out tunnels.
@@ -43,6 +44,8 @@ namespace I2PCore.Router
 {
     public class RouterContext
     {
+        public bool IsFirewalled = true;
+
         // IP settings
         public IPAddress DefaultExtAddress = null;
         public IPAddress ExtAddress
@@ -301,6 +304,10 @@ namespace I2PCore.Router
 
                 ssu.Options["caps"] = ssucaps;
                 ssu.Options["key"] = FreenetBase64.Encode( IntroKey );
+                foreach( var intro in SSUIntroducersInfo )
+                {
+                    ssu.Options[intro.Key] = intro.Value;
+                }
 
                 var result = new I2PRouterInfo(
                     MyRouterIdentity,
@@ -360,6 +367,31 @@ namespace I2PCore.Router
             MyRouterInfoCache = null;
 
             ApplyNewSettings();
+        }
+
+        List<KeyValuePair<string,string>> SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
+
+        internal void NoIntroducers()
+        {
+            SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
+        }
+
+        internal void SetIntroducers( IEnumerable<IntroducerInfo> introducers )
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            var ix = 0;
+
+            foreach( var one in introducers )
+            {
+                result.Add( new KeyValuePair<string, string>( $"ihost{ix}", one.Host.ToString() ) );
+                result.Add( new KeyValuePair<string, string>( $"iport{ix}", one.Port.ToString() ) );
+                result.Add( new KeyValuePair<string, string>( $"ikey{ix}", FreenetBase64.Encode( one.IntroKey ) ) );
+                result.Add( new KeyValuePair<string, string>( $"itag{ix}", one.IntroTag.ToString() ) );
+                ++ix;
+            }
+
+            SSUIntroducersInfo = result;
+            MyRouterInfoCache = null;
         }
     }
 }

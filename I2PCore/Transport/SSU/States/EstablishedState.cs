@@ -82,8 +82,13 @@ namespace I2PCore.Transport.SSU
                     Session.Host.ReportRelayResponse( header, response, Session.RemoteEP );
                     break;
 
-                case SSUHeader.MessageTypes.RelayRequest:
                 case SSUHeader.MessageTypes.RelayIntro:
+                    var intro = new RelayIntro( reader );
+                    DebugUtils.LogDebug( () => $"SSU EstablishedState {Session.DebugId}: RelayIntro received from {Session.RemoteEP} for {intro.AliceEndpoint}." );
+                    Session.Host.Send( intro.AliceEndpoint, new BufLen( new byte[0] ) );
+                    break;
+                
+                case SSUHeader.MessageTypes.RelayRequest:
                     // if ( !SSUHost.IntroductionSupported ) throw new Exception( "SSU relay introduction not supported" );
                     DebugUtils.LogDebug( () => string.Format( "SSU EstablishedState {0}: Relay introduction not supported.", Session.DebugId ) );
                     break;
