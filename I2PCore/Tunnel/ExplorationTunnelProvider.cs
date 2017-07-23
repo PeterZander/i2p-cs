@@ -45,8 +45,8 @@ namespace I2PCore.Tunnel
 
             for ( int i = 0; i < DefaultExploratoryTunnelHopCount; ++i )
             {
-                hops.Add( new HopInfo( NetDb.Inst.GetRandomRouterInfoForTunnelBuild( 
-                    TunnelMgr.ExploratoryOutboundTunnelCount >= 2 ).Identity, new I2PTunnelId() ) );
+                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( true );
+                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
             }
 
             return new TunnelInfo( hops );
@@ -58,8 +58,8 @@ namespace I2PCore.Tunnel
 
             for ( int i = 0; i < DefaultExploratoryTunnelHopCount; ++i )
             {
-                hops.Add( new HopInfo( NetDb.Inst.GetRandomRouterInfoForTunnelBuild(
-                    TunnelMgr.ExploratoryInboundTunnelCount >= 2 ).Identity, new I2PTunnelId() ) );
+                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( true );
+                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
             }
             hops.Add( new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() ) );
 

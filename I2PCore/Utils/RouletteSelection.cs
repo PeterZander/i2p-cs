@@ -25,7 +25,6 @@ namespace I2PCore.Utils
         public readonly List<RouletteSpace<K>> Wheel = new List<RouletteSpace<K>>();
         public readonly IEnumerable<RouletteSpace<K>> WheelAverageOrBetter;
         float TotalSpaceSum;
-        float MaxFactor;
 
         public float AverageFit;
         public float StdDevFit;
@@ -33,26 +32,31 @@ namespace I2PCore.Utils
         public float MinFit { get; protected set; }
         public float MaxFit { get; protected set; }
 
-        public RouletteSelection( IEnumerable<T> infos, Func<T,K> selkey, Func<K,float> selfit, float maxfactor )
+        public static float RandomFitEMA = 0f;
+
+        public RouletteSelection( IEnumerable<T> infos, Func<T,K> selkey, Func<K,float> selfit )
         {
             MinFit = float.MaxValue;
             TotalSpaceSum = 0;
-            MaxFactor = maxfactor;
-            var me = RouterContext.Inst.MyRouterIdentity.IdentHash;
 
             foreach ( var info in infos )
             {
-                var key = selkey( info );
-                var fit = selfit( key );
-
                 var space = new RouletteSpace<K>()
                 {
-                    Id = key,
-                    Fit = fit
+                    Id = selkey( info ),
                 };
+                space.Fit = selfit( space.Id );
 
                 if ( space.Fit < MinFit ) MinFit = space.Fit;
                 Wheel.Add( space );
+            }
+
+            if ( !Wheel.Any() )
+            {
+                MinFit = 0f;
+                MaxFit = 0f;
+                AverageFit = 0f;
+                return;
             }
 
             MaxFit = Wheel.Max( sp => sp.Fit );
@@ -63,12 +67,9 @@ namespace I2PCore.Utils
             var goodlist = Wheel.Where( sp => sp.Fit >= limit );
             WheelAverageOrBetter = goodlist.Count() > 100 ? goodlist.ToArray() : Wheel.ToArray();
 
-            var span = MaxFit - MinFit;
-            var scalefactor = Math.Min( 1.0f, MaxFactor / span );
-
             foreach ( var one in Wheel )
             {
-                one.Space = ( one.Fit - MinFit ) * scalefactor + 1;
+                one.Space = one.Fit - MinFit + 1;
                 TotalSpaceSum += one.Space;
             }
         }
@@ -111,6 +112,7 @@ namespace I2PCore.Utils
                     pos += one.Space;
                     if ( pos >= target )
                     {
+                        RandomFitEMA = ( 49 * RandomFitEMA + one.Space + MinFit - 1 ) / 50f;
                         DebugUtils.LogDebug( () => "Roulette: " + one.Id.ToString() );
                         return one.Id;
                     }

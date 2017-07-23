@@ -221,9 +221,12 @@ namespace I2PCore.Tunnel
             var info = Send( true, new GarlicCloveDeliveryDestination( dbsmessage, Destination.IdentHash ) );
 
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( () => string.Format(
-                "DestinationSession: LeaseSet update bundled in Destination trafic. ({0}) TrackingId: {1}, Ack MessageId: {2}.",
-                info.KeyType, info.TrackingId, info.AckMessageId ) );
+            if ( info != null )
+            {
+	            DebugUtils.LogDebug( () => string.Format(
+	                "DestinationSession: LeaseSet update bundled in Destination trafic. ({0}) TrackingId: {1}, Ack MessageId: {2}.",
+	                info.KeyType, info.TrackingId, info.AckMessageId ) );
+            }
 #endif
 
             LatestLeaseSetSendTime.SetNow();

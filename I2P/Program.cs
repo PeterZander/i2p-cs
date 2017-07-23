@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using I2PCore.Data;
-using I2P.I2CP;
 using System.Net.Sockets;
 using System.IO;
 using I2PCore.Tunnel.I2NP;
@@ -31,9 +30,32 @@ namespace I2P
             DebugUtils.LogToFile( "i2p.log" );
             DebugUtils.LogInformation( "Me: " + RouterContext.Inst.MyRouterIdentity.IdentHash.Id32 );
 
-            RouterContext.Inst.DefaultExtAddress = IPAddress.Parse( "52.84.212.112" );
-            RouterContext.Inst.DefaultTCPPort = 32328;
-            RouterContext.Inst.DefaultUDPPort = 32328;
+            for ( int i = 0; i < args.Length; ++i )
+            {
+                switch ( args[i] )
+                {
+                    case "--addr":
+                        if ( args.Length > i ) 
+                        {
+                            RouterContext.Inst.DefaultExtAddress = IPAddress.Parse( args[++i] );
+                        }
+                        break;
+
+                    case "--port":
+                        if ( args.Length > i )
+                        {
+                            var port = int.Parse( args[++i] );
+                            RouterContext.Inst.DefaultTCPPort = port;
+                            RouterContext.Inst.DefaultUDPPort = port;
+                        }
+                        break;
+
+                    default:
+                        Console.WriteLine( "Usage: I2P.exe --addr 12.34.56.78 --port 8081" );
+                        break;
+                }
+            }
+
             RouterContext.Inst.ApplyNewSettings();
 
             var pnp = new UPnp();

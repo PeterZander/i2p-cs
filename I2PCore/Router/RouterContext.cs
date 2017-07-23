@@ -170,9 +170,8 @@ namespace I2PCore.Router
             }
         }
 
-        public RouterContext()
+        public RouterContext(): this( (I2PCertificate)null )
         {
-            NewIdentity( null );
         }
 
         public RouterContext( I2PCertificate cert )
@@ -242,7 +241,9 @@ namespace I2PCore.Router
 
         public void Save( string filename )
         {
-            using ( var fs = new FileStream( GetFullPath( filename ), FileMode.Create, FileAccess.Write ) )
+            var fullpath = GetFullPath( filename );
+
+            using ( var fs = new FileStream( fullpath, FileMode.Create, FileAccess.Write ) )
             {
                 var dest = new List<byte>();
 

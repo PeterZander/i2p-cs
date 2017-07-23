@@ -151,6 +151,8 @@ namespace I2PCore.Tunnel
 
             run.LastRun.SetNow();
 
+            string tunneldbginfo = "";
+
             foreach ( var outtunnel in outtunnels )
             {
                 if ( run.FailurePartners.Contains( outtunnel ) || 
@@ -166,13 +168,16 @@ namespace I2PCore.Tunnel
                     TotalHops = outtunnel.Config.Info.Hops.Count + intunnel.Config.Info.Hops.Count
                 };
 
-                DebugUtils.LogDebug( "TunnelTester: Starting inbound tunnel test with tunnels: " +
-                    intunnel.TunnelDebugTrace + " and " + outtunnel.TunnelDebugTrace + " msgid: " + probe.MessageId.ToString() );
+                tunneldbginfo += $"({outtunnel.TunnelDebugTrace}:{probe.MessageId})";
 
                 run.OutstandingProbes.Add( probe );
                 OutstandingProbeIds[probe.MessageId] = probe;
                 outtunnel.Send( new TunnelMessageTunnel( ( new DeliveryStatusMessage( probe.MessageId ) ).Header16, intunnel ) );
             }
+
+            if ( tunneldbginfo.Length > 0 )
+                DebugUtils.LogDebug(
+                    $"TunnelTester: Starting inbound tunnel {intunnel.TunnelDebugTrace} test with tunnels: {tunneldbginfo}" );
         }
 
         void TestOneOutboundTunnel()
@@ -217,6 +222,8 @@ namespace I2PCore.Tunnel
 
             run.LastRun.SetNow();
 
+            string tunneldbginfo = "";
+
             foreach ( var intunnel in intunnels )
             {
                 if ( run.FailurePartners.Contains( intunnel ) ||
@@ -232,13 +239,16 @@ namespace I2PCore.Tunnel
                     TotalHops = outtunnel.Config.Info.Hops.Count + intunnel.Config.Info.Hops.Count
                 };
 
-                DebugUtils.LogDebug( "TunnelTester: Starting outbound tunnel test with tunnels: " +
-                    outtunnel.TunnelDebugTrace + " and " + intunnel.TunnelDebugTrace + " msgid: " + probe.MessageId.ToString() );
+                tunneldbginfo += $"({intunnel.TunnelDebugTrace}:{probe.MessageId})";
 
                 run.OutstandingProbes.Add( probe );
                 OutstandingProbeIds[probe.MessageId] = probe;
                 outtunnel.Send( new TunnelMessageTunnel( ( new DeliveryStatusMessage( probe.MessageId ) ).Header16, intunnel ) );
             }
+
+            if ( tunneldbginfo.Length > 0 )
+                DebugUtils.LogDebug(
+                    $"TunnelTester: Starting outbound tunnel {outtunnel.TunnelDebugTrace} test with tunnels: {tunneldbginfo}" );
         }
 
         void InboundTunnel_DeliveryStatusReceived( DeliveryStatusMessage dstatus )

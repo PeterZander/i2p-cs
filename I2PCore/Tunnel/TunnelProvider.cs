@@ -1048,26 +1048,22 @@ namespace I2PCore.Tunnel
         {
             lock ( PendingOutbound )
             {
-                foreach ( OutboundTunnel one in PendingOutbound )
+                var matches = PendingOutbound
+                    .OfType<OutboundTunnel>()
+                    .Where( ot => ot.TunnelBuildReplyMessageId == header.MessageId );
+                foreach ( var match in matches )
                 {
-                    if ( header.MessageId == one.TunnelBuildReplyMessageId )
-                    {
+                    match.MessageReceived( header );
 #if LOG_ALL_TUNNEL_TRANSFER
-                        DebugUtils.LogDebug( () => string.Format( "HandleVariableTunnelBuildReply: MsgId match {0}.", header.MessageId ) );
+                    DebugUtils.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
 #endif
-                        one.MessageReceived( header );
-                        return;
-                    }
-                    else
-                    {
-#if LOG_ALL_TUNNEL_TRANSFER
-                        DebugUtils.LogDebug( () => string.Format( "HandleVariableTunnelBuildReply: MsgId missmatch {0} vs {1}.",
-                            header.MessageId, one.TunnelBuildReplyMessageId ) );
-#endif
-                    }
+                }
+
+                if ( !matches.Any() )
+                {
+                    DebugUtils.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
                 }
             }
-            DebugUtils.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
 #if DEBUG
             ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
             {
@@ -1080,26 +1076,28 @@ namespace I2PCore.Tunnel
         {
             lock ( PendingOutbound )
             {
-                foreach ( OutboundTunnel one in PendingOutbound )
+                var matches = PendingOutbound
+                    .OfType<OutboundTunnel>()
+                    .Where( ot => ot.TunnelBuildReplyMessageId == header.MessageId );
+                foreach ( var match in matches ) 
                 {
-                    if ( header.MessageId == one.TunnelBuildReplyMessageId )
-                    {
+                    match.MessageReceived( header );
 #if LOG_ALL_TUNNEL_TRANSFER
-                        DebugUtils.LogDebug( () => string.Format( "HandleTunnelBuildReply: MsgId match {0:X8}.", header.MessageId ) );
+                    DebugUtils.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
 #endif
-                        one.MessageReceived( header );
-                        return;
-                    }
-                    else
-                    {
-#if LOG_ALL_TUNNEL_TRANSFER
-                        DebugUtils.LogDebug( () => string.Format( "HandleTunnelBuildReply: MsgId missmatch {0:X8} vs {1:X8}.",
-                            header.MessageId, one.TunnelBuildReplyMessageId ) );
-#endif
-                    }
+                }
+
+                if ( !matches.Any() )
+                {
+                    DebugUtils.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
                 }
             }
-            DebugUtils.LogDebug( "HandleTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
+#if DEBUG
+            ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
+            {
+                DebugUtils.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", header.MessageId, p.Left.DeltaToNowSeconds / p.Right ) );
+            } );
+#endif
         }
 
         internal void OutboundTunnelEstablished( OutboundTunnel tunnel )
