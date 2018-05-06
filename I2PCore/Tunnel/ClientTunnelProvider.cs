@@ -34,23 +34,9 @@ namespace I2PCore.Tunnel.I2NP
             internal List<Tunnel> NewTunnels = new List<Tunnel>();
         }
 
-        ClientDestination DefaultDestination;
-        ClientDestination TestSource;
-        ClientDestination TestDestination;
-
         internal ClientTunnelProvider( TunnelProvider tp )
         {
             TunnelMgr = tp;
-/*
-            DefaultDestination = new ClientDestination( this, false, null );
-            //Clients.Add( DefaultDestination );
-
-            TestDestination = new ClientDestination( this, false, null );
-            Clients.Add( TestDestination );
-
-            TestSource = new ClientDestination( this, false, TestDestination );
-            Clients.Add( TestSource );
- */
         }
 
         internal ClientDestination CreateDestination( I2PDestinationInfo dest, bool publish )
@@ -91,7 +77,6 @@ namespace I2PCore.Tunnel.I2NP
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
-                TunnelConfig.TunnelRole.Gateway,
                 TunnelConfig.TunnelPool.Client,
                 prototype == null ? CreateOutgoingTunnelChain( dest ): prototype );
 
@@ -109,7 +94,6 @@ namespace I2PCore.Tunnel.I2NP
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
-                TunnelConfig.TunnelRole.Endpoint,
                 TunnelConfig.TunnelPool.Client,
                 prototype == null ? CreateIncommingTunnelChain( dest ): prototype );
 

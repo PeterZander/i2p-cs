@@ -30,10 +30,8 @@ namespace I2PCore.Tunnel
         {
             Config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
-                TunnelConfig.TunnelRole.Participant,
                 TunnelConfig.TunnelPool.External,
                 null );
-            Config.Role = TunnelConfig.TunnelRole.Participant;
 
             Limiter = new BandwidthLimiter( Bandwidth.SendBandwidth, TunnelSettings.PassthroughTunnelBitrateLimit );
 

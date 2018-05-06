@@ -70,7 +70,6 @@ namespace I2PCore.Tunnel
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
-                TunnelConfig.TunnelRole.Gateway,
                 TunnelConfig.TunnelPool.Exploratory,
                 CreateOutgoingTunnelChain() );
 
@@ -82,7 +81,6 @@ namespace I2PCore.Tunnel
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
-                TunnelConfig.TunnelRole.Endpoint,
                 TunnelConfig.TunnelPool.Exploratory,
                 CreateIncommingTunnelChain() );
 

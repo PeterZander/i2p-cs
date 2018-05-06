@@ -32,7 +32,6 @@ namespace I2PCore.Tunnel
         {
             Config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
-                TunnelConfig.TunnelRole.Endpoint,
                 TunnelConfig.TunnelPool.External,
                 null );
 

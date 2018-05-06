@@ -372,7 +372,6 @@ namespace I2PCore.Tunnel
             if ( config.Direction == TunnelConfig.TunnelDirection.Outbound )
             {
                 var replytunnel = GetInboundTunnel();
-                config.Role = TunnelConfig.TunnelRole.Gateway;
                 var tunnel = new OutboundTunnel( config, replytunnel.Config.Info.Hops.Count );
 
                 var req = tunnel.CreateBuildRequest( replytunnel );
@@ -393,7 +392,6 @@ namespace I2PCore.Tunnel
                 var outtunnel = GetEstablishedOutboundTunnel();
                 if ( outtunnel == null ) return null;
 
-                config.Role = TunnelConfig.TunnelRole.Endpoint;
                 var tunnel = new InboundTunnel( config, outtunnel.Config.Info.Hops.Count );
 
                 DebugUtils.LogDebug( string.Format( "TunnelProvider: Inbound tunnel {0} created to {1}.", tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short ) );
