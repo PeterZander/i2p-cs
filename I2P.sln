@@ -1,14 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2P", "I2P\I2P.csproj", "{B6D93850-785D-44A7-8DE0-62BE841704EA}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PCore", "I2PCore\I2PCore.csproj", "{383410B1-C0B4-4957-8F36-0107C7F109E3}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2CP", "I2CP\I2CP.csproj", "{568D66C4-6583-418A-9272-E315F3024672}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PTests", "I2PTests\I2PTests.csproj", "{BB8B7FA4-D0CE-4F42-85D4-53F5B1C2587A}"
-EndProject
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2015
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{72819154-CD1F-4D64-99E6-4059A6FE35C2}"
 	ProjectSection(SolutionItems) = preProject
 		I2P1.vsmdi = I2P1.vsmdi
@@ -18,6 +12,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		LICENCE.txt = LICENCE.txt
 		LocalTestRun.testrunconfig = LocalTestRun.testrunconfig
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2P", "I2P\I2P.csproj", "{B6D93850-785D-44A7-8DE0-62BE841704EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PCore", "I2PCore\I2PCore.csproj", "{383410B1-C0B4-4957-8F36-0107C7F109E3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2CP", "I2CP\I2CP.csproj", "{568D66C4-6583-418A-9272-E315F3024672}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PTests", "I2PTests\I2PTests.csproj", "{BB8B7FA4-D0CE-4F42-85D4-53F5B1C2587A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chaos.NaCl", "submodules\Chaos.NaCl\Chaos.NaCl\Chaos.NaCl.csproj", "{AE28FD14-7985-4707-A963-C94B8597AE50}"
 EndProject
@@ -54,5 +56,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {145D1B94-E30F-4EEC-9E56-78FE31AB6EED}
 	EndGlobalSection
 EndGlobal
