@@ -1,6 +1,0 @@
-[submodule "submodules/Chaos.NaCl"]
-	path = submodules/Chaos.NaCl
-	url = https://github.com/CodesInChaos/Chaos.NaCl.git
-[submodule "submodules/BouncyCastle"]
-	path = submodules/BouncyCastle
-	url = git://github.com/bcgit/bc-csharp.git

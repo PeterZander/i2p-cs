@@ -27,4 +27,5 @@ _ReSharper*/
 [Tt]est[Rr]esult*
 BouncyCastle.Crypto.dll
 .vs
-
+/Backup
+/packages
