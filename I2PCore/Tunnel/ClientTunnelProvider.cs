@@ -121,7 +121,7 @@ namespace I2PCore.Tunnel.I2NP
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( "ClientTunnelProvider Execute BuildNewTunnels", ex );
+                    Logging.Log( "ClientTunnelProvider Execute BuildNewTunnels", ex );
                 }
             });
 
@@ -142,7 +142,7 @@ namespace I2PCore.Tunnel.I2NP
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( "ClientTunnelProvider Execute DestExecute", ex );
+                        Logging.Log( "ClientTunnelProvider Execute DestExecute", ex );
                     }
                 }
             } );
@@ -209,7 +209,7 @@ namespace I2PCore.Tunnel.I2NP
 
             if ( replace != null )
             {
-                DebugUtils.LogDebug( "ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel " + replace.OldTunnel.ToString() + 
+                Logging.LogDebug( "ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel " + replace.OldTunnel.ToString() + 
                     " with new tunnel " + tunnel.ToString() );
 
                 RemoveTunnelUnderReplacement( replace.OldTunnel );
@@ -236,12 +236,12 @@ namespace I2PCore.Tunnel.I2NP
 
             if ( replace != null )
             {
-                DebugUtils.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Failed replacing " + replace.OldTunnel.ToString() +
+                Logging.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Failed replacing " + replace.OldTunnel.ToString() +
                     " with " + tunnel.ToString() );
 
                 if ( replace.OldTunnel.Expired )
                 {
-                    DebugUtils.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
+                    Logging.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
 
                     client.RemoveTunnel( replace.OldTunnel );
                 }
@@ -300,7 +300,7 @@ namespace I2PCore.Tunnel.I2NP
 
             if ( replace != null )
             {
-                DebugUtils.LogDebug( "ClientTunnelProvider: TunnelTimeout: Failed replacing " + replace.OldTunnel.ToString() +
+                Logging.LogDebug( "ClientTunnelProvider: TunnelTimeout: Failed replacing " + replace.OldTunnel.ToString() +
                     " with " + tunnel.ToString() );
 
                 /*
@@ -332,14 +332,14 @@ namespace I2PCore.Tunnel.I2NP
                     case TunnelConfig.TunnelDirection.Outbound:
                         var newouttunnel = CreateOutboundTunnel( client, null );
                         replace.NewTunnels.Add( newouttunnel );
-                        DebugUtils.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
+                        Logging.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
                             tunnel, newouttunnel ) );
                         break;
 
                     case TunnelConfig.TunnelDirection.Inbound:
                         var newintunnel = CreateInboundTunnel( client, null );
                         replace.NewTunnels.Add( newintunnel );
-                        DebugUtils.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
+                        Logging.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
                             tunnel, newintunnel ) );
                         break;
 
@@ -360,7 +360,7 @@ namespace I2PCore.Tunnel.I2NP
                 if ( !Destinations.TryGetValue( tunnel, out client ) )
                 {
 #if DEBUG
-                    DebugUtils.LogDebug( "ClientTunnelProvider: TunnelEstablished: Unable to find a matching Destination for " +
+                    Logging.LogDebug( "ClientTunnelProvider: TunnelEstablished: Unable to find a matching Destination for " +
                         tunnel.ToString() );
 #endif
                     return null;

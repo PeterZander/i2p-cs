@@ -79,7 +79,7 @@ namespace I2PCore.Data
             }
             else
             {
-                DebugUtils.LogDebug( "I2PLeaseSet RemoveLease: No lease found to remove" );
+                Logging.LogDebug( "I2PLeaseSet RemoveLease: No lease found to remove" );
             }
         }
 
@@ -89,7 +89,7 @@ namespace I2PCore.Data
 
             if ( !versig )
             {
-                DebugUtils.LogDebug( "I2PLeaseSet: VerifySignature false. Not supported: " +
+                Logging.LogDebug( "I2PLeaseSet: VerifySignature false. Not supported: " +
                     PublicSigningKey.Certificate.SignatureType.ToString() );
                 return false;
             }
@@ -112,7 +112,7 @@ namespace I2PCore.Data
             versig = I2PSignature.DoVerify( PublicSigningKey, Signature, signfields.ToArray() );
             if ( !versig )
             {
-                DebugUtils.LogDebug( "I2PLeaseSet: I2PSignature.DoVerify failed: " + PublicSigningKey.Certificate.SignatureType.ToString() );
+                Logging.LogDebug( "I2PLeaseSet: I2PSignature.DoVerify failed: " + PublicSigningKey.Certificate.SignatureType.ToString() );
                 return false;
             }
 

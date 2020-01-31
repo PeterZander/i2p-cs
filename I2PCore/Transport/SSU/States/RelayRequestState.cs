@@ -64,7 +64,7 @@ namespace I2PCore.Transport.SSU
             {
                 if ( ++Retries > RelayRequestStateMaxRetries )
                 {
-                    DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId}" +
+                    Logging.LogDebug( $"SSU RelayRequestState: {Session.DebugId}" +
                         $" Using introducer '{CurrentIntroducer.EndPoint}' timed out." );
 
                     if ( Introducers.Count == 0 )
@@ -77,7 +77,7 @@ namespace I2PCore.Transport.SSU
                         CurrentIntroducer = Introducers[0];
                         Introducers.RemoveAt( 0 );
 
-                        DebugUtils.LogDebug( $"SSU RelayRequestState: +{Session.TransportInstance}+ " +
+                        Logging.LogDebug( $"SSU RelayRequestState: +{Session.TransportInstance}+ " +
                             $"Trying introducer '{CurrentIntroducer.EndPoint}' next." );
 
                         Retries = 0;
@@ -94,7 +94,7 @@ namespace I2PCore.Transport.SSU
         {
             if ( CurrentIntroducer == null ) return;
 
-            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {CurrentIntroducer.EndPoint}" );
+            Logging.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {CurrentIntroducer.EndPoint}" );
 
             SendMessage(
                 CurrentIntroducer.EndPoint,
@@ -137,7 +137,7 @@ namespace I2PCore.Transport.SSU
                 }
                 else
                 {
-                    DebugUtils.LogDebug( () =>  
+                    Logging.LogDebug( () =>  
                         $"SSU RelayRequestState: {Session.DebugId} RelayResponse from {ep.Address} received. Waiting for response from {CurrentIntroducer.EndPoint.Address}." );
                 }
             }
@@ -146,10 +146,10 @@ namespace I2PCore.Transport.SSU
         SSUState HandleRelayResponse( RelayResponse response )
         {
             var cep = response.CharlieEndpoint;
-            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} RelayResponse {response}" );
+            Logging.LogDebug( $"SSU RelayRequestState: {Session.DebugId} RelayResponse {response}" );
 
             var noncematch = Nonce == response.Nonce.Peek32( 0 );
-            DebugUtils.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Nonce match: {noncematch}" );
+            Logging.LogDebug( $"SSU RelayRequestState: {Session.DebugId} Nonce match: {noncematch}" );
             if ( !noncematch ) return this;
 
             Session.RemoteEP = response.CharlieEndpoint;

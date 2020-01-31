@@ -73,7 +73,7 @@ namespace I2PCore.Tunnel
 
             if ( NextHop == null )
             {
-                DebugUtils.LogDebug( "OutboundTunnel: NextHop == null. Fail." );
+                Logging.LogDebug( "OutboundTunnel: NextHop == null. Fail." );
                 return false;
             }
 
@@ -101,7 +101,7 @@ namespace I2PCore.Tunnel
                         break;
 
                     default:
-                        DebugUtils.Log( "OutboundTunnel " + TunnelDebugTrace + " HandleReceiveQueue: Dropped " + msg.MessageType.ToString() );
+                        Logging.Log( "OutboundTunnel " + TunnelDebugTrace + " HandleReceiveQueue: Dropped " + msg.MessageType.ToString() );
                         break;
                 }
             }
@@ -139,7 +139,7 @@ namespace I2PCore.Tunnel
                 var okhash = onerecord.CheckHash();
                 if ( !okhash )
                 {
-                    DebugUtils.Log( "OutboundTunnel " + TunnelDebugTrace + ": Outbound tunnel build reply, hash check failed from " + hop.Peer.IdentHash.Id32Short );
+                    Logging.Log( "OutboundTunnel " + TunnelDebugTrace + ": Outbound tunnel build reply, hash check failed from " + hop.Peer.IdentHash.Id32Short );
                     NetDb.Inst.Statistics.DestinationInformationFaulty( hop.Peer.IdentHash );
                 }
 
@@ -154,7 +154,7 @@ namespace I2PCore.Tunnel
                 }
 
                 ok &= accept && okhash;
-                DebugUtils.LogDebug( () => string.Format( "{0}: HandleReceivedTunnelBuild reply[{1}]: from {2}. {3} hops, Tunnel build reply: {4}",
+                Logging.LogDebug( () => string.Format( "{0}: HandleReceivedTunnelBuild reply[{1}]: from {2}. {3} hops, Tunnel build reply: {4}",
                     this, ix, hop.Peer.IdentHash.Id32Short, TunnelSetup.Hops.Count, onerecord.Reply ) );
             }
 
@@ -193,7 +193,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                 if ( FilterMessageTypes.Update( new HashedItemGroup( (int)msg.MessageType, 0x1701 ) ) )
                 {
-                    DebugUtils.LogDebug( "OutboundTunnel: Send raw  " + NextHop.Id32Short + " : " + msg.ToString() );
+                    Logging.LogDebug( "OutboundTunnel: Send raw  " + NextHop.Id32Short + " : " + msg.ToString() );
                 }
 #endif
                 Bandwidth.DataSent( msg.Payload.Length );
@@ -223,7 +223,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                 if ( FilterMessageTypes.Update( new HashedItemGroup( (int)msg.MessageType, 0x4272 ) ) )
                 {
-                    DebugUtils.LogDebug( "OutboundTunnel: Send " + NextHop.Id32Short + " : " + msg.ToString() );
+                    Logging.LogDebug( "OutboundTunnel: Send " + NextHop.Id32Short + " : " + msg.ToString() );
                 }
 #endif
                 Bandwidth.DataSent( msg.Payload.Length );

@@ -19,10 +19,10 @@ namespace I2PCore.Router
             var rci = RouterContext.Inst;
             NetDb.Start();
 
-            DebugUtils.Log( "I: " + RouterContext.Inst.MyRouterInfo.ToString() );
-            DebugUtils.Log( "Published: " + RouterContext.Inst.Published.ToString() );
+            Logging.Log( "I: " + RouterContext.Inst.MyRouterInfo.ToString() );
+            Logging.Log( "Published: " + RouterContext.Inst.Published.ToString() );
 
-            DebugUtils.Log( "Connecting..." );
+            Logging.Log( "Connecting..." );
             TransportProvider.Start();
             TunnelProvider.Start();
 

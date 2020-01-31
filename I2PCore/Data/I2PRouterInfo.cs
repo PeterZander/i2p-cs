@@ -83,14 +83,14 @@ namespace I2PCore.Data
 
             if ( !versig )
             {
-                DebugUtils.LogDebug( "RouterInfo: VerifySignature false. Not supported: " + Identity.Certificate.SignatureType.ToString() );
+                Logging.LogDebug( "RouterInfo: VerifySignature false. Not supported: " + Identity.Certificate.SignatureType.ToString() );
                 return false;
             }
 
             versig = I2PSignature.DoVerify( Identity.SigningPublicKey, Signature, Data );
             if ( !versig )
             {
-                DebugUtils.LogDebug( "RouterInfo: I2PSignature.DoVerify failed: " + Identity.Certificate.SignatureType.ToString() );
+                Logging.LogDebug( "RouterInfo: I2PSignature.DoVerify failed: " + Identity.Certificate.SignatureType.ToString() );
                 return false;
             }
 

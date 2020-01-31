@@ -110,7 +110,7 @@ namespace I2PCore.Tunnel
             LatestEGAckMessageId = ackmsg.MessageId;
 
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( () => string.Format(
+            Logging.LogDebug( () => string.Format(
                 "DestinationSession: Garlic generated with ElGamal encryption, {0} cloves. {1} tags available. Ack MessageId: {2}.",
                 msg.Cloves.Count, SessionTags.Count, LatestEGAckMessageId ) );
 #endif
@@ -137,7 +137,7 @@ namespace I2PCore.Tunnel
 
 #if LOG_ALL_TUNNEL_TRANSFER
             var ackmsgid = ackmsg.MessageId;
-            DebugUtils.LogDebug( () => string.Format(
+            Logging.LogDebug( () => string.Format(
                 "DestinationSession: Added ACK message with MessageId: {0} to {1} cloves. Dest: {2}: {3}",
                 ackmsgid, cloves.Length, replytunnel.Destination.Id32Short, replytunnel.ReceiveTunnelId ) );
 #endif
@@ -161,7 +161,7 @@ namespace I2PCore.Tunnel
             }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( () => string.Format(
+            Logging.LogDebug( () => string.Format(
                 "DestinationSession: Garlic generated with {0} cloves. {1} tags available.",
                 msg.Cloves.Count, SessionTags.Count ) );
 #endif
@@ -223,7 +223,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( info != null )
             {
-	            DebugUtils.LogDebug( () => string.Format(
+	            Logging.LogDebug( () => string.Format(
 	                "DestinationSession: LeaseSet update bundled in Destination trafic. ({0}) TrackingId: {1}, Ack MessageId: {2}.",
 	                info.KeyType, info.TrackingId, info.AckMessageId ) );
             }
@@ -237,7 +237,7 @@ namespace I2PCore.Tunnel
             LatestRemoteLeaseSet = leaseset;
 
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( () => string.Format(
+            Logging.LogDebug( () => string.Format(
                 "DestinationSession: LeaseSet updated for {0}.", leaseset.Destination.IdentHash.Id32Short ) );
 #endif
         }

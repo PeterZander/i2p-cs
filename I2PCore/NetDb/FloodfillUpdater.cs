@@ -46,7 +46,7 @@ namespace I2PCore
 
                 if ( OutstandingRequests.TryGetValue( msg.MessageId, out info ) )
                 {
-                    DebugUtils.Log( string.Format( "FloodfillUpdater: Floodfill delivery status {0,10} from {1} received in {2} seconds.",
+                    Logging.Log( string.Format( "FloodfillUpdater: Floodfill delivery status {0,10} from {1} received in {2} seconds.",
                         msg.MessageId, info.FFRouter.Id32Short, info.Start.DeltaToNowSeconds ) );
 
                     OutstandingRequests.Remove( msg.MessageId );
@@ -72,7 +72,7 @@ namespace I2PCore
                 {
                     var token = BufUtils.RandomUint() | 1;
 
-                    DebugUtils.Log( string.Format( "FloodfillUpdater: {0}, token: {1,10}, dist: {2}.",
+                    Logging.Log( string.Format( "FloodfillUpdater: {0}, token: {1,10}, dist: {2}.",
                         ff.Id32Short, token,
                         ff ^ RouterContext.Inst.MyRouterIdentity.IdentHash.RoutingKey ) );
 
@@ -80,7 +80,7 @@ namespace I2PCore
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }
@@ -136,7 +136,7 @@ namespace I2PCore
 
             foreach ( var one in timeout )
             {
-                DebugUtils.Log( string.Format( "FloodfillUpdater: Update {0,10} to {1} failed with timeout.",
+                Logging.Log( string.Format( "FloodfillUpdater: Update {0,10} to {1} failed with timeout.",
                     one.Key, one.Value.FFRouter.Id32Short ) );
 
                 NetDb.Inst.Statistics.FloodfillUpdateTimeout( one.Value.FFRouter );
@@ -150,7 +150,7 @@ namespace I2PCore
             {
                 var token = BufUtils.RandomUint() | 1;
 
-                DebugUtils.Log( string.Format( "FloodfillUpdater: replacement update {0}, token {1,10}, dist: {2}.",
+                Logging.Log( string.Format( "FloodfillUpdater: replacement update {0}, token {1,10}, dist: {2}.",
                     ff.Id32Short, token,
                     ff ^ RouterContext.Inst.MyRouterIdentity.IdentHash.RoutingKey ) );
 

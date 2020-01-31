@@ -110,7 +110,7 @@ namespace I2PCore.Transport.NTCP
 
             if ( ( SendQueue.Count > SendQueueLengthWarningLimit ) && ( MinTimeBetweenSendQueueLogs.DeltaToNowMilliseconds > 4000 ) )
             {
-                DebugUtils.LogWarning(
+                Logging.LogWarning(
                     string.Format( "NTCPClient {0}: SendQueue is {1} messages long! Max queue: {2} ({3:###0}s)",
                     DebugId, sendqlen, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
                 MinTimeBetweenSendQueueLogs.SetNow();
@@ -123,7 +123,7 @@ namespace I2PCore.Transport.NTCP
 #if DEBUG
                 else
                 {
-                    DebugUtils.LogWarning(
+                    Logging.LogWarning(
                         string.Format( "NTCPClient {0}: SendQueue is {1} messages long! Dropping new message. Max queue: {2} ({3:###0}s)",
                         DebugId, sendqlen, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
                 }
@@ -196,7 +196,7 @@ namespace I2PCore.Transport.NTCP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "NTCP SendCompleted", ex );
+                Logging.Log( "NTCP SendCompleted", ex );
                 Terminated = true;
             }
             finally
@@ -210,7 +210,7 @@ namespace I2PCore.Transport.NTCP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "NTCP SendCompleted TryInitiateSend", ex );
+                Logging.Log( "NTCP SendCompleted TryInitiateSend", ex );
                 Terminated = true;
             }
         }
@@ -404,7 +404,7 @@ namespace I2PCore.Transport.NTCP
                     TryInitiateSend();
 
 #if DEBUG
-                    if ( ConnectionEstablished == null ) DebugUtils.LogWarning( "NTCPClient: No observers for ConnectionEstablished!" );
+                    if ( ConnectionEstablished == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionEstablished!" );
 #endif
                     if ( ConnectionEstablished != null ) ConnectionEstablished( this );
                     NetDb.Inst.Statistics.SuccessfulConnect( NTCPContext.RemoteRouterIdentity.IdentHash );
@@ -425,7 +425,7 @@ namespace I2PCore.Transport.NTCP
                         else
                         {
 #if DEBUG
-                            if ( DataBlockReceived == null ) DebugUtils.LogWarning( "NTCPClient: No observers for DataBlockReceived !" );
+                            if ( DataBlockReceived == null ) Logging.LogWarning( "NTCPClient: No observers for DataBlockReceived !" );
 #endif
                             if ( DataBlockReceived != null ) DataBlockReceived( this, I2NPMessage.ReadHeader16( new BufRefLen( data ) ) );
                         }
@@ -433,35 +433,35 @@ namespace I2PCore.Transport.NTCP
                 }
                 catch ( ThreadAbortException )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {0} Aborted", DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {0} Aborted", DebugId ) );
                 }
                 catch ( ThreadInterruptedException )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {0} Interrupted", DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {0} Interrupted", DebugId ) );
                 }
                 catch ( FailedToConnectException )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {0} Failed to connect", DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {0} Failed to connect", DebugId ) );
                 }
                 catch ( EndOfStreamEncounteredException )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {0} Disconnected", DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {0} Disconnected", DebugId ) );
                 }
                 catch ( IOException ex )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
                 catch ( SocketException ex )
                 {
-                    DebugUtils.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
                 catch ( Exception ex )
                 {
 #if DEBUG
-                    if ( ConnectionException == null ) DebugUtils.LogWarning( "NTCPClient: No observers for ConnectionException!" );
+                    if ( ConnectionException == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionException!" );
 #endif
                     if ( ConnectionException != null ) ConnectionException( this, ex );
-                    DebugUtils.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
             }
         
@@ -477,21 +477,21 @@ namespace I2PCore.Transport.NTCP
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( DebugId, ex );
+                    Logging.Log( DebugId, ex );
                 }
 
-                DebugUtils.LogDebug( string.Format( "NTCP {0} Shut down. {1}", DebugId, RemoteDescription ) );
+                Logging.LogDebug( string.Format( "NTCP {0} Shut down. {1}", DebugId, RemoteDescription ) );
 
                 try
                 {
 #if DEBUG
-                    if ( ConnectionShutDown == null ) DebugUtils.LogWarning( "NTCPClient: No observers for ConnectionShutDown!" );
+                    if ( ConnectionShutDown == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionShutDown!" );
 #endif
                     if ( ConnectionShutDown != null ) ConnectionShutDown( this );
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( DebugId, ex );
+                    Logging.Log( DebugId, ex );
                 }
 
                 if ( MySocket != null )
@@ -503,7 +503,7 @@ namespace I2PCore.Transport.NTCP
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( DebugId, ex );
+                        Logging.Log( DebugId, ex );
                     }
                     finally
                     {

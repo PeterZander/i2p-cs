@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -92,13 +92,13 @@ namespace I2PCore
         {
             try
             {
-                DebugUtils.LogInformation( "NetDb: Path: " + NetDbPath );
-                DebugUtils.Log( "Reading NetDb..." );
+                Logging.LogInformation( "NetDb: Path: " + NetDbPath );
+                Logging.Log( "Reading NetDb..." );
                 var sw1 = new Stopwatch();
                 sw1.Start();
                 Load();
                 sw1.Stop();
-                DebugUtils.Log( string.Format( "Done reading NetDb. {0}. {1} entries.", sw1.Elapsed, RouterInfos.Count ) );
+                Logging.Log( string.Format( "Done reading NetDb. {0}. {1} entries.", sw1.Elapsed, RouterInfos.Count ) );
 
                 LoadFinished.Set();
                 while ( TransportProvider.Inst == null ) Thread.Sleep( 500 );
@@ -119,12 +119,12 @@ namespace I2PCore
                     }
                     catch ( ThreadAbortException ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                         Terminated = true;
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -230,12 +230,12 @@ namespace I2PCore
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.LogDebug( $"NetDb: Load: Store exception, ix [{ix}] removed. {ex}" );
+                        Logging.LogDebug( $"NetDb: Load: Store exception, ix [{ix}] removed. {ex}" );
                         s.Delete( ix );
                     }
                 }
                 sw2.Stop();
-                DebugUtils.Log( $"Store: {sw2.Elapsed}" );
+                Logging.Log( $"Store: {sw2.Elapsed}" );
             }
 
             var files = GetNetDbFiles();
@@ -247,7 +247,7 @@ namespace I2PCore
             lock ( RouterInfos )
                 if ( RouterInfos.Count == 0 )
             {
-                DebugUtils.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
+                Logging.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
             }
 
             Statistics.Load();
@@ -280,20 +280,20 @@ namespace I2PCore
                     RouterInfos.Where( ri => !ri.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
-                DebugUtils.LogInformation( "All routers" );
+                Logging.LogInformation( "All routers" );
                 ShowRouletteStatistics( Roulette );
-                DebugUtils.LogInformation( "Floodfill routers" );
+                Logging.LogInformation( "Floodfill routers" );
                 ShowRouletteStatistics( RouletteFloodFill );
-                DebugUtils.LogInformation( "Non floodfill routers" );
+                Logging.LogInformation( "Non floodfill routers" );
                 ShowRouletteStatistics( RouletteNonFloodFill );
             }
 
-            DebugUtils.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
+            Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
         }
 
         private void ShowRouletteStatistics( RouletteSelection<I2PRouterInfo, I2PIdentHash> roulette )
         {
-            if ( DebugUtils.LogLevel > DebugUtils.LogLevels.Information ) return;
+            if ( Logging.LogLevel > Logging.LogLevels.Information ) return;
             if ( !roulette.Wheel.Any() ) return;
 
             float Mode = 0f;
@@ -305,7 +305,7 @@ namespace I2PCore
                 Mode = hist.Where( b => b.Count == maxcount ).First().Start + ( hist[1].Start - hist[0].Start ) / 2f;
             }
 
-            DebugUtils.LogInformation( string.Format( 
+            Logging.LogInformation( string.Format( 
                 "Roulette stats: Count {3}, Min {0:0.00}, Avg {1:0.00} ({7:0.00}), Mode {6:0.00}, Max {2:0.00}, Stddev: {5:0.00}, Skew {4:0.00}",
                 roulette.MinFit,
                 roulette.AverageFit,
@@ -316,19 +316,19 @@ namespace I2PCore
                 Mode,
                 RouletteSelection<I2PRouterInfo, I2PIdentHash>.RandomFitEMA ) );
 
-            if ( DebugUtils.LogLevel > DebugUtils.LogLevels.Debug ) return;
+            if ( Logging.LogLevel > Logging.LogLevels.Debug ) return;
 
             var ix = 0;
             if ( maxcount > 0 ) foreach ( var line in hist )
             {
                 var st = "";
                 for ( int i = 0; i < ( 40 * line.Count ) / maxcount; ++i ) st += "*";
-                DebugUtils.LogDebug( String.Format( "Roulette stats {0,6:#0.0} ({2,5}): {1}", line.Start, st, line.Count ) );
+                Logging.LogDebug( String.Format( "Roulette stats {0,6:#0.0} ({2,5}): {1}", line.Start, st, line.Count ) );
                 ++ix;
             }
 
             var aobminval = roulette.WheelAverageOrBetter.Min( sp => sp.Fit );
-            DebugUtils.LogDebug( String.Format( "Roulette WheelAverageOrBetter count: {0}, minfit: {1}", roulette.WheelAverageOrBetter.Count(), aobminval ) );
+            Logging.LogDebug( String.Format( "Roulette WheelAverageOrBetter count: {0}, minfit: {1}", roulette.WheelAverageOrBetter.Count(), aobminval ) );
 
             var min = roulette.Wheel.Where( sp => sp.Fit == roulette.MinFit ).Take( 10 );
             var avg = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.AverageFit ) < roulette.StdDevFit * 0.3 ).Take( 10 );
@@ -341,11 +341,11 @@ namespace I2PCore
                 var maxs = max.Aggregate( new StringBuilder(), ( l, r ) =>
                 { if ( l.Length > 0 ) l.Append( ", " ); l.Append( r.Id.Id32Short ); return l; } );
 
-                DebugUtils.LogDebug( String.Format( "Roulette stats minfit: {0}, maxfit: {1}", mins, maxs ) );
+                Logging.LogDebug( String.Format( "Roulette stats minfit: {0}, maxfit: {1}", mins, maxs ) );
 
-                DebugUtils.LogDebug( "Min example: " + NetDb.Inst.Statistics[min.Random().Id].ToString() );
-                DebugUtils.LogDebug( "Med example: " + NetDb.Inst.Statistics[avg.Random().Id].ToString() );
-                DebugUtils.LogDebug( "Max example: " + NetDb.Inst.Statistics[max.Random().Id].ToString() );
+                Logging.LogDebug( "Min example: " + NetDb.Inst.Statistics[min.Random().Id].ToString() );
+                Logging.LogDebug( "Med example: " + NetDb.Inst.Statistics[avg.Random().Id].ToString() );
+                Logging.LogDebug( "Max example: " + NetDb.Inst.Statistics[max.Random().Id].ToString() );
             }
         }
 
@@ -364,7 +364,7 @@ namespace I2PCore
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( "GetStore", ex );
+                    Logging.Log( "GetStore", ex );
                     System.Threading.Thread.Sleep( 500 );
                 }
             }
@@ -419,7 +419,7 @@ namespace I2PCore
                         }
                         catch ( Exception ex )
                         {
-                            DebugUtils.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
+                            Logging.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
                             one.Value.Value.StoreIx = -1;
                         }
                     }
@@ -455,7 +455,7 @@ namespace I2PCore
                 } );
             }
 
-            DebugUtils.Log( string.Format( "NetDb.Save( {1} ): {0} entries saved, {2} deleted.", 
+            Logging.Log( string.Format( "NetDb.Save( {1} ): {0} entries saved, {2} deleted.", 
                 saved, 
                 onlyupdated ? "updated" : "all",
                 deleted ) );
@@ -464,7 +464,7 @@ namespace I2PCore
             UpdateSelectionProbabilities();
 
             sw.Stop();
-            DebugUtils.Log( "NetDB: Save: " + sw.Elapsed.ToString() );
+            Logging.Log( "NetDB: Save: " + sw.Elapsed.ToString() );
 
         }
 
@@ -482,7 +482,7 @@ namespace I2PCore
                     {
                         if ( !info.VerifySignature() )
                         {
-                            DebugUtils.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
+                            Logging.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
                             return;
                         }
 
@@ -490,7 +490,7 @@ namespace I2PCore
                         meta.Deleted = false;
                         meta.Updated = true;
                         RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( info, meta );
-                        DebugUtils.Log( "NetDb: Updated RouterInfo for: " + info.Identity.IdentHash );
+                        Logging.Log( "NetDb: Updated RouterInfo for: " + info.Identity.IdentHash );
                     }
                     else
                     {
@@ -501,14 +501,14 @@ namespace I2PCore
                 {
                     if ( !info.VerifySignature() )
                     {
-                        DebugUtils.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
+                        Logging.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
                         return;
                     }
 
                     var meta = new RouterInfoMeta();
                     meta.Updated = true;
                     RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
-                    DebugUtils.Log( "NetDb: Added RouterInfo for: " + info.Identity.IdentHash );
+                    Logging.Log( "NetDb: Added RouterInfo for: " + info.Identity.IdentHash );
                 }
 
                 if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
@@ -765,8 +765,8 @@ namespace I2PCore
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "Exception in AccessConfig callback" );
-                DebugUtils.Log( ex );
+                Logging.Log( "Exception in AccessConfig callback" );
+                Logging.Log( ex );
             }
         }
     }

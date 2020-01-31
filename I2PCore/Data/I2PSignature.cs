@@ -142,7 +142,7 @@ namespace I2PCore.Data
             Array.Copy( b1, 0, result, 0 + 20 - b1.Length, b1.Length );
             Array.Copy( b2, 0, result, 20 + 20 - b2.Length, b2.Length );
 
-            DebugUtils.LogDebug( "DoSignEcDsaSha256P256: Used." );
+            Logging.LogDebug( "DoSignEcDsaSha256P256: Used." );
 
             return result;
         }
@@ -179,7 +179,7 @@ namespace I2PCore.Data
             Array.Copy( b1, 0, result, sigsize / 2 - b1.Length, b1.Length );
             Array.Copy( b2, 0, result, sigsize - b2.Length, b2.Length );
 
-            DebugUtils.LogDebug( "DoSignEcDsa: " + digest.ToString() + ": Used." );
+            Logging.LogDebug( "DoSignEcDsa: " + digest.ToString() + ": Used." );
 
             return result;
         }
@@ -263,7 +263,7 @@ namespace I2PCore.Data
 
             dsa.Init( false, pk ); 
             var result = dsa.VerifySignature( hash, r, s );
-            DebugUtils.LogDebug( "DoVerifyEcDsaSha256P256: " + result.ToString() );
+            Logging.LogDebug( "DoVerifyEcDsaSha256P256: " + result.ToString() );
             return result;
         }
 
@@ -291,7 +291,7 @@ namespace I2PCore.Data
 
             dsa.Init( false, pk );
             var result = dsa.VerifySignature( hash, r, s );
-            DebugUtils.LogDebug( "DoVerifyEcDsa: " + result.ToString() + ": " + digest.ToString() );
+            Logging.LogDebug( "DoVerifyEcDsa: " + result.ToString() + ": " + digest.ToString() );
             return result;
         }
 

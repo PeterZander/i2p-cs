@@ -45,7 +45,7 @@ namespace I2PCore.Tunnel
                         Select( p => p.Key ).ToArray();
                     foreach ( var key in remove )
                     {
-                        DebugUtils.LogDebug( "TunnelDataFragmentReassembly: Removing old unmatched fragment for " + key.ToString() );
+                        Logging.LogDebug( "TunnelDataFragmentReassembly: Removing old unmatched fragment for " + key.ToString() );
                         MessageFragments.Remove( key );
                     }
                 }
@@ -59,7 +59,7 @@ namespace I2PCore.Tunnel
                 {
                     // Do not stop processing, just throw away faulty data
                     // throw new SignatureCheckFailureException( "TunnelDataFragmentReassembly: SHA256 check failed in TunnelData" );
-                    DebugUtils.LogDebug( "TunnelDataFragmentReassembly: SHA256 check failed in TunnelData" );
+                    Logging.LogDebug( "TunnelDataFragmentReassembly: SHA256 check failed in TunnelData" );
                     continue;
                 }
 

@@ -113,7 +113,7 @@ namespace I2PCore.Utils
                     if ( pos >= target )
                     {
                         RandomFitEMA = ( 49 * RandomFitEMA + one.Space + MinFit - 1 ) / 50f;
-                        DebugUtils.LogDebug( () => "Roulette: " + one.Id.ToString() );
+                        Logging.LogDebug( () => "Roulette: " + one.Id.ToString() );
                         return one.Id;
                     }
                 }

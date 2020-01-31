@@ -118,7 +118,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( dropped > 0 )
             {
-                DebugUtils.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
+                Logging.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
             }
 #endif
 

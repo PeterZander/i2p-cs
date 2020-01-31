@@ -41,7 +41,7 @@ namespace I2PCore.Transport.SSU
                 if ( ++Retries > HandshakeStateMaxRetries ) 
                     throw new FailedToConnectException( "SSU " + Session.DebugId + " Failed to connect" );
 
-                DebugUtils.Log( "SSU SessionConfirmedState " + Session.DebugId + " : Resending SessionConfirmed message." );
+                Logging.Log( "SSU SessionConfirmedState " + Session.DebugId + " : Resending SessionConfirmed message." );
 
                 // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
                 /**
@@ -196,7 +196,7 @@ namespace I2PCore.Transport.SSU
                 return this;
             }
 
-            DebugUtils.Log( "SSU SessionConfirmedState: Session " + Session.DebugId + " established. " + 
+            Logging.Log( "SSU SessionConfirmedState: Session " + Session.DebugId + " established. " + 
                 header.MessageType.ToString() + " received. Moving to Established state." );
             var next = new EstablishedState( Session );
             Session.ReportConnectionEstablished();

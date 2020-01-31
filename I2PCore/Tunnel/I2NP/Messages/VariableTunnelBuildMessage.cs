@@ -103,7 +103,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
                 requests.Add( rec );
 
-                DebugUtils.Log( rec.ToString() );
+                Logging.Log( rec.ToString() );
             }
 
             // Physical record sort order
@@ -200,7 +200,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
                 requests.Add( rec );
 
-                DebugUtils.Log( rec.ToString() );
+                Logging.Log( rec.ToString() );
             }
 
             // Physical record sort order

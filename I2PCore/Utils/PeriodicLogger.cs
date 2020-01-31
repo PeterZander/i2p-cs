@@ -7,26 +7,24 @@ namespace I2PCore.Utils
 {
     public class PeriodicLogger
     {
-        public delegate string MakeMessage();
-
         PeriodicAction LogAction;
-        DebugUtils.LogLevels LogLevel;
+        readonly Logging.LogLevels LogLevel;
 
         public PeriodicLogger( int freqsec )
         {
             LogAction = new PeriodicAction( TickSpan.Seconds( freqsec ) );
-            LogLevel = DebugUtils.LogLevels.DebugData;
+            LogLevel = Logging.LogLevels.DebugData;
         }
 
-        public PeriodicLogger( DebugUtils.LogLevels level, int freqsec )
+        public PeriodicLogger( Logging.LogLevels level, int freqsec )
         {
             LogLevel = level;
             LogAction = new PeriodicAction( TickSpan.Seconds( freqsec ) );
         }
 
-        public void Log( MakeMessage maker )
+        public void Log( Func<string> maker )
         {
-            LogAction.Do( () => DebugUtils.Log( LogLevel, maker() ) );
+            LogAction.Do( () => Logging.Log( LogLevel, maker ) );
         }
     }
 }

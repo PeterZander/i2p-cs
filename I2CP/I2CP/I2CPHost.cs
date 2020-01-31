@@ -66,7 +66,7 @@ namespace I2P.I2CP
                                 catch ( Exception ex )
                                 {
                                     one.Terminate();
-                                    DebugUtils.Log( ex );
+                                    Logging.Log( ex );
                                 }
                             }
 
@@ -92,11 +92,11 @@ namespace I2P.I2CP
                     }
                     catch ( ThreadAbortException ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -147,7 +147,7 @@ namespace I2P.I2CP
                 var socket = listener.EndAccept( ar );
 
                 var i2cpc = new I2CPSession( this, socket );
-                DebugUtils.LogDebug( "I2CPHost: incoming connection " + i2cpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
+                Logging.LogDebug( "I2CPHost: incoming connection " + i2cpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
 
                 lock ( Sessions )
                 {
@@ -160,7 +160,7 @@ namespace I2P.I2CP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
 
             try
@@ -169,7 +169,7 @@ namespace I2P.I2CP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
         }
     }

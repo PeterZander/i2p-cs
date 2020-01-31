@@ -104,7 +104,7 @@ namespace I2PCore.Tunnel
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }
@@ -176,7 +176,7 @@ namespace I2PCore.Tunnel
             }
 
             if ( tunneldbginfo.Length > 0 )
-                DebugUtils.LogDebug(
+                Logging.LogDebug(
                     $"TunnelTester: Starting inbound tunnel {intunnel.TunnelDebugTrace} test with tunnels: {tunneldbginfo}" );
         }
 
@@ -247,7 +247,7 @@ namespace I2PCore.Tunnel
             }
 
             if ( tunneldbginfo.Length > 0 )
-                DebugUtils.LogDebug(
+                Logging.LogDebug(
                     $"TunnelTester: Starting outbound tunnel {outtunnel.TunnelDebugTrace} test with tunnels: {tunneldbginfo}" );
         }
 
@@ -264,7 +264,7 @@ namespace I2PCore.Tunnel
             var limit = PassTestTimePerHop.ToMilliseconds * probe.TotalHops;
             var pass = testms < limit;
 
-            DebugUtils.LogDebug( string.Format( "TunnelTester: DeliveryStatus received. Test with {0} and {1}: {2}. {3:0} vs {4} ms",
+            Logging.LogDebug( string.Format( "TunnelTester: DeliveryStatus received. Test with {0} and {1}: {2}. {3:0} vs {4} ms",
                 run.TunnelUnderTest.TunnelDebugTrace, probe.Partner.TunnelDebugTrace,
                 ( pass ? "Success" : "Fail" ),
                 testms, limit ) );
@@ -300,7 +300,7 @@ namespace I2PCore.Tunnel
             var run = OutstandingTests[probe.Tunnel];
             if ( run == null ) return;
 
-            DebugUtils.LogDebug( "TunnelTester: Test with " +
+            Logging.LogDebug( "TunnelTester: Test with " +
                 run.TunnelUnderTest.TunnelDebugTrace + " and " + probe.Partner.TunnelDebugTrace + " timeout." );
 
             run.OutstandingProbes.Remove( probe );
@@ -331,7 +331,7 @@ namespace I2PCore.Tunnel
 
             if ( testresult.Pass > 0 && testresult.Pass * 2 >= testresult.Fail )
             {
-                DebugUtils.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} passed tests. Successes: {1}, Failures {2}.",
+                Logging.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} passed tests. Successes: {1}, Failures {2}.",
                     run.TunnelUnderTest, testresult.Pass, testresult.Fail ) );
 
                 foreach ( var onehop in run.TunnelUnderTest.TunnelMembers )
@@ -393,7 +393,7 @@ namespace I2PCore.Tunnel
                 }
             }
 
-            DebugUtils.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} failed tests and is removed. Successes: {1}, Failures {2}.",
+            Logging.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} failed tests and is removed. Successes: {1}, Failures {2}.",
                 run.TunnelUnderTest, testresult.Pass, testresult.Fail ) );
 
             TunnelProvider.Inst.TunnelTestFailed( run.TunnelUnderTest );

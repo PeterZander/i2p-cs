@@ -63,17 +63,15 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
-      <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Security" />
     <Reference Include="System.Xml.Linq">
-      <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data.DataSetExtensions">
-      <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Configuration" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChecksumFailureException.cs" />
@@ -223,7 +221,6 @@
     <Compile Include="Utils\BufRef.cs" />
     <Compile Include="Utils\BufRefStream.cs" />
     <Compile Include="Utils\BufUtils.cs" />
-    <Compile Include="Utils\DebugUtils.cs" />
     <Compile Include="Utils\ElGamalCrypto.cs" />
     <Compile Include="Utils\FreenetBase64.cs" />
     <Compile Include="Utils\HashedItemGroup.cs" />
@@ -240,6 +237,10 @@
     <Compile Include="Utils\TickCounter.cs" />
     <Compile Include="Utils\TimeWindowDictionary.cs" />
     <Compile Include="Utils\UPnp.cs" />
+    <Compile Include="Utils\Logging\StreamLogStore.cs" />
+    <Compile Include="Utils\Logging\Logging.cs" />
+    <Compile Include="Utils\Logging\FileLogStore.cs" />
+    <Compile Include="Utils\Logging\ILogStore.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />

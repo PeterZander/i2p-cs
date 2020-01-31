@@ -98,23 +98,23 @@ namespace I2PCore.Transport.SSU
             }
             else
             {
-                DebugUtils.LogDebug( () => string.Format( "SSU {0}: {1} Current MAC check fail. Payload {2} bytes. ",
+                Logging.LogDebug( () => string.Format( "SSU {0}: {1} Current MAC check fail. Payload {2} bytes. ",
                     this, Session.DebugId, header.MACDataBuf.Length ) );
 
-                if ( (int)DebugUtils.LogLevel <= (int)DebugUtils.LogLevels.Debug )
+                if ( (int)Logging.LogLevel <= (int)Logging.LogLevels.Debug )
                 {
                     if ( Session.IntroKey != null )
                     {
                         var recvhashi = I2PHMACMD5Digest.Generate( macdata, new BufLen( Session.IntroKey ), MACBuf );
                         var oki = header.MAC.Equals( recvhashi );
-                        DebugUtils.Log( "SSU " + this.ToString() + ": " + Session.DebugId + ". " +
+                        Logging.Log( "SSU " + this.ToString() + ": " + Session.DebugId + ". " +
                             "Session Intro key match: " + oki.ToString() );
                     }
                 }
 
                 var recvhash2 = I2PHMACMD5Digest.Generate( macdata, new BufLen( Session.MyRouterContext.IntroKey ), MACBuf );
                 var ok2 = header.MAC.Equals( recvhash2 );
-                DebugUtils.LogDebug( () => string.Format( "SSU {0}: {1} My intro MAC key match: {3}. Payload {2} bytes. ",
+                Logging.LogDebug( () => string.Format( "SSU {0}: {1} My intro MAC key match: {3}. Payload {2} bytes. ",
                     this, Session.DebugId, header.MACDataBuf.Length, ok2 ) );
 
                 if ( ok2 )
@@ -124,7 +124,7 @@ namespace I2PCore.Transport.SSU
                         var reason = string.Format( "SSU {0}: {1}. {2} intro key matches in a row. The other side seems to have started a new session.",
                             this, Session.DebugId, IntroMACsReceived );
 
-                        DebugUtils.Log( reason );
+                        Logging.Log( reason );
                         return MACHealth.AbandonSession;
                     }
 

@@ -65,7 +65,7 @@ namespace I2PCore.Router
 
                         foreach ( var one in selection )
                         {
-                            DebugUtils.Log( "Watchdog. Killing thread: " + one.Key.ManagedThreadId.ToString() );
+                            Logging.Log( "Watchdog. Killing thread: " + one.Key.ManagedThreadId.ToString() );
                             try
                             {
                                 one.Key.Abort();
@@ -81,18 +81,18 @@ namespace I2PCore.Router
                             }
                             catch ( Exception ex )
                             {
-                                DebugUtils.Log( "Watchdog: " + ex.ToString() );
+                                Logging.Log( "Watchdog: " + ex.ToString() );
                             }
                         }
                     }
                 }
                 catch ( ThreadAbortException ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
             finally
@@ -103,7 +103,7 @@ namespace I2PCore.Router
 
         public void StartMonitor( Thread thread, int timeoutms )
         {
-            DebugUtils.Log( "Watchdog. Start monitoring thread: " + thread.ManagedThreadId.ToString() );
+            Logging.Log( "Watchdog. Start monitoring thread: " + thread.ManagedThreadId.ToString() );
             lock ( Watched )
             {
                 if ( Watched.ContainsKey( thread ) ) throw new InvalidOperationException( "Thread already watched!" );
@@ -113,7 +113,7 @@ namespace I2PCore.Router
 
         public void StopMonitor( Thread thread )
         {
-            DebugUtils.Log( "Watchdog. Stop monitoring thread: " + thread.ManagedThreadId.ToString() );
+            Logging.Log( "Watchdog. Stop monitoring thread: " + thread.ManagedThreadId.ToString() );
             lock ( Watched )
             {
                 Watched.Remove( thread );

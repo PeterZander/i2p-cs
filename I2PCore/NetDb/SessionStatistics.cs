@@ -94,7 +94,7 @@ namespace I2PCore
                     }
                 }
                 sw2.Stop();
-                DebugUtils.Log( string.Format( "Statistics load: Total: {0}, Read(): {1}, Constr: {2}, Dict: {3} ", 
+                Logging.Log( string.Format( "Statistics load: Total: {0}, Read(): {1}, Constr: {2}, Dict: {3} ", 
                     sw2.Elapsed, 
                     readsw.Elapsed, 
                     constrsw.Elapsed,
@@ -145,7 +145,7 @@ namespace I2PCore
                 }
             }
             sw2.Stop();
-            DebugUtils.Log( "Statistics save: " + sw2.Elapsed.ToString() + ", " + deleted.ToString() + " deleted." );
+            Logging.Log( "Statistics save: " + sw2.Elapsed.ToString() + ", " + deleted.ToString() + " deleted." );
         }
 
         public delegate void Accessor( DestinationStatistics ds );
@@ -255,7 +255,7 @@ namespace I2PCore
             {
                 ScoreMaxStdDev = stddev;
 
-                DebugUtils.LogDebug( string.Format( "SessionStatistics: UpdateScoreAverages: ScoreMaxStdDev updated {0:0.00}", ScoreMaxStdDev ) );
+                Logging.LogDebug( string.Format( "SessionStatistics: UpdateScoreAverages: ScoreMaxStdDev updated {0:0.00}", ScoreMaxStdDev ) );
             }
         }
 

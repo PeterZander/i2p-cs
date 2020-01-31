@@ -186,12 +186,12 @@ namespace I2PCore.Router
         {
             try
             {
-                DebugUtils.LogInformation( "RouterContext: Path: " + RouterPath );
+                Logging.LogInformation( "RouterContext: Path: " + RouterPath );
                 Load( GetFullPath( filename ) );
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
                 NewIdentity( null );
                 Save( RouterSettingsFile );
             }
@@ -318,7 +318,7 @@ namespace I2PCore.Router
 
                 MyRouterInfoCache = result;
 
-                DebugUtils.Log( "RouterContext: New settings: " + result.ToString() );
+                Logging.Log( "RouterContext: New settings: " + result.ToString() );
 
                 return result;
             }

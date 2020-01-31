@@ -129,11 +129,11 @@ namespace I2PCore.Utils
                     }
                     catch ( ThreadAbortException ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -174,7 +174,7 @@ namespace I2PCore.Utils
                 {
                     RouterContext.Inst.UpnpNATPortMapAdded( addr, protocol, MappedExternalPort );
 
-                    DebugUtils.LogInformation( "Upnp: " + protocol + " port " + MappedExternalPort.ToString() + " already forwarded." );
+                    Logging.LogInformation( "Upnp: " + protocol + " port " + MappedExternalPort.ToString() + " already forwarded." );
                     return; // We have mapped the port, and the gateway does not support decaying leases.
                 }
             }
@@ -184,13 +184,13 @@ namespace I2PCore.Utils
 
             if ( port >= 7000 )
             {
-                DebugUtils.LogInformation( "Upnp: Failed to map an external " + protocol + " port." );
+                Logging.LogInformation( "Upnp: Failed to map an external " + protocol + " port." );
                 return;
             }
 
             MappedExternalPort = port;
 
-            DebugUtils.LogInformation( "Upnp: " + protocol + " Port " + MappedExternalPort.ToString() + " mapped to same local port." );
+            Logging.LogInformation( "Upnp: " + protocol + " Port " + MappedExternalPort.ToString() + " mapped to same local port." );
 
             RouterContext.Inst.UpnpNATPortMapAdded( addr, protocol, MappedExternalPort );
         }
@@ -206,7 +206,7 @@ namespace I2PCore.Utils
                 var resp = ParseResponse( txt );
 
 #if LOG_ALL_UPNP
-                DebugUtils.Log( "UPnp multicast data received: " + MLEp.ToString() + ":" + txt );
+                Logging.Log( "UPnp multicast data received: " + MLEp.ToString() + ":" + txt );
 #endif
 
                 if ( resp != null )
@@ -216,7 +216,7 @@ namespace I2PCore.Utils
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
             finally
             {
@@ -238,7 +238,7 @@ namespace I2PCore.Utils
                     if ( usnmatch.Success )
                     {
                         var key = usnmatch.Groups[1].Captures[0].Value;
-                        DebugUtils.LogDebug( "Upnp: Found USN: " + key );
+                        Logging.LogDebug( "Upnp: Found USN: " + key );
 
                         bool isnew = !( WANIPConnections.ContainsKey( key ) );
 
@@ -255,7 +255,7 @@ namespace I2PCore.Utils
                 }
                 else
                 {
-                    DebugUtils.LogDebug( "Upnp: No LOCATION or USN in response." );
+                    Logging.LogDebug( "Upnp: No LOCATION or USN in response." );
                 }
             }
         }
@@ -265,7 +265,7 @@ namespace I2PCore.Utils
             var location = resp.Headers["LOCATION"];
 
 #if LOG_ALL_UPNP
-            DebugUtils.Log( "Upnp: NewWANIPConnectionFound: LOCATION: " + location );
+            Logging.Log( "Upnp: NewWANIPConnectionFound: LOCATION: " + location );
 #endif
             var xmlreq = HttpWebRequest.Create( location );
             xmlreq.Timeout = 30 * 1000;
@@ -276,7 +276,7 @@ namespace I2PCore.Utils
             var st = sr.ReadToEnd();
 
 #if LOG_ALL_UPNP
-            DebugUtils.Log( "Upnp: XML: " + st );
+            Logging.Log( "Upnp: XML: " + st );
 #else
             DebugUtils.Log( "Upnp: Got device description XML." );
 #endif
@@ -335,7 +335,7 @@ namespace I2PCore.Utils
             }
             else
             {
-                DebugUtils.LogDebug( "Upnp: Node count: " + connnodes.Count.ToString() );
+                Logging.LogDebug( "Upnp: Node count: " + connnodes.Count.ToString() );
             }
         }
 
@@ -348,7 +348,7 @@ namespace I2PCore.Utils
             var resp = ParseResponse( st );
             if ( resp.Error / 100 != 2 )
             {
-                DebugUtils.LogInformation( "Upnp: Requesting external IP# failed: " + resp.Error.ToString() );
+                Logging.LogInformation( "Upnp: Requesting external IP# failed: " + resp.Error.ToString() );
                 return;
             }
 
@@ -361,7 +361,7 @@ namespace I2PCore.Utils
             if ( ipnode != null )
             {
                 RouterContext.Inst.UpnpReportedAddr( ipnode.InnerText );
-                DebugUtils.LogInformation( "Upnp: External IP#: " + ipnode.InnerText );
+                Logging.LogInformation( "Upnp: External IP#: " + ipnode.InnerText );
             }
         }
 
@@ -379,7 +379,7 @@ namespace I2PCore.Utils
             var resp = ParseResponse( st );
             if ( resp.Error / 100 != 2 )
             {
-                DebugUtils.LogInformation( "Upnp: Requesting status on external port mapping failed: HTTP err " + resp.Error.ToString() );
+                Logging.LogInformation( "Upnp: Requesting status on external port mapping failed: HTTP err " + resp.Error.ToString() );
                 return null;
             }
 
@@ -417,7 +417,7 @@ namespace I2PCore.Utils
             var resp = ParseResponse( st );
             if ( resp.Error / 100 != 2 )
             {
-                DebugUtils.LogInformation( "Upnp: Requesting external port mapping failed: HTTP err " + resp.Error.ToString() );
+                Logging.LogInformation( "Upnp: Requesting external port mapping failed: HTTP err " + resp.Error.ToString() );
                 return false;
             }
 
@@ -429,7 +429,7 @@ namespace I2PCore.Utils
             var ipnode = xml.SelectSingleNode( "//errorCode" );
             if ( ipnode != null )
             {
-                DebugUtils.LogInformation( "Upnp: Requesting external port mapping failed: " + docst );
+                Logging.LogInformation( "Upnp: Requesting external port mapping failed: " + docst );
                 return false;
             }
 
@@ -479,7 +479,7 @@ namespace I2PCore.Utils
 
                 st = st + soap;
 #if LOG_ALL_UPNP
-                DebugUtils.Log( "Upnp: Sending : " + st );
+                Logging.Log( "Upnp: Sending : " + st );
 #endif
 
                 var buf = Encoding.ASCII.GetBytes( st );
@@ -521,7 +521,7 @@ namespace I2PCore.Utils
 
                 
 #if LOG_ALL_UPNP
-                DebugUtils.Log( "Upnp: Response: " + respst );
+                Logging.Log( "Upnp: Response: " + respst );
 #endif
                 return respst;
             }
@@ -573,7 +573,7 @@ namespace I2PCore.Utils
 
         private void DiscoverDevices()
         {
-            DebugUtils.Log( "UPnp polling for devices." );
+            Logging.Log( "UPnp polling for devices." );
 
             string ss = "M-SEARCH * HTTP/1.1\r\n" +
                 "HOST:239.255.255.250:1900\r\n" +

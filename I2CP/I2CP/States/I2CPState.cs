@@ -56,7 +56,7 @@ namespace I2P.I2CP.States
                     if ( msglen <= recvlen )
                     {
                         var data = new BufRefLen( ReceiveMessageBuffer, 0, msglen );
-                        DebugUtils.LogDebug( () => string.Format( "I2CPState: Message received. {0} bytes, message {1} {2}.",
+                        Logging.LogDebug( () => string.Format( "I2CPState: Message received. {0} bytes, message {1} {2}.",
                             msglen, data[4], (I2CPMessage.ProtocolMessageType)data[4] ) );
                         ns = MessageReceived( I2CPMessage.GetMessage( data ) );
                         ReceiveWriter = new BufRefLen( ReceiveMessageBuffer );

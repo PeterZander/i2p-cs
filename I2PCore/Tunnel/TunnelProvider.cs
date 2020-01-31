@@ -139,14 +139,14 @@ namespace I2PCore.Tunnel
                         var estt = EstablishedTunnels;
                         QueueStatusLog.Do( () =>
                         {
-                            DebugUtils.LogInformation( string.Format(
+                            Logging.LogInformation( string.Format(
                                 "Established tunnels in: {0,2}, out: {1,2}. Pending in: {2,2}, out {3,2}. X in: {4,2}, out: {5,2}. Ext: {6,2}",
                                 ClientsInbound.Count, ClientsOutbound.Count,
                                 PendingInbound.Count, PendingOutbound.Count,
                                 ExploratoryInbound.Count, ExploratoryOutbound.Count,
                                 ExternalTunnels.Count ) );
 
-                            DebugUtils.LogDebug( () => string.Format(
+                            Logging.LogDebug( () => string.Format(
                                 "Unresolvable routers: {0}. Unresolved routers: {1}. IP addresses with execptions: {2}. SSU blocked IPs: {3}.",
                                 TransportProvider.Inst.CurrentlyUnresolvableRoutersCount,
                                 TransportProvider.Inst.CurrentlyUnknownRoutersCount,
@@ -171,19 +171,19 @@ namespace I2PCore.Tunnel
                     }
                     catch ( ThreadAbortException ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                     catch ( Exception ex )
                     {
 #if !LOG_ALL_TUNNEL_TRANSFER
                         if ( ex is IOException || ex is SocketException || ex is FailedToConnectException || ex is EndOfStreamEncounteredException )
                         {
-                            DebugUtils.Log( "TransportProvider: Communication exception " + ex.GetType().ToString() );
+                            Logging.Log( "TransportProvider: Communication exception " + ex.GetType().ToString() );
                         }
                         else
 #endif
                         {
-                            DebugUtils.Log( ex );
+                            Logging.Log( ex );
                         }
                     }
                 }
@@ -213,7 +213,7 @@ namespace I2PCore.Tunnel
                     }
                 }
 
-                DebugUtils.LogInformation( string.Format(
+                Logging.LogInformation( string.Format(
                     "Tunnel bandwidth {0,-35} {1}", tunnel, tunnel.Bandwidth ) );
             }
         }
@@ -241,7 +241,7 @@ namespace I2PCore.Tunnel
                     ToArray();
                 foreach ( var one in timeout )
                 {
-                    DebugUtils.LogDebug( "TunnelProvider: Removing " + one.Pool.ToString() + " tunnel " + one.TunnelDebugTrace + " due to establishment timeout." );
+                    Logging.LogDebug( "TunnelProvider: Removing " + one.Pool.ToString() + " tunnel " + one.TunnelDebugTrace + " due to establishment timeout." );
 
                     foreach ( var dest in one.TunnelMembers ) NetDb.Inst.Statistics.TunnelBuildTimeout( dest.IdentHash );
 
@@ -318,7 +318,7 @@ namespace I2PCore.Tunnel
                         if ( tunnel.Expired ) 
                         {
                             // Normal timeout
-                            DebugUtils.LogDebug( string.Format( "TunnelProvider: ExecuteQueue removing tunnel {0} to {1}. Lifetime. Created: {2}.",
+                            Logging.LogDebug( string.Format( "TunnelProvider: ExecuteQueue removing tunnel {0} to {1}. Lifetime. Created: {2}.",
                                 tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short, tunnel.EstablishedTime ) );
 
                             failed.Add( tunnel );
@@ -328,10 +328,10 @@ namespace I2PCore.Tunnel
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.LogDebug( string.Format( "TunnelProvider {0}: Exception [{1}] '{2}' in tunnel to {3}. {4}",
+                    Logging.LogDebug( string.Format( "TunnelProvider {0}: Exception [{1}] '{2}' in tunnel to {3}. {4}",
                         tunnel.TunnelDebugTrace, ex.GetType(), ex.Message, tunnel.Destination.Id32Short, tunnel ) );
 #if LOG_ALL_TUNNEL_TRANSFER
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
 #endif
                     failed.Add( tunnel );
                 }
@@ -341,7 +341,7 @@ namespace I2PCore.Tunnel
             {
                 foreach ( var one in failed )
                 {
-                    DebugUtils.LogDebug( string.Format( "TunnelProvider {0}: ExecuteQueue removing failed tunnel to {1} pool {2}.",
+                    Logging.LogDebug( string.Format( "TunnelProvider {0}: ExecuteQueue removing failed tunnel to {1} pool {2}.",
                         one.TunnelDebugTrace, one.Destination.Id32Short, one.Config.Pool ) );
 
                     switch ( one.Pool )
@@ -375,7 +375,7 @@ namespace I2PCore.Tunnel
                 var tunnel = new OutboundTunnel( config, replytunnel.Config.Info.Hops.Count );
 
                 var req = tunnel.CreateBuildRequest( replytunnel );
-                DebugUtils.LogDebug( string.Format( "TunnelProvider: Outbound tunnel {0} created to {1}, build id: {2}.", 
+                Logging.LogDebug( string.Format( "TunnelProvider: Outbound tunnel {0} created to {1}, build id: {2}.", 
                     tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short, tunnel.TunnelBuildReplyMessageId ) );
 
 #if DEBUG
@@ -394,7 +394,7 @@ namespace I2PCore.Tunnel
 
                 var tunnel = new InboundTunnel( config, outtunnel.Config.Info.Hops.Count );
 
-                DebugUtils.LogDebug( string.Format( "TunnelProvider: Inbound tunnel {0} created to {1}.", tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short ) );
+                Logging.LogDebug( string.Format( "TunnelProvider: Inbound tunnel {0} created to {1}.", tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short ) );
 #if DEBUG
                 ReallyOldTunnelBuilds.Set( tunnel.TunnelBuildReplyMessageId,
                     new RefPair<TickCounter, int>( TickCounter.Now, outtunnel.Config.Info.Hops.Count + config.Info.Hops.Count ) );
@@ -671,7 +671,7 @@ namespace I2PCore.Tunnel
                             case I2NPMessage.MessageTypes.DatabaseStore:
                                 var ds = (DatabaseStoreMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.Key.Id32Short );
+                                Logging.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.Key.Id32Short );
                                 //DebugUtils.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.ToString() );
 #endif
                                 HandleDatabaseStore( ds );
@@ -680,7 +680,7 @@ namespace I2PCore.Tunnel
                             case I2NPMessage.MessageTypes.DatabaseSearchReply:
                                 var dsr = (DatabaseSearchReplyMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.Log( "TunnelProvider.RunIncomingMessagePump: DatabaseSearchReply: " + dsr.ToString() );
+                                Logging.Log( "TunnelProvider.RunIncomingMessagePump: DatabaseSearchReply: " + dsr.ToString() );
 #endif
                                 NetDb.Inst.AddDatabaseSearchReply( dsr );
                                 break;
@@ -703,7 +703,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                                         if ( FilterMessageTypes.Update( new HashedItemGroup( tg.TunnelId, 0xf4e8 ) ) )
                                         {
-                                            DebugUtils.Log( "RunIncomingMessagePump: " + tg.ToString() + "\r\n" + tunnel.ToString() );
+                                            Logging.Log( "RunIncomingMessagePump: " + tg.ToString() + "\r\n" + tunnel.ToString() );
                                         }
 #endif
                                         tunnel.MessageReceived( I2NPMessage.ReadHeader16( (BufRefLen)tg.GatewayMessage ) );
@@ -714,7 +714,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                                     if ( FilterMessageTypesShowMore.Update( new HashedItemGroup( tg.TunnelId, 0x1285 ) ) )
                                     {
-                                        DebugUtils.LogDebug( "RunIncomingMessagePump: Tunnel not found for TunnelGateway. Dropped. " + tg.ToString() );
+                                        Logging.LogDebug( "RunIncomingMessagePump: Tunnel not found for TunnelGateway. Dropped. " + tg.ToString() );
                                     }
 #endif
                                 }
@@ -730,7 +730,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                                         if ( FilterMessageTypes.Update( new HashedItemGroup( tunnel, 0x6433 ) ) )
                                         {
-                                            DebugUtils.LogDebug( string.Format( "RunIncomingMessagePump: TunnelData ({0}): {1}.",
+                                            Logging.LogDebug( string.Format( "RunIncomingMessagePump: TunnelData ({0}): {1}.",
                                                 td, tunnel ) );
                                         }
 #endif
@@ -742,7 +742,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                                     if ( FilterMessageTypes.Update( new HashedItemGroup( td.TunnelId, 0x35c7 ) ) )
                                     {
-                                        DebugUtils.LogDebug( "RunIncomingMessagePump: Tunnel not found for TunnelData. Dropped. " + td.ToString() );
+                                        Logging.LogDebug( "RunIncomingMessagePump: Tunnel not found for TunnelData. Dropped. " + td.ToString() );
                                     }
 #endif
                                 }
@@ -750,7 +750,7 @@ namespace I2PCore.Tunnel
 
                             case I2NPMessage.MessageTypes.DeliveryStatus:
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.LogDebug( "TunnelProvider.RunIncomingMessagePump: DeliveryStatus: " + msg.Message.ToString() );
+                                Logging.LogDebug( "TunnelProvider.RunIncomingMessagePump: DeliveryStatus: " + msg.Message.ToString() );
 #endif
 
                                 ThreadPool.QueueUserWorkItem( cb =>
@@ -760,14 +760,14 @@ namespace I2PCore.Tunnel
                                 break;
 
                             default:
-                                DebugUtils.LogDebug( () => "TunnelProvider.RunIncomingMessagePump: Unhandled message (" + msg.Message.ToString() + ")" );
+                                Logging.LogDebug( () => "TunnelProvider.RunIncomingMessagePump: Unhandled message (" + msg.Message.ToString() + ")" );
                                 break;
                         }
                     }
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }
@@ -824,7 +824,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( FilterMessageTypes.Update( new HashedItemGroup( transp, (int)msg.MessageType ) ) )
             {
-                DebugUtils.LogDebug( string.Format( "TunnelProvider.DistributeIncommingMessage: ({0}) from {1}.",
+                Logging.LogDebug( string.Format( "TunnelProvider.DistributeIncommingMessage: ({0}) from {1}.",
                     msg.MessageType, 
                     transp == null ? "null" : 
                         ( transp.RemoteRouterIdentity == null ? "t-null": 
@@ -884,7 +884,7 @@ namespace I2PCore.Tunnel
         {
             var trmsg = (TunnelBuildMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.Log( "HandleTunnelBuild: " + trmsg.ToString() );
+            Logging.Log( "HandleTunnelBuild: " + trmsg.ToString() );
 #endif
             HandleTunnelBuildRecords( msg, trmsg.Records );
         }
@@ -893,7 +893,7 @@ namespace I2PCore.Tunnel
         {
             var trmsg = (VariableTunnelBuildMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.Log( "HandleVariableTunnelBuild: " + trmsg.ToString() );
+            Logging.Log( "HandleVariableTunnelBuild: " + trmsg.ToString() );
 #endif
             HandleTunnelBuildRecords( msg, trmsg.Records );
         }
@@ -905,7 +905,7 @@ namespace I2PCore.Tunnel
 
             if ( tome.Count() != 1 )
             {
-                DebugUtils.LogDebug( "HandleTunnelBuildRecords: Failed to find a ToPeer16 record. (" + tome.Count().ToString() + ")" );
+                Logging.LogDebug( "HandleTunnelBuildRecords: Failed to find a ToPeer16 record. (" + tome.Count().ToString() + ")" );
                 return;
             }
 
@@ -914,7 +914,7 @@ namespace I2PCore.Tunnel
 
             if ( drec.OurIdent != RouterContext.Inst.MyRouterIdentity.IdentHash )
             {
-                DebugUtils.LogDebug( "HandleTunnelBuildRecords: Failed to full id hash match " + drec.ToString() );
+                Logging.LogDebug( "HandleTunnelBuildRecords: Failed to full id hash match " + drec.ToString() );
                 return;
             }
 
@@ -943,11 +943,11 @@ namespace I2PCore.Tunnel
 
             if ( tunnels.Length == 0 )
             {
-                DebugUtils.LogDebug( "HandleIncomingTunnelBuildRecords: Failed to find pending inbound tunnel with tunnel id " + drec.NextTunnel.ToString() );
+                Logging.LogDebug( "HandleIncomingTunnelBuildRecords: Failed to find pending inbound tunnel with tunnel id " + drec.NextTunnel.ToString() );
 #if DEBUG
                 ReallyOldTunnelBuilds.ProcessItem( drec.NextTunnel, ( k, p ) =>
                 {
-                    DebugUtils.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", drec.NextTunnel, p.Left.DeltaToNowSeconds / p.Right ) );
+                    Logging.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", drec.NextTunnel, p.Left.DeltaToNowSeconds / p.Right ) );
                 } );
 #endif
                 return;
@@ -983,7 +983,7 @@ namespace I2PCore.Tunnel
 
                     var newrec = new BuildResponseRecord( new BufRefLen( rec.Data ) );
 #if LOG_ALL_TUNNEL_TRANSFER
-                    DebugUtils.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: My inbound tunnel {0}, {1} response: {2}.",
+                    Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: My inbound tunnel {0}, {1} response: {2}.",
                         tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
 #endif
 
@@ -991,14 +991,14 @@ namespace I2PCore.Tunnel
 
                     if ( newrec.Reply == BuildResponseRecord.RequestResponse.Accept )
                     {
-                        DebugUtils.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Successful tunnel {0} member: {1}. Tunnel build reply: {2}",
+                        Logging.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Successful tunnel {0} member: {1}. Tunnel build reply: {2}",
                             tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
 
                         NetDb.Inst.Statistics.SuccessfulTunnelMember( hop.Peer.IdentHash );
                     }
                     else
                     {
-                        DebugUtils.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Unsuccessful tunnel {0} member: {1}. Tunnel build reply: {2}",
+                        Logging.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Unsuccessful tunnel {0} member: {1}. Tunnel build reply: {2}",
                             tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
 
                         NetDb.Inst.Statistics.DeclinedTunnelMember( hop.Peer.IdentHash );
@@ -1006,7 +1006,7 @@ namespace I2PCore.Tunnel
                 }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                DebugUtils.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: {0} My inbound tunnel {1} request for tunnel id {2}",
+                Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: {0} My inbound tunnel {1} request for tunnel id {2}",
                     tunnel.Destination.Id32Short, tunnel.TunnelDebugTrace, tunnel.ReceiveTunnelId ) );
 #endif
 
@@ -1016,7 +1016,7 @@ namespace I2PCore.Tunnel
                 }
                 else
                 {
-                    DebugUtils.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: Tunnel {0} build rejected.",
+                    Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: Tunnel {0} build rejected.",
                         tunnel.TunnelDebugTrace ) );
 
                     tunnel.Shutdown();
@@ -1053,19 +1053,19 @@ namespace I2PCore.Tunnel
                 {
                     match.MessageReceived( header );
 #if LOG_ALL_TUNNEL_TRANSFER
-                    DebugUtils.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
+                    Logging.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
 #endif
                 }
 
                 if ( !matches.Any() )
                 {
-                    DebugUtils.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
+                    Logging.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
                 }
             }
 #if DEBUG
             ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
             {
-                DebugUtils.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", header.MessageId, p.Left.DeltaToNowSeconds / p.Right ) );
+                Logging.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", header.MessageId, p.Left.DeltaToNowSeconds / p.Right ) );
             } );
 #endif
         }
@@ -1081,19 +1081,19 @@ namespace I2PCore.Tunnel
                 {
                     match.MessageReceived( header );
 #if LOG_ALL_TUNNEL_TRANSFER
-                    DebugUtils.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
+                    Logging.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
 #endif
                 }
 
                 if ( !matches.Any() )
                 {
-                    DebugUtils.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
+                    Logging.LogDebug( "HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id " + header.MessageId.ToString() );
                 }
             }
 #if DEBUG
             ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
             {
-                DebugUtils.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", header.MessageId, p.Left.DeltaToNowSeconds / p.Right ) );
+                Logging.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", header.MessageId, p.Left.DeltaToNowSeconds / p.Right ) );
             } );
 #endif
         }
@@ -1115,7 +1115,7 @@ namespace I2PCore.Tunnel
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -1171,7 +1171,7 @@ namespace I2PCore.Tunnel
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -1245,7 +1245,7 @@ namespace I2PCore.Tunnel
                 {
                     if ( ff == null )
                     {
-                        DebugUtils.Log( "LocalLeaseSetChanged failed to find a floodfill router." );
+                        Logging.Log( "LocalLeaseSetChanged failed to find a floodfill router." );
                         return;
                     }
 
@@ -1254,11 +1254,11 @@ namespace I2PCore.Tunnel
 
                     if ( sendtunnel == null || replytunnel == null )
                     {
-                        DebugUtils.LogDebug( "LocalLeaseSetChanged, no available tunnels." );
+                        Logging.LogDebug( "LocalLeaseSetChanged, no available tunnels." );
                         continue;
                     }
 
-                    DebugUtils.Log( "LocalLeaseSetChanged (" + leaseset.Destination.IdentHash.Id32Short + "): " + ff.Id32Short );
+                    Logging.Log( "LocalLeaseSetChanged (" + leaseset.Destination.IdentHash.Id32Short + "): " + ff.Id32Short );
 
                     // A router publishes a local LeaseSet by sending a I2NP DatabaseStoreMessage with a 
                     // nonzero Reply Token over an outbound client tunnel for that Destination. 
@@ -1287,7 +1287,7 @@ namespace I2PCore.Tunnel
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }

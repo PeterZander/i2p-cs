@@ -82,7 +82,7 @@ namespace I2PCore.Data
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
             finally

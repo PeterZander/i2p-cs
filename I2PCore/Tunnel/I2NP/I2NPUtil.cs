@@ -53,13 +53,13 @@ namespace I2PCore.Tunnel.I2NP
                         return new VariableTunnelBuildReplyMessage( reader );
 
                     default:
-                        DebugUtils.LogDebug( "GetMessage: '" + header.MessageType.ToString() + "' is not a known message type!" );
+                        Logging.LogDebug( "GetMessage: '" + header.MessageType.ToString() + "' is not a known message type!" );
                         throw new NotImplementedException();
                 }
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "GetMessage", ex );
+                Logging.Log( "GetMessage", ex );
                 throw;
             }
         }

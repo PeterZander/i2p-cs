@@ -121,14 +121,14 @@ namespace I2PCore.Transport.SSU
                         Session.IntroKey, relaytag ) );
             }
 
-            DebugUtils.Log( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );
+            Logging.Log( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );
             Session.ReportConnectionEstablished();
             return new SessionConfirmedState( Session, this );
         }
 
         private void SendSessionRequest()
         {
-            DebugUtils.Log( "SSU SessionRequestState " + Session.DebugId + " : Resending SessionRequest message." );
+            Logging.Log( "SSU SessionRequestState " + Session.DebugId + " : Resending SessionRequest message." );
 
             SendMessage(
                 SSUHeader.MessageTypes.SessionRequest,

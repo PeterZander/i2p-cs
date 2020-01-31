@@ -16,7 +16,7 @@ namespace I2PCore.Transport
 
         internal void Add( I2PIdentHash dest )
         {
-            DebugUtils.Log( "UnresolvableAddresses: " + dest.Id32Short + " marked as unresolvable." );
+            Logging.Log( "UnresolvableAddresses: " + dest.Id32Short + " marked as unresolvable." );
             lock ( CurrentlyUnresolvableRouters )
             {
                 CurrentlyUnresolvableRouters[dest] = TickCounter.Now;

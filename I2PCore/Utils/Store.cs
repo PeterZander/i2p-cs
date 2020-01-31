@@ -570,7 +570,7 @@ namespace I2PCore.Utils
                     var curlen = resultpos + readlen;
                     if ( totallen > curlen )
                     {
-                        DebugUtils.LogWarning( "Store: Warning! Stored length of the chain is faulty!" );
+                        Logging.LogWarning( "Store: Warning! Stored length of the chain is faulty!" );
                         return result.Copy( 0, curlen );
                     }
                     break;

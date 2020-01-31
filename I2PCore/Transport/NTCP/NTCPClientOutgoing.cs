@@ -45,7 +45,7 @@ namespace I2PCore.Transport.NTCP
                 throw new FailedToConnectException( ex.ToString() );
             }
 
-            DebugUtils.LogInformation( string.Format( "NTCP +{0}+ connected to {1}",
+            Logging.LogInformation( string.Format( "NTCP +{0}+ connected to {1}",
                     TransportInstance, result.RemoteEndPoint ) );
 
             return result;

@@ -24,11 +24,13 @@ namespace I2P
     {
         static void Main( string[] args )
         {
-            PeriodicAction LsLookup = new PeriodicAction( TickSpan.Minutes( 5 ) ); 
-            
-            DebugUtils.LogToConsole = true;
-            DebugUtils.LogToFile( "i2p.log" );
-            DebugUtils.LogInformation( "Me: " + RouterContext.Inst.MyRouterIdentity.IdentHash.Id32 );
+            PeriodicAction LsLookup = new PeriodicAction( TickSpan.Minutes( 5 ) );
+
+            Logging.ReadAppConfig();
+            Logging.LogToDebug = false;
+            Logging.LogToConsole = true;
+
+            Logging.LogInformation( "Me: " + RouterContext.Inst.MyRouterIdentity.IdentHash.Id32 );
 
             for ( int i = 0; i < args.Length; ++i )
             {
@@ -96,15 +98,15 @@ namespace I2P
                 }
                 catch ( SocketException ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
                 catch ( IOException ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }

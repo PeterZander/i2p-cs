@@ -67,7 +67,7 @@ namespace I2PCore.Tunnel
             FragBufferReport.Do( delegate()
             {
                 var fbsize = Reassembler.BufferedFragmentCount;
-                DebugUtils.Log( "EndpointTunnel: " + Destination.Id32Short + " Fragment buffer size: " + fbsize.ToString() );
+                Logging.Log( "EndpointTunnel: " + Destination.Id32Short + " Fragment buffer size: " + fbsize.ToString() );
                 if ( fbsize > 2000 ) throw new Exception( "BufferedFragmentCount > 2000 !" ); // Trying to fill my memory?
             } );
 
@@ -120,14 +120,14 @@ namespace I2PCore.Tunnel
                     if ( one.GetType() == typeof( TunnelMessageLocal ) )
                     {
                         MessageReceived( ( (TunnelMessageLocal)one ).Header );
-                        DebugUtils.Log( "EndpointTunnel " + Destination.Id32Short + " TunnelData destination Local. Dropped.\r\n" + one.Header.ToString() );
+                        Logging.Log( "EndpointTunnel " + Destination.Id32Short + " TunnelData destination Local. Dropped.\r\n" + one.Header.ToString() );
                     }
                     else if ( one.GetType() == typeof( TunnelMessageRouter ) )
                     {
 #if LOG_ALL_TUNNEL_TRANSFER
                         if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x2317 ) ) )
                         {
-                            DebugUtils.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData Router :\r\n" + one.Header.MessageType.ToString() );
+                            Logging.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData Router :\r\n" + one.Header.MessageType.ToString() );
                         }
 #endif
                         var msg = one.Header.Message;
@@ -140,7 +140,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                         if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x6375 ) ) )
                         {
-                            DebugUtils.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData Tunnel :\r\n" + one.Header.MessageType.ToString() );
+                            Logging.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData Tunnel :\r\n" + one.Header.MessageType.ToString() );
                         }
 #endif
                         var gwmsg = new TunnelGatewayMessage( tone.Header, tone.Tunnel );
@@ -150,12 +150,12 @@ namespace I2PCore.Tunnel
                     }
                     else
                     {
-                        DebugUtils.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData of unexpected type: " + one.Header.ToString() );
+                        Logging.LogDebug( "EndpointTunnel " + Destination.Id32Short + " TunnelData of unexpected type: " + one.Header.ToString() );
                     }
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( "EndpointTunnel", ex );
+                    Logging.Log( "EndpointTunnel", ex );
                     throw; // Kill tunnel is strange things happen
                 }
             }
@@ -163,7 +163,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( dropped > 0 )
             {
-                DebugUtils.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
+                Logging.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
             }
 #endif
 

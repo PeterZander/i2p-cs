@@ -101,7 +101,7 @@ namespace I2PCore.Tunnel
                 {
                     if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x63e9 ) ) )
                     {
-                        DebugUtils.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
+                        Logging.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
                     }
                 }
 #endif
@@ -116,7 +116,7 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x17f3 ) ) )
             {
-                DebugUtils.Log( "GatewayTunnel " + Destination.Id32Short + ": TunnelData sent." );
+                Logging.Log( "GatewayTunnel " + Destination.Id32Short + ": TunnelData sent." );
             }
 #endif
             foreach ( var tdmsg in tdata )

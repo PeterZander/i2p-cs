@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -174,7 +174,7 @@ namespace I2PCore.Transport.SSU
                     if ( !RemoteAddr.Options.Contains( $"ikey{i}" ) ) break;
                     if ( !RemoteAddr.Options.Contains( $"itag{i}" ) )
                     {
-                        DebugUtils.LogWarning(
+                        Logging.LogWarning(
                           $"SSUSession: Connect +{TransportInstance}+: itag# not present! {RemoteAddr.Options}" );
                         break;
                     }
@@ -229,7 +229,7 @@ namespace I2PCore.Transport.SSU
 #if DEBUG
                 else
                 {
-                    DebugUtils.LogWarning(
+                    Logging.LogWarning(
                         string.Format( "SSUSession {0}: SendQueue is {1} messages long! Dropping new message. Max queue: {2} ({3:###0}s)",
                         DebugId, len, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
                 }
@@ -238,7 +238,7 @@ namespace I2PCore.Transport.SSU
 
                 if ( ( len > SendQueueLengthWarningLimit ) && ( MinTimeBetweenSendQueueLogs.DeltaToNowMilliseconds > 4000 ) ) 
                 {
-                    DebugUtils.LogWarning( 
+                    Logging.LogWarning( 
                         string.Format( "SSUSession {0}: SendQueue is {1} messages long! Max queue: {2} ({3:###0}s)",
                         DebugId, len, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
                     MinTimeBetweenSendQueueLogs.SetNow();
@@ -263,7 +263,7 @@ namespace I2PCore.Transport.SSU
                 }
             }
 #if DEBUG
-            DebugUtils.LogWarning(
+            Logging.LogWarning(
                 string.Format( "SSUSession {0}: ReceiveQueue is {1} messages long! Dropping new message.",
                 DebugId, len ) );
 #endif
@@ -324,7 +324,7 @@ namespace I2PCore.Transport.SSU
 
             if ( CurrentState == null )
             {
-                DebugUtils.Log( string.Format( "SSUSession {0}: Shuting down. No state.", DebugId ) );
+                Logging.Log( string.Format( "SSUSession {0}: Shuting down. No state.", DebugId ) );
                 Host.NoCpu( this );
                 if ( ConnectionShutDown != null ) ConnectionShutDown( this );
                 IsTerminated = true;
@@ -348,7 +348,7 @@ namespace I2PCore.Transport.SSU
         internal void RaiseException( Exception ex )
         {
 #if DEBUG
-            if ( ConnectionException == null ) DebugUtils.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionException!" );
+            if ( ConnectionException == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionException!" );
 #endif
             if ( ConnectionException != null ) ConnectionException( this, ex );
         }
@@ -356,7 +356,7 @@ namespace I2PCore.Transport.SSU
         internal void MessageReceived( II2NPHeader newmessage )
         {
 #if DEBUG
-            if ( DataBlockReceived == null ) DebugUtils.LogWarning( "SSUSession: " + DebugId + " No observers for DataBlockReceived!" );
+            if ( DataBlockReceived == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for DataBlockReceived!" );
 #endif
             if ( DataBlockReceived != null ) DataBlockReceived( this, newmessage );
         }
@@ -364,7 +364,7 @@ namespace I2PCore.Transport.SSU
         internal void ReportConnectionEstablished()
         {
 #if DEBUG
-            if ( ConnectionEstablished == null ) DebugUtils.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionEstablished!" );
+            if ( ConnectionEstablished == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionEstablished!" );
 #endif
             if ( ConnectionEstablished != null ) ConnectionEstablished( this );
         }

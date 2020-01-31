@@ -181,7 +181,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
                 if ( writer.Length != 0 )
                 {
-                    DebugUtils.LogCritical( "TunnelData: MakeFragments. Tunnel block is not filled!" );
+                    Logging.LogCritical( "TunnelData: MakeFragments. Tunnel block is not filled!" );
                     throw new Exception( "TunnelData message not filled. Something is wrong." );
                 }
             }

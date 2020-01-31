@@ -43,7 +43,7 @@ namespace I2PCore.Tunnel
             if ( drec.ToAnyone )
             {
                 // Im outbound endpoint
-                DebugUtils.LogDebug( "HandleTunnelBuildRecords: Outbound endpoint request " + drec.ToString() );
+                Logging.LogDebug( "HandleTunnelBuildRecords: Outbound endpoint request " + drec.ToString() );
                 HandleEndpointTunnelRequest( msg, records, myrec, drec );
                 return;
             }
@@ -51,7 +51,7 @@ namespace I2PCore.Tunnel
             if ( drec.FromAnyone )
             {
                 // Im inbound gateway
-                DebugUtils.LogDebug( "HandleTunnelBuildRecords: Inbound gateway request " + drec.ToString() );
+                Logging.LogDebug( "HandleTunnelBuildRecords: Inbound gateway request " + drec.ToString() );
                 HandleGatewayTunnelRequest( msg, records, myrec, drec );
                 return;
             }
@@ -59,7 +59,7 @@ namespace I2PCore.Tunnel
             if ( drec.NextIdent != RouterContext.Inst.MyRouterIdentity.IdentHash )
             {
                 // Im passthrough tunnel
-                DebugUtils.LogDebug( "HandleTunnelBuildRecords: Passthrough tunnel request " + drec.ToString() );
+                Logging.LogDebug( "HandleTunnelBuildRecords: Passthrough tunnel request " + drec.ToString() );
                 HandlePassthroughTunnelRequest( msg, records, myrec, drec );
                 return;
             }
@@ -81,7 +81,7 @@ namespace I2PCore.Tunnel
             var doaccept = AcceptingTunnels( drec );
 
             var response = doaccept ? BuildResponseRecord.RequestResponse.Accept : BuildResponseRecord.DefaultErrorReply;
-            DebugUtils.LogDebug( () => string.Format( "HandleGatewayTunnelRequest {3}: {0} Gateway tunnel request: {1} for tunnel id {2}.",
+            Logging.LogDebug( () => string.Format( "HandleGatewayTunnelRequest {3}: {0} Gateway tunnel request: {1} for tunnel id {2}.",
                 tunnel.Destination.Id32Short,
                 response, 
                 tunnel.ReceiveTunnelId, 
@@ -111,7 +111,7 @@ namespace I2PCore.Tunnel
             var doaccept = AcceptingTunnels( drec );
 
             var response = doaccept ? BuildResponseRecord.RequestResponse.Accept : BuildResponseRecord.DefaultErrorReply;
-            DebugUtils.LogDebug( () => string.Format( "HandleEndpointTunnelRequest {3}: {0} Endpoint tunnel request: {1} for tunnel id {2}.",
+            Logging.LogDebug( () => string.Format( "HandleEndpointTunnelRequest {3}: {0} Endpoint tunnel request: {1} for tunnel id {2}.",
                 tunnel.Destination.Id32Short,
                 response, 
                 tunnel.ReceiveTunnelId, 
@@ -144,7 +144,7 @@ namespace I2PCore.Tunnel
             var doaccept = AcceptingTunnels( drec );
 
             var response = doaccept ? BuildResponseRecord.RequestResponse.Accept : BuildResponseRecord.DefaultErrorReply;
-            DebugUtils.LogDebug( () => string.Format( "HandlePassthroughTunnelRequest {3}: {0} Passthrough tunnel request: {1} for tunnel id {2}.",
+            Logging.LogDebug( () => string.Format( "HandlePassthroughTunnelRequest {3}: {0} Passthrough tunnel request: {1} for tunnel id {2}.",
                 tunnel.Destination.Id32Short,
                 response, 
                 tunnel.ReceiveTunnelId, 
@@ -198,7 +198,7 @@ namespace I2PCore.Tunnel
             bool recent = HaveSeenTunnelBuildRequest( drec );
             if ( recent )
             {
-                DebugUtils.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Reject due to similarity to recent tunnel. " +
+                Logging.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Reject due to similarity to recent tunnel. " +
                     "Running tunnels: {0}. Accept: {1}.",
                     RunningTunnels.Count, false ) );
                 return false;
@@ -212,7 +212,7 @@ namespace I2PCore.Tunnel
                 AcceptedTunnelBuildRequest( drec );
             }
 
-            DebugUtils.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Running tunnels: {0}. Accept: {1}.",
+            Logging.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Running tunnels: {0}. Accept: {1}.",
                 RunningTunnels.Count, result ) );
 
             return result;
@@ -247,7 +247,7 @@ namespace I2PCore.Tunnel
 
         internal void TunnelTimeout( Tunnel tunnel )
         {
-            DebugUtils.LogDebug( "PassthroughProvider: TunnelTimeout: " + tunnel.ToString() );
+            Logging.LogDebug( "PassthroughProvider: TunnelTimeout: " + tunnel.ToString() );
             RemoveTunnel( tunnel );
         }
         #endregion

@@ -99,7 +99,7 @@ namespace I2PCore.Tunnel
             IncommingSessions = new ReceivedSessions( ThisDestination.PrivateKey );
             Destinations = new DestinationSessions( ( ls, header, inf ) =>
             {
-                DebugUtils.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
+                Logging.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
                     inf.TrackingId, inf.KeyType, inf.AckMessageId, header ) );
 
                 var outtunnel = OutboundEstablishedPool.Random();
@@ -170,13 +170,13 @@ namespace I2PCore.Tunnel
                 catch ( Exception ex )
                 {
                     SendNewData.Reset();
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
 
             QueueStatusLog.Do( () =>
             {
-                DebugUtils.LogInformation( string.Format(
+                Logging.LogInformation( string.Format(
                     "ClientTunnelProvider {4}: Established tunnels in: {0,2}, out: {1,2}. Pending in: {2,2}, out {3,2}",
                     InboundEstablishedPool.Count, OutboundEstablishedPool.Count,
                     InboundPending.Count, OutboundPending.Count, MyDestination.IdentHash.Id32Short ) );
@@ -195,7 +195,7 @@ namespace I2PCore.Tunnel
             IncommingSessions = new ReceivedSessions( ThisDestination.PrivateKey );
             Destinations = new DestinationSessions( ( dest, header, inf ) =>
             {
-                DebugUtils.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
+                Logging.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
                     inf.TrackingId, inf.KeyType, inf.AckMessageId, header ) );
 
                 var outtunnel = OutboundEstablishedPool.Random();
@@ -232,7 +232,7 @@ namespace I2PCore.Tunnel
                 if ( decr == null ) return;
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                DebugUtils.LogDebug( "ClientDestination: GarlicMessageReceived: " + decr.ToString() );
+                Logging.LogDebug( "ClientDestination: GarlicMessageReceived: " + decr.ToString() );
 #endif
 
                 foreach ( var clove in decr.Cloves )
@@ -243,7 +243,7 @@ namespace I2PCore.Tunnel
                         {
                             case GarlicCloveDelivery.DeliveryMethod.Local:
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.LogDebug( () => string.Format(
+                                Logging.LogDebug( () => string.Format(
                                     "ClientDestination: GarlicMessageReceived: Delivered Local: {0}", clove.Message ) );
 #endif
                                 TunnelProvider.Inst.DistributeIncomingMessage( null, clove.Message.Header16 );
@@ -252,7 +252,7 @@ namespace I2PCore.Tunnel
                             case GarlicCloveDelivery.DeliveryMethod.Router:
                                 var dest = ( (GarlicCloveDeliveryRouter)clove.Delivery ).Destination;
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.LogDebug( () => string.Format(
+                                Logging.LogDebug( () => string.Format(
                                     "ClientDestination: GarlicMessageReceived: Delivered Router: {0} {1}",
                                     dest.Id32Short, clove.Message ) );
 #endif
@@ -262,7 +262,7 @@ namespace I2PCore.Tunnel
                             case GarlicCloveDelivery.DeliveryMethod.Tunnel:
                                 var tone = (GarlicCloveDeliveryTunnel)clove.Delivery;
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.LogDebug( () => string.Format( 
+                                Logging.LogDebug( () => string.Format( 
                                     "ClientDestination: GarlicMessageReceived: Delivered Tunnel: {0} TunnelId: {1} {2}",
                                     tone.Destination.Id32Short, tone.Tunnel, clove.Message ) );
 #endif
@@ -271,7 +271,7 @@ namespace I2PCore.Tunnel
 
                             case GarlicCloveDelivery.DeliveryMethod.Destination:
 #if LOG_ALL_TUNNEL_TRANSFER
-                                DebugUtils.LogDebug( () => string.Format(
+                                Logging.LogDebug( () => string.Format(
                                     "ClientDestination: GarlicMessageReceived: Delivered Destination: {0}", clove.Message ) );
 #endif
                                 DestinationMessageReceived( clove.Message );
@@ -280,20 +280,20 @@ namespace I2PCore.Tunnel
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( "ClientDestination GarlicDecrypt Clove", ex );
+                        Logging.Log( "ClientDestination GarlicDecrypt Clove", ex );
                     }
                 }
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "ClientDestination GarlicDecrypt", ex );
+                Logging.Log( "ClientDestination GarlicDecrypt", ex );
             }
         }
 
         void DestinationMessageReceived( I2NPMessage msg )
         {
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( "ClientDestination: DestinationMessageReceived: " + msg.ToString() );
+            Logging.LogDebug( "ClientDestination: DestinationMessageReceived: " + msg.ToString() );
 #endif
             if ( msg.MessageType == I2NPMessage.MessageTypes.Data && DataReceived != null )
             {

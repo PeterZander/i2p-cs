@@ -66,7 +66,7 @@ namespace I2PCore.Transport.NTCP
                                 listener = CreateListener();
                                 listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
 
-                                DebugUtils.LogInformation( "NTCPHost: Running with new network settings. " +
+                                Logging.LogInformation( "NTCPHost: Running with new network settings. " +
                                     listener.LocalEndPoint.ToString() + ":" + RouterContext.Inst.TCPPort.ToString() + 
                                     " (" + RouterContext.Inst.ExtAddress.ToString() + ")" );
                             }
@@ -74,11 +74,11 @@ namespace I2PCore.Transport.NTCP
                     }
                     catch ( ThreadAbortException ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                     catch ( Exception ex )
                     {
-                        DebugUtils.Log( ex );
+                        Logging.Log( ex );
                     }
                 }
             }
@@ -118,7 +118,7 @@ namespace I2PCore.Transport.NTCP
                 var socket = listener.EndAccept( ar );
 
                 var ntcpc = new NTCPClientIncoming( socket );
-                DebugUtils.LogDebug( "NTCPHost: incoming connection " + ntcpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
+                Logging.LogDebug( "NTCPHost: incoming connection " + ntcpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
 
                 if ( ConnectionCreated != null ) ConnectionCreated( ntcpc );
 
@@ -134,7 +134,7 @@ namespace I2PCore.Transport.NTCP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
 
             try
@@ -143,7 +143,7 @@ namespace I2PCore.Transport.NTCP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
         }
     }

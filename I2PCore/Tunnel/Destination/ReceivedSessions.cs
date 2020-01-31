@@ -53,7 +53,7 @@ namespace I2PCore.Tunnel
                 }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                DebugUtils.LogDebug( "ReceivedSessions: Working tag found for EGarlic." );
+                Logging.LogDebug( "ReceivedSessions: Working tag found for EGarlic." );
 #endif
 
                 var pivh = I2PHashSHA256.GetHash( tag.Value );
@@ -71,12 +71,12 @@ namespace I2PCore.Tunnel
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( "ReceivedSessions", ex );
+                    Logging.Log( "ReceivedSessions", ex );
                     return null;
                 }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                DebugUtils.LogDebug( "ReceivedSessions: Using ElGamal to decrypt." );
+                Logging.LogDebug( "ReceivedSessions: Using ElGamal to decrypt." );
 #endif
 
                 sessionkey = new I2PSessionKey( new BufLen( egheader, 0, 32 ) );
@@ -98,24 +98,24 @@ namespace I2PCore.Tunnel
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( "ReceivedSessions", ex );
+                Logging.Log( "ReceivedSessions", ex );
                 return null;
             }
 
             if ( !aesblock.VerifyPayloadHash() )
             {
-                DebugUtils.LogDebug( "ReceivedSessions: DecryptMessage: AES block SHA256 check failed." );
+                Logging.LogDebug( "ReceivedSessions: DecryptMessage: AES block SHA256 check failed." );
                 return null;
             }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-            DebugUtils.LogDebug( "ReceivedSessions: Working Aes block received. " + SessionTags.Count.ToString() + " tags available." );
+            Logging.LogDebug( "ReceivedSessions: Working Aes block received. " + SessionTags.Count.ToString() + " tags available." );
 #endif
 
             if ( aesblock.Tags.Count > 0 )
             {
 #if LOG_ALL_TUNNEL_TRANSFER
-                DebugUtils.LogDebug( "ReceivedSessions: " + aesblock.Tags.Count.ToString() + " new tags received." );
+                Logging.LogDebug( "ReceivedSessions: " + aesblock.Tags.Count.ToString() + " new tags received." );
 #endif
                 lock ( SessionTags )
                 {

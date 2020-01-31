@@ -80,7 +80,7 @@ namespace I2PCore.Tunnel
                     OutstandingMessageIds[egmsg.AckMessageId.Value] = egmsg;
                 }
 
-                DebugUtils.LogDebug( string.Format( "TagsTransferWindow: Send: ({0}) TrackingId: {1}, Ack MessageId: {2}.",
+                Logging.LogDebug( string.Format( "TagsTransferWindow: Send: ({0}) TrackingId: {1}, Ack MessageId: {2}.",
                     egmsg.KeyType, egmsg.TrackingId, egmsg.AckMessageId ) );
 
                 TunnelSelector( Session.LatestRemoteLeaseSet, npmsg, egmsg );
@@ -88,7 +88,7 @@ namespace I2PCore.Tunnel
             catch ( Exception ex )
             {
                 Session.Reset();
-                DebugUtils.Log( "TagsTransferWindow Send", ex );
+                Logging.Log( "TagsTransferWindow Send", ex );
             }
 
             return egmsg;
@@ -107,7 +107,7 @@ namespace I2PCore.Tunnel
 
                         if ( WaitingForEGAck != null && WaitingForEGAck.DeltaToNow > GarlicTimeBetweenResends )
                         {
-                            DebugUtils.LogDebug( "TagsTransferWindow: Run: ElGamal message needs to be resent. Starting over." );
+                            Logging.LogDebug( "TagsTransferWindow: Run: ElGamal message needs to be resent. Starting over." );
                             Session.Reset();
                         }
 
@@ -128,7 +128,7 @@ namespace I2PCore.Tunnel
 
                     foreach ( var pair in tosend )
                     {
-                        DebugUtils.LogDebug( string.Format( "TagsTransferWindow: Resend: ({0}) TrackingId: {1}, Ack MessageId: {2}.",
+                        Logging.LogDebug( string.Format( "TagsTransferWindow: Resend: ({0}) TrackingId: {1}, Ack MessageId: {2}.",
                             pair.Value.KeyType, pair.Value.TrackingId, pair.Value.AckMessageId ) );
 
                         if ( pair.Value.AckMessageId.HasValue ) lock ( OutstandingMessageIds )
@@ -142,7 +142,7 @@ namespace I2PCore.Tunnel
                 catch ( Exception ex )
                 {
                     Session.Reset();
-                    DebugUtils.Log( "TagsTransferWindow Run", ex );
+                    Logging.Log( "TagsTransferWindow Run", ex );
                 }
             } );
         }
@@ -180,7 +180,7 @@ namespace I2PCore.Tunnel
                 Window.Remove( info.TrackingId );
             }
 
-            DebugUtils.LogDebug( string.Format( "TagsTransferWindow: DeliveryStatusReceived: Received ACK MsgId: {0} TrackingId: {1}. {2}",
+            Logging.LogDebug( string.Format( "TagsTransferWindow: DeliveryStatusReceived: Received ACK MsgId: {0} TrackingId: {1}. {2}",
                 dsmsg.MessageId, info.TrackingId, info.Created.DeltaToNow ) );
 
             if ( WaitingForEGAck != null && info.KeyType == GarlicCreationInfo.KeyUsed.ElGamal && dsmsg.MessageId == LatestEGMessage.AckMessageId )
@@ -225,7 +225,7 @@ namespace I2PCore.Tunnel
                 }
                 catch ( Exception ex )
                 {
-                    DebugUtils.Log( ex );
+                    Logging.Log( ex );
                 }
             }
         }

@@ -76,7 +76,7 @@ namespace I2P.I2CP
             }
             catch ( Exception ex )
             {
-                DebugUtils.Log( ex );
+                Logging.Log( ex );
             }
             finally
             {
@@ -99,9 +99,9 @@ namespace I2P.I2CP
             {
                 Tunnels[lease.TunnelId] = lease;
 
-                DebugUtils.Log( lease.TunnelId.ToString() + ": " + lease.TunnelGw.Id64 );
+                Logging.Log( lease.TunnelId.ToString() + ": " + lease.TunnelGw.Id64 );
             }
-            DebugUtils.Log( "Tunnels: " + Tunnels.Count.ToString() );
+            Logging.Log( "Tunnels: " + Tunnels.Count.ToString() );
         }
 
         void Connection_ReceivedSessionStatusMessage( SessionStatusMessage msg )
@@ -131,7 +131,7 @@ namespace I2P.I2CP
 
             catch ( Exception ex )
             {
-                DebugUtils.Log( "I2CP SendCompleted", ex );
+                Logging.Log( "I2CP SendCompleted", ex );
                 Terminated = true;
             }
         }
