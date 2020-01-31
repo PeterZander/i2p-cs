@@ -434,14 +434,54 @@ namespace I2PCore.Utils
         public struct HistogramBin
         {
             public float Start;
-            public float Count;
+            public int Count;
         }
 
-        public static HistogramBin[] Histogram<T>( this IEnumerable<T> list, Func<T, float> select, int bins )
+        public static HistogramBin[] Histogram<T>( this IEnumerable<T> list, 
+            Func<T, float> select, 
+            int bins, 
+            float lowerstddevs = float.MaxValue,
+            float upperstddevs = float.MaxValue )
         {
+            if ( list == null || !list.Any() ) return default( HistogramBin[] );
+            var dbgcount = list.Count();
+
             var result = new HistogramBin[bins];
-            var min = list.Min( v => select( v ) );
-            var max = list.Max( v => select( v ) );
+            float min, max;
+
+            float avg = 0f;
+            float stddev = 0f;
+
+            if ( lowerstddevs != float.MaxValue || upperstddevs != float.MaxValue )
+            {
+                avg = list.Average( v => select( v ) );
+                stddev = list.StdDev( v => select( v ) );
+            }
+
+            if ( lowerstddevs == float.MaxValue || list.Count() < 3 )
+            {
+                min = list.Min( v => select( v ) );
+            }
+            else
+            {
+                var limit = avg - lowerstddevs * stddev;
+                var subset = list.Where( v => select( v ) > limit );
+                if ( subset == null || !subset.Any() ) return result;
+                min = subset.Min( v => select( v ) );
+            }
+
+            if ( upperstddevs == float.MaxValue || list.Count() < 3 )
+            {
+                max = list.Max( v => select( v ) );
+            }
+            else
+            {
+                var limit = avg + upperstddevs * stddev;
+                var subset = list.Where( v => select( v ) < limit );
+                if ( subset == null || !subset.Any() ) return result;
+                max = subset.Max( v => select( v ) );
+            }
+
             if ( min == max ) return result;
 
             for ( int i = 0; i < bins; ++i ) result[i].Start = i * ( ( max - min ) / bins ) + min;
@@ -449,6 +489,7 @@ namespace I2PCore.Utils
             foreach ( var one in list )
             {
                 var ix = Math.Min( result.Length - 1, (int)( ( bins * ( select( one ) - min ) ) / ( max - min ) ) );
+                ix = Math.Max( 0, ix );
                 ++result[ix].Count;
             }
             return result;

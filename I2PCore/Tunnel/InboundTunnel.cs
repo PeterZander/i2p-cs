@@ -86,12 +86,12 @@ namespace I2PCore.Tunnel
             get 
             {
                 if ( Fake0HopTunnel ) return 100;
-                /*
-                if ( Config.Pool == TunnelConfig.TunnelPool.Exploratory ) return ( TunnelSetup.Hops.Count + 1 ) * 3;
-                return ( TunnelSetup.Hops.Count + 1 ) * 3; 
-               */
-                return ( OutTunnelHops + TunnelMemberHops - 1 ) * MeassuredTunnelBuildTimePerHopSeconds; 
-            } 
+
+                return ( TunnelMemberHops + TunnelMemberHops ) *
+                    ( Config.Pool == TunnelConfig.TunnelPool.Exploratory
+                        ? MeassuredTunnelBuildTimePerHopSeconds / 2
+                        : MeassuredTunnelBuildTimePerHopSeconds );
+            }
         }
 
         public override int LifetimeSeconds 
@@ -99,7 +99,7 @@ namespace I2PCore.Tunnel
             get 
             {
                 if ( !Fake0HopTunnel && Config.Pool == TunnelConfig.TunnelPool.Exploratory )
-                    return TunnelLifetimeSeconds - TunnelRecreationMarginSeconds;
+                    return TunnelLifetimeSeconds / 3;
                 return TunnelLifetimeSeconds; 
             } 
         }

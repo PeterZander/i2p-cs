@@ -27,7 +27,7 @@ namespace I2PCore.Transport.SSU
         //     public static final int MIN_EXPIRE_TIMEOUT = 165*1000;
 
         //public const int InactivityTimeoutSeconds = 330;  // From PurpleI2P SSUSession.h SSU_TERMINATION_TIMEOUT
-        public const int InactivityTimeoutSeconds = 20 * 60; // Nearly all CPU is used for DH negotiations.
+        public const int InactivityTimeoutSeconds = 12 * 60; // Nearly all CPU is used for DH negotiations.
 
         public TickCounter Created = TickCounter.Now;
         public TickCounter LastAction = TickCounter.Now;
@@ -37,7 +37,7 @@ namespace I2PCore.Transport.SSU
 
         protected SSUState( SSUSession sess ) { Session = sess; }
 
-        protected bool Timeout( int seconds ) { return LastAction.DeltaToNowSeconds > seconds; }
+        protected bool Timeout( int seconds ) { return LastAction.DeltaToNowSeconds > seconds || Created.DeltaToNow.ToMinutes > 20; }
         protected void DataSent() { LastAction.SetNow(); }
 
         public abstract SSUState Run();

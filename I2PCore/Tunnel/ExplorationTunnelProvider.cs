@@ -14,7 +14,7 @@ namespace I2PCore.Tunnel
         public int TargetOutboundExploratoryTunnelCount = 20;
         public int TargetInboundExploratoryTunnelCount = 20;
         public int DefaultExploratoryTunnelHopCount = 1;
-        public static readonly TickSpan TimeBetweenTunnelBuilds = TickSpan.Seconds( 5 );
+        public static readonly TickSpan TimeBetweenTunnelBuilds = TickSpan.Seconds( 2 );
 
         TunnelProvider TunnelMgr;
 

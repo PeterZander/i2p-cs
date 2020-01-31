@@ -42,11 +42,10 @@ namespace I2PCore.Tunnel
         { 
             get 
             {
-                /*
-                if ( Config.Pool == TunnelConfig.TunnelPool.Exploratory ) return ( TunnelSetup.Hops.Count + 1 ) * 3;
-                return ( TunnelSetup.Hops.Count + 1 ) * 3; 
-                 */
-                return ( TunnelMemberHops + ReplyTunnelHops ) * MeassuredTunnelBuildTimePerHopSeconds; 
+                return ( TunnelMemberHops + ReplyTunnelHops ) * 
+                    ( Config.Pool == TunnelConfig.TunnelPool.Exploratory 
+                        ? MeassuredTunnelBuildTimePerHopSeconds / 2
+                        : MeassuredTunnelBuildTimePerHopSeconds ); 
             } 
         }
 
@@ -55,7 +54,7 @@ namespace I2PCore.Tunnel
             get
             {
                 if ( Config.Pool == TunnelConfig.TunnelPool.Exploratory ) 
-                    return TunnelLifetimeSeconds - TunnelRecreationMarginSeconds;
+                    return TunnelLifetimeSeconds / 3;
                 return TunnelLifetimeSeconds;
             }
         }

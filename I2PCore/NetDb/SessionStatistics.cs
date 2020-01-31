@@ -271,8 +271,8 @@ namespace I2PCore
                 return Destinations.Where( d => 
                     d.Value.Score < ScoreAverage - 2f * ScoreMaxStdDev ||
                     recent - (double)(ulong)d.Value.LastSeen > oneweek ||
-                    ( d.Value.FailedTunnelTest > 20 && d.Value.FailedTunnelTest > 2 * d.Value.SuccessfulTunnelTest ) ||
-                    ( d.Value.FailedConnects > 5 && d.Value.FailedConnects > 2 * d.Value.SuccessfulConnects )
+                    ( d.Value.FailedTunnelTest > 2 && d.Value.FailedTunnelTest > 2 * d.Value.SuccessfulTunnelTest ) ||
+                    ( d.Value.FailedConnects > 3 && d.Value.FailedConnects > 2 * d.Value.SuccessfulConnects )
                     ).Select( d => d.Key ).ToArray();
             }
         }
@@ -285,6 +285,14 @@ namespace I2PCore
                 {
                     Destinations.Remove( one );
                 }
+            }
+        }
+
+        public void Remove( I2PIdentHash hash )
+        {
+            lock ( Destinations )
+            {
+                Destinations.Remove( hash );
             }
         }
 

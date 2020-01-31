@@ -298,7 +298,7 @@ namespace I2PCore
 
             float Mode = 0f;
             var bins = 20;
-            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins );
+            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins, 2.5f );
             var maxcount = hist.Max( b => b.Count );
             if ( hist.Count() == bins && !hist.All( b => Math.Abs( b.Start ) < 0.01f ) )
             {
@@ -320,12 +320,12 @@ namespace I2PCore
 
             var ix = 0;
             if ( maxcount > 0 ) foreach ( var line in hist )
-                {
-                    var st = "";
-                    for ( int i = 0; i < ( 40 * line.Count ) / maxcount; ++i ) st += "*";
-                    DebugUtils.LogDebug( String.Format( "Roulette stats {0,6:#0.0} ({2,5}): {1}", line.Start, st, line.Count ) );
-                    ++ix;
-                }
+            {
+                var st = "";
+                for ( int i = 0; i < ( 40 * line.Count ) / maxcount; ++i ) st += "*";
+                DebugUtils.LogDebug( String.Format( "Roulette stats {0,6:#0.0} ({2,5}): {1}", line.Start, st, line.Count ) );
+                ++ix;
+            }
 
             var aobminval = roulette.WheelAverageOrBetter.Min( sp => sp.Fit );
             DebugUtils.LogDebug( String.Format( "Roulette WheelAverageOrBetter count: {0}, minfit: {1}", roulette.WheelAverageOrBetter.Count(), aobminval ) );
@@ -626,7 +626,7 @@ namespace I2PCore
         {
             I2PIdentHash result;
 
-            if ( exploratory ) GetRandomRouter( Roulette, exploratory );
+            if ( exploratory ) return GetRandomRouter( Roulette, exploratory );
 
             int retries = 0;
             do
@@ -740,6 +740,7 @@ namespace I2PCore
                     RouterInfos[hash].Value.Deleted = true;
                 }
             }
+            Statistics.Remove( hash );
         }
 
         public void RemoveRouterInfo( IEnumerable<I2PIdentHash> hashes )
