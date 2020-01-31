@@ -86,7 +86,7 @@ namespace I2PCore.Data
         {
             if ( Mode != BuildMode.BatchList ) throw new InvalidOperationException( "Cannot mix build modes" );
 
-            var buf = new List<byte>();
+            var buf = new BufRefStream();
             foreach ( var data in Batch )
             {
                 data.Write( buf );
@@ -106,21 +106,21 @@ namespace I2PCore.Data
             return BufUtils.Equals( Hash, hash );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             if ( SignedData == null ) throw new InvalidOperationException( "No signed data available" );
-            dest.AddRange( SignedData );
-            dest.AddRange( Hash );
+            dest.Write( SignedData );
+            dest.Write( Hash );
         }
 
-        public void WriteSigOnly( List<byte> dest )
+        public void WriteSigOnly( BufRefStream dest )
         {
-            dest.AddRange( Hash );
+            dest.Write( Hash );
         }
 
-        public void WriteContentOnly( List<byte> dest )
+        public void WriteContentOnly( BufRefStream dest )
         {
-            dest.AddRange( SignedData );
+            dest.Write( SignedData );
         }
     }
 }

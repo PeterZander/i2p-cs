@@ -505,6 +505,15 @@ namespace I2PCore.Utils
             return result;
         }
 
+        public int Read( byte[] dest, int offset, int length )
+        {
+            PreReadCheck( length );
+
+            Array.Copy( Data, Position, dest, offset, length );
+            Position += length;
+            return length;
+        }
+
         public BigInteger ReadBigInteger( int length )
         {
             PreReadCheck( length );
@@ -770,9 +779,9 @@ namespace I2PCore.Utils
             Array.Copy( src.BaseArray, src.BaseArrayOffset, Data, Position + offset, Math.Min( maxlen, src.Length ) );
         }
 
-        public void WriteTo( List<byte> dest )
+        public void WriteTo( BufRefStream dest )
         {
-            dest.AddRange( Data.Skip( Position ).Take( LengthDef ) );
+            dest.Write( Data, Position, LengthDef );
         }
 
         public void WriteTo( byte[] dest, int offset )
@@ -852,7 +861,7 @@ namespace I2PCore.Utils
             return result + "]";
         }
 
-        #region IList<byte> Members
+        #region IBufStream Members
 
         int IList<byte>.IndexOf( byte item )
         {

@@ -324,7 +324,7 @@ namespace I2PCore.Data
             }
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

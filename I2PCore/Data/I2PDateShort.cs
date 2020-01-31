@@ -34,9 +34,9 @@ namespace I2PCore.Data
             DateSeconds = (uint)( dt - RefDate ).TotalSeconds;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( BufUtils.Flip64B( DateSeconds ) );
+            dest.Write( BufUtils.Flip64B( DateSeconds ) );
         }
 
         public override string ToString()

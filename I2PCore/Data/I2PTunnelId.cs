@@ -35,9 +35,9 @@ namespace I2PCore.Data
             Id = buf.Read32();
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( BitConverter.GetBytes( Id ) );
+            dest.Write( BitConverter.GetBytes( Id ) );
         }
 
         public void Write( BufRef dest )

@@ -58,7 +58,7 @@ namespace I2PCore.Data
             return next ? nextdtbuf : dtbuf;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             throw new NotImplementedException();
         }

@@ -111,9 +111,9 @@ namespace I2PCore.Data
             }
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( Hash );
+            dest.Write( (BufRefLen)Hash );
         }
 
         public override string ToString()

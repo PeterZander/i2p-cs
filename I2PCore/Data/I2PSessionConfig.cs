@@ -23,9 +23,9 @@ namespace I2PCore.Data
             PrivateSigningKey = privsignkey;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            var dest2 = new List<byte>();
+            var dest2 = new BufRefStream();
             Destination.Write( dest2 );
             Map.Write( dest2 );
             Date.Write( dest2 );
@@ -33,7 +33,7 @@ namespace I2PCore.Data
 
             var sig = new I2PSignature( new BufRefLen( I2PSignature.DoSign( PrivateSigningKey, new BufLen( dest2data ) ) ), PrivateSigningKey.Certificate );
 
-            dest.AddRange( dest2data );
+            dest.Write( dest2data );
             sig.Write( dest );
         }
     }

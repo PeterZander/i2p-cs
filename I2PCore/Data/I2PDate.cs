@@ -43,9 +43,9 @@ namespace I2PCore.Data
             DateMilliseconds = buf.ReadFlip64();
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( BufUtils.Flip64B( DateMilliseconds ) );
+            dest.Write( BufUtils.Flip64B( DateMilliseconds ) );
         }
 
         public void Write( BufRef dest )

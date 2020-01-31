@@ -47,9 +47,9 @@ namespace I2PCore.Data
             reader.Seek( size );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( Data );
+            dest.Write( Data );
         }
 
         public override string ToString()

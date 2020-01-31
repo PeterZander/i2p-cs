@@ -67,7 +67,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
                 return new BufLen( hdr.ToByteArray() );
             }
 
-            public override void Write( List<byte> dest )
+            public override void Write( BufRefStream dest )
             {
                 MessageRef.Header5AndPayloadBuf.WriteTo( dest );
             }

@@ -295,7 +295,7 @@ namespace I2PCore.Data
             return result;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Sig.WriteTo( dest );
         }

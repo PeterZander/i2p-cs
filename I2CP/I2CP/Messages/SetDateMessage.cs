@@ -27,7 +27,7 @@ namespace I2P.I2CP.Messages
             Version = new I2PString( data );
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             WriteMessage( dest, Date, Version );
         }

@@ -74,7 +74,7 @@ namespace I2PCore.Tunnel.I2NP.Data
             return result;
         }
 
-        public abstract void Write( List<byte> dest );
+        public abstract void Write( BufRefStream dest );
 
         public override string ToString()
         {

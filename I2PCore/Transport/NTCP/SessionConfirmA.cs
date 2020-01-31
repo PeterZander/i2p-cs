@@ -21,12 +21,12 @@ namespace I2PCore.Transport.NTCP
         {
             context.TimestampA = (uint)Math.Ceiling( ( DateTime.UtcNow - I2PDate.RefDate ).TotalSeconds );
 
-            var cleartext = new List<byte>();
+            var cleartext = new BufRefStream();
             var ri = RouterContext.Inst.MyRouterIdentity.ToByteArray();
-            cleartext.AddRange( BufUtils.Flip16B( (ushort)ri.Length ) );
-            cleartext.AddRange( ri );
+            cleartext.Write( BufUtils.Flip16B( (ushort)ri.Length ) );
+            cleartext.Write( ri );
 
-            cleartext.AddRange( BufUtils.Flip32B( context.TimestampA ) );
+            cleartext.Write( BufUtils.Flip32B( context.TimestampA ) );
 #if LOG_ALL_TRANSPORT
             DebugUtils.Log( "SessionConfirmA send TimestampA: " + ( I2PDate.RefDate.AddSeconds( context.TimestampA ).ToString() ) );
             DebugUtils.Log( "SessionConfirmA send TimestampB: " + ( I2PDate.RefDate.AddSeconds( context.TimestampB ).ToString() ) );
@@ -39,10 +39,10 @@ namespace I2PCore.Transport.NTCP
                 BufUtils.Flip32BL( context.TimestampA ),
                 BufUtils.Flip32BL( context.TimestampB ) );
 
-            var padsize = BufUtils.Get16BytePadding( sign.Length + cleartext.Count );
-            cleartext.AddRange( BufUtils.Random( padsize ) );
+            var padsize = BufUtils.Get16BytePadding( (int)( sign.Length + cleartext.Length ) );
+            cleartext.Write( BufUtils.Random( padsize ) );
 
-            cleartext.AddRange( sign );
+            cleartext.Write( sign );
 
             var buf = new BufLen( cleartext.ToArray() );
             context.Encryptor.ProcessBytes( buf );

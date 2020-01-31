@@ -10,7 +10,7 @@ namespace I2PCore.Data
 {
     public class I2PString : I2PType
     {
-        String Str = "";
+        readonly String Str = "";
 
         public I2PString()
         {
@@ -40,7 +40,7 @@ namespace I2PCore.Data
 
         internal int CompareTo( I2PString other )
         {
-            return Str.CompareTo( other.Str );
+            return string.CompareOrdinal( Str, other.Str );
         }
 
         public byte[] GetBytes
@@ -51,12 +51,13 @@ namespace I2PCore.Data
             }
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            var v = GetBytes;
-            var l = Math.Min( 255, v.Length );
-            dest.Add( (byte)l );
-            dest.AddRange( v.Take( l ) );
+            var l = (byte)Math.Min( 255, Str.Length );
+            var v = new byte[System.Text.Encoding.UTF8.GetMaxByteCount( l ) + 1];
+            v[0] = l;
+            var bytes = System.Text.Encoding.UTF8.GetBytes( Str, 0, l, v, 1 );
+            dest.Write( v, 0, bytes + 1 );
         }
 
         public void Read( Stream src, char[] skipchars )
@@ -72,7 +73,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return Str == null ? "I2PString" : Str;
+            return Str ?? "I2PString";
         }
 
         public static bool operator ==( I2PString stl, string str )

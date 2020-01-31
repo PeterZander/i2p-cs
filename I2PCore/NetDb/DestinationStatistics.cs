@@ -153,11 +153,11 @@ namespace I2PCore
             return mapping;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Id.Write( dest );
             LastSeen.Write( dest );
-            dest.AddRange( BufUtils.Random( 60 ) ); // Reserved space
+            dest.Write( BufUtils.Random( 60 ) ); // Reserved space
 
             var mapping = CreateMapping();
 

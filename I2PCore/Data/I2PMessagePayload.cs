@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.IO.Compression;
 using System.IO;
+using I2PCore.Utils;
 
 namespace I2PCore.Data
 {
@@ -52,7 +53,7 @@ namespace I2PCore.Data
             }
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             throw new NotImplementedException();
         }

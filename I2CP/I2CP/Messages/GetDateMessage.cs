@@ -29,7 +29,7 @@ namespace I2P.I2CP.Messages
             Mapping = new I2PMapping( reader );
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             Version.Write( dest );
             Mapping.Write( dest );

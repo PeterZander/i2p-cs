@@ -30,7 +30,7 @@ namespace I2PCore.Data
             //DebugUtils.Log( "EndDate: " + EndDate.ToString() );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             TunnelGw.Write( dest );
             TunnelId.Write( dest );

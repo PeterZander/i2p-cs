@@ -56,7 +56,7 @@ namespace I2PCore.Data
             Options = new I2PMapping( buf );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             // Routers MUST set this (expire) field to all zeros. As of release 0.9.12, 
             // a non-zero expiration field is again recognized, however we must 
@@ -64,7 +64,7 @@ namespace I2PCore.Data
             // of the network recognizes it.
             // TODO: Hmmm?
 
-            dest.Add( Cost );
+            dest.Write( Cost );
             Expiration.Write( dest );
             TransportStyle.Write( dest );
             Options.Write( dest );

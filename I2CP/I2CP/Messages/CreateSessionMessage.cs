@@ -1,19 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-using Org.BouncyCastle.Crypto.Agreement;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Encodings;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities.Encoders;
-using Org.BouncyCastle.Crypto;
-using I2PCore.Data;
-using System.IO;
+﻿using I2PCore.Data;
+using I2PCore.Utils;
 
 namespace I2P.I2CP.Messages
 {
@@ -26,7 +12,7 @@ namespace I2P.I2CP.Messages
             Config = cfg;
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             Config.Write( dest );
         }

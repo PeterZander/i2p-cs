@@ -107,7 +107,7 @@ namespace I2PCore.Data
             Data = reader.ReadBufLen( RecordSize( cert ) );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

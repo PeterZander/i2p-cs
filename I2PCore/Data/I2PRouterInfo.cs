@@ -29,15 +29,15 @@ namespace I2PCore.Data
             Adresses = adresses;
             Options = options;
 
-            var dest = new List<byte>();
+            var dest = new BufRefStream();
             Identity.Write( dest );
             PublishedDate.Write( dest );
-            dest.Add( (byte)Adresses.Length );
+            dest.Write( (byte)Adresses.Length );
             foreach ( var addr in Adresses )
             {
                 addr.Write( dest );
             }
-            dest.Add( 0 ); // Always zero
+            dest.Write( 0 ); // Always zero
             Options.Write( dest );
             Data = new BufLen( dest.ToArray() );
 
@@ -97,7 +97,7 @@ namespace I2PCore.Data
             return true;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
             Signature.Write( dest );

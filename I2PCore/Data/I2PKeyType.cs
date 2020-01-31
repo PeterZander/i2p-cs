@@ -37,9 +37,9 @@ namespace I2PCore.Data
             Key = buf.ReadBufLen( KeySizeBytes );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            dest.AddRange( ToByteArray() );
+            dest.Write( ToByteArray() );
         }
 
         public byte[] ToByteArray()

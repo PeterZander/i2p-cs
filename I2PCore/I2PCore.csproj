@@ -221,6 +221,7 @@
     <Compile Include="Utils\BandwidthLimiter.cs" />
     <Compile Include="Utils\BandwidthStatistics.cs" />
     <Compile Include="Utils\BufRef.cs" />
+    <Compile Include="Utils\BufRefStream.cs" />
     <Compile Include="Utils\BufUtils.cs" />
     <Compile Include="Utils\DebugUtils.cs" />
     <Compile Include="Utils\ElGamalCrypto.cs" />

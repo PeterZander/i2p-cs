@@ -119,7 +119,7 @@ namespace I2PCore.Data
             return true;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Destination.Write( dest );
             Info.PublicKey.Write( dest );
@@ -137,17 +137,17 @@ namespace I2PCore.Data
 
             lock ( Leases )
             {
-                dest.Add( (byte)Leases.Count );
+                dest.Write( (byte)Leases.Count );
 
                 foreach ( var lease in Leases )
                 {
                     var buf = lease.ToByteArray();
-                    dest.AddRange( buf );
+                    dest.Write( buf );
                     signfields.Add( new BufLen( buf ) );
                 }
             }
             
-            dest.AddRange( I2PSignature.DoSign( Info.PrivateSigningKey, signfields.ToArray() ) );
+            dest.Write( I2PSignature.DoSign( Info.PrivateSigningKey, signfields.ToArray() ) );
         }
 
         public override string ToString()

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using I2PCore.Data;
+using I2PCore.Utils;
 
 namespace I2P.I2CP.Messages
 {
@@ -26,7 +27,7 @@ namespace I2P.I2CP.Messages
             Payload.Payload = buf;
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             throw new NotImplementedException();
         }

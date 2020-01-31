@@ -20,7 +20,7 @@ namespace I2PCore.Tunnel.I2NP.Data
 
         public int Length { get { return Data.Length; } }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

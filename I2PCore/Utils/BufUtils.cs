@@ -147,14 +147,14 @@ namespace I2PCore.Utils
 
         public static byte[] ToByteArray( this I2PType data )
         {
-            var buf = new List<byte>();
+            var buf = new BufRefStream();
             data.Write( buf );
             return buf.ToArray();
         }
 
         public static byte[] ToByteArray( params I2PType[] fields )
         {
-            var buf = new List<byte>();
+            var buf = new BufRefStream();
             foreach( var one in fields ) one.Write( buf );
             return buf.ToArray();
         }

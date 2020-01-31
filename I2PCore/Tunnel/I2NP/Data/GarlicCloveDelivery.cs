@@ -61,12 +61,12 @@ namespace I2PCore.Tunnel.I2NP.Data
             }
         }
 
-        public virtual void Write( List<byte> dest )
+        public virtual void Write( BufRefStream dest )
         {
             byte flag = Flag;
             if ( SessionKey != null ) flag |= (byte)DeliveryFlags.Encrypted;
             if ( Delay != 0 ) flag |= (byte)DeliveryFlags.Delay;
-            dest.Add( flag );
+            dest.Write( flag );
 
             if ( SessionKey != null ) SessionKey.Write( dest );
         }
@@ -83,11 +83,11 @@ namespace I2PCore.Tunnel.I2NP.Data
             if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) Delay = reader.ReadFlip32();
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             base.Write( dest );
-            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.AddRange( BufUtils.Flip32B( 0 ) );
-            dest.AddRange( Message.Header16.HeaderAndPayload );
+            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.Write( BufUtils.Flip32B( 0 ) );
+            dest.Write( (BufRefLen)Message.Header16.HeaderAndPayload );
         }
     }
 
@@ -107,12 +107,12 @@ namespace I2PCore.Tunnel.I2NP.Data
             if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) Delay = reader.ReadFlip32();
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             base.Write( dest );
             Destination.Write( dest );
-            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.AddRange( BufUtils.Flip32B( 0 ) );
-            dest.AddRange( Message.Header16.HeaderAndPayload );
+            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.Write( BufUtils.Flip32B( 0 ) );
+            dest.Write( (BufRefLen)Message.Header16.HeaderAndPayload );
         }
     }
 
@@ -132,12 +132,12 @@ namespace I2PCore.Tunnel.I2NP.Data
             if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) Delay = reader.ReadFlip32();
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             base.Write( dest );
             Destination.Write( dest );
-            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.AddRange( BufUtils.Flip32B( 0 ) );
-            dest.AddRange( Message.Header16.HeaderAndPayload );
+            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.Write( BufUtils.Flip32B( 0 ) );
+            dest.Write( (BufRefLen)Message.Header16.HeaderAndPayload );
         }
     }
 
@@ -168,13 +168,13 @@ namespace I2PCore.Tunnel.I2NP.Data
             if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) Delay = reader.ReadFlip32();
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             base.Write( dest );
             Destination.Write( dest );
             Tunnel.Write( dest );
-            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.AddRange( BufUtils.Flip32B( 0 ) );
-            dest.AddRange( Message.Header16.HeaderAndPayload );
+            if ( ( Flag & (byte)DeliveryFlags.Delay ) != 0 ) dest.Write( BufUtils.Flip32B( 0 ) );
+            dest.Write( (BufRefLen)Message.Header16.HeaderAndPayload );
         }
     }
 }

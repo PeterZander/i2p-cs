@@ -37,16 +37,14 @@ namespace I2PCore.Tunnel.I2NP.Data
 
         public Garlic( I2PDate expiration, IEnumerable<GarlicClove> cloves )
         {
-            List<byte> buf = new List<byte>();
-            buf.Add( (byte)cloves.Count() );
+            BufRefStream buf = new BufRefStream();
+            buf.Write( (byte)cloves.Count() );
             foreach ( var clove in cloves ) clove.Write( buf );
 
             // Certificate
-            buf.Add( 0 );
-            buf.Add( 0 );
-            buf.Add( 0 );
+            buf.Write( new byte[] { 0, 0, 0 } );
 
-            buf.AddRange( BufUtils.Flip32BL( BufUtils.RandomUint() ) );
+            buf.Write( (BufRefLen)BufUtils.Flip32BL( BufUtils.RandomUint() ) );
             expiration.Write( buf );
 
             Data = new BufLen( buf.ToArray() );
@@ -72,7 +70,7 @@ namespace I2PCore.Tunnel.I2NP.Data
             return string.Format( "Garlic: {0} cloves.", Cloves.Count );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

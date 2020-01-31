@@ -132,7 +132,7 @@ namespace I2PCore.Tunnel.I2NP.Data
             return (uint)Data.GetHashCode();
         }
 
-        void I2PType.Write( List<byte> dest )
+        void I2PType.Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

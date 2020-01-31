@@ -95,13 +95,13 @@ namespace I2PCore.Tunnel.I2NP.Messages
 #endif
             }
 
-            public static void Write( List<byte> dest, I2NPMessage msg )
+            public static void Write( BufRefStream dest, I2NPMessage msg )
             {
                 var inst = new I2NPHeader16( msg );
                 inst.Write( dest );
             }
 
-            public override void Write( List<byte> dest )
+            public override void Write( BufRefStream dest )
             {
                 MessageRef.Header16AndPayloadBuf.WriteTo( dest );
             }

@@ -21,7 +21,7 @@ namespace I2P.I2CP.Messages
             }
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
             throw new NotImplementedException();
         }

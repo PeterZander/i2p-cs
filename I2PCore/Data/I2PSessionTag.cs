@@ -30,7 +30,7 @@ namespace I2PCore.Data
             Value = buf.ReadBufLen( TagLength );
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Value.WriteTo( dest );
         }

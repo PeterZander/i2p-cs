@@ -35,7 +35,7 @@ namespace I2PCore.Data
             Key = buf;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Key.WriteTo( dest );
         }

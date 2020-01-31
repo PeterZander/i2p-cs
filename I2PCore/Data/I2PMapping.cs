@@ -49,20 +49,20 @@ namespace I2PCore.Data
             }
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
-            var buf = new List<byte>();
+            var buf = new BufRefStream();
 
             foreach ( var one in Mappings )
             {
                 one.Key.Write( buf );
-                buf.Add( (byte)'=' );
+                buf.Write( (byte)'=' );
                 one.Value.Write( buf );
-                buf.Add( (byte)';' );
+                buf.Write( (byte)';' );
             }
 
-            dest.AddRange( BitConverter.GetBytes( BufUtils.Flip16( (ushort)buf.Count ) ) );
-            dest.AddRange( buf );
+            dest.Write( BufUtils.Flip16B( (ushort)buf.Length ) );
+            dest.Write( buf );
         }
 
         public override string ToString()

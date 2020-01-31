@@ -31,14 +31,14 @@ namespace I2PCore.Tunnel.I2NP.Data
             Expiration = exp;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Delivery.Write( dest );
-            dest.AddRange( (BufLen)CloveId );
+            dest.Write( (BufRefLen)(BufLen)CloveId );
             Expiration.Write( dest );
-            dest.Add( 0 );
-            dest.Add( 0 );
-            dest.Add( 0 );
+            dest.Write( 0 );
+            dest.Write( 0 );
+            dest.Write( 0 );
         }
     }
 }

@@ -78,7 +78,7 @@ namespace I2PCore.Tunnel.I2NP.Data
             return comp.Hash16 == Data;
         }
 
-        public void Write( List<byte> dest )
+        public void Write( BufRefStream dest )
         {
             Data.WriteTo( dest );
         }

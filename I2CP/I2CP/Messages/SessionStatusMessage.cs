@@ -29,12 +29,12 @@ namespace I2P.I2CP.Messages
             SessionState = (SessionStates)reader.Read8();
         }
 
-        public override void Write( List<byte> dest )
+        public override void Write( BufRefStream dest )
         {
-            dest.AddRange( BufUtils.Flip32B( 3 ) );
-            dest.Add( (byte)MessageType );
-            dest.AddRange( BitConverter.GetBytes( SessionId ) );
-            dest.Add( (byte)SessionState );
+            dest.Write( BufUtils.Flip32B( 3 ) );
+            dest.Write( (byte)MessageType );
+            dest.Write( BitConverter.GetBytes( SessionId ) );
+            dest.Write( (byte)SessionState );
         }
     }
 }

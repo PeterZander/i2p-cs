@@ -44,29 +44,28 @@ namespace I2P.I2CP.Messages
             MessageType = msgtype;
         }
 
-        public abstract void Write( List<byte> dest );
+        public abstract void Write( BufRefStream dest );
 
-        public void WriteMessage( List<byte> dest, params I2PType[] fields )
+        public void WriteMessage( BufRefStream dest, params I2PType[] fields )
         {
-            var buf = new List<byte>();
-
+            var buf = new BufRefStream();
             foreach ( var field in fields ) field.Write( buf );
 
-            dest.AddRange( BufUtils.Flip32B( (uint)buf.Count ) );
-            dest.Add( (byte)MessageType );
-            dest.AddRange( buf );
+            dest.Write( BufUtils.Flip32B( (uint)buf.Length ) );
+            dest.Write( (byte)MessageType );
+            dest.Write( buf );
         }
 
         public byte[] ToByteArray()
         {
-            var buf = new List<byte>();
+            var buf = new BufRefStream();
             Write( buf );
             return buf.ToArray();
         }
         /*
-        public void WriteMessage( List<byte> dest )
+        public void WriteMessage( BufStream dest )
         {
-            var buf = new List<byte>();
+            var buf = new BufStream();
 
             Write( buf );
 
@@ -77,7 +76,7 @@ namespace I2P.I2CP.Messages
 
         public void WriteMessage( Stream dest )
         {
-            var buf = new List<byte>();
+            var buf = new BufStream();
             WriteMessage( buf );
             var ar = buf.ToArray();
             dest.Write( ar, 0, ar.Length );

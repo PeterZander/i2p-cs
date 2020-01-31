@@ -248,7 +248,7 @@ namespace I2PCore.Router
 
             using ( var fs = new FileStream( fullpath, FileMode.Create, FileAccess.Write ) )
             {
-                var dest = new List<byte>();
+                var dest = new BufRefStream();
 
                 Certificate.Write( dest );
                 PrivateSigningKey.Write( dest );
