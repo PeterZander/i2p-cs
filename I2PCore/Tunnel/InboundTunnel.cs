@@ -49,7 +49,7 @@ namespace I2PCore.Tunnel
 
                 ReceiveTunnelId = TunnelSetup.Hops.Last().TunnelId;
 
-                Logging.LogDebug( "InboundTunnel: Tunnel " + Destination.Id32Short + " created." );
+                Logging.LogDebug( $"InboundTunnel: Tunnel {Destination.Id32Short} created." );
             }
             else
             {
@@ -68,7 +68,7 @@ namespace I2PCore.Tunnel
                 RemoteGateway = RouterContext.Inst.MyRouterIdentity.IdentHash;
                 GatewayTunnelId = ReceiveTunnelId;
 
-                Logging.LogDebug( "InboundTunnel " + TunnelDebugTrace + ": 0-hop tunnel " + Destination.Id32Short + " created." );
+                Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: 0-hop tunnel {Destination.Id32Short} created." );
             }
         }
 
@@ -89,7 +89,7 @@ namespace I2PCore.Tunnel
 
                 return ( TunnelMemberHops + TunnelMemberHops ) *
                     ( Config.Pool == TunnelConfig.TunnelPool.Exploratory
-                        ? MeassuredTunnelBuildTimePerHopSeconds / 2
+                        ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
                         : MeassuredTunnelBuildTimePerHopSeconds );
             }
         }
@@ -99,7 +99,7 @@ namespace I2PCore.Tunnel
             get 
             {
                 if ( !Fake0HopTunnel && Config.Pool == TunnelConfig.TunnelPool.Exploratory )
-                    return TunnelLifetimeSeconds / 3;
+                    return TunnelLifetimeSeconds / 2;
                 return TunnelLifetimeSeconds; 
             } 
         }
@@ -166,16 +166,10 @@ namespace I2PCore.Tunnel
                     throw new NotImplementedException( "Should not happen " + TunnelDebugTrace );
 
                 case I2NPMessage.MessageTypes.TunnelBuildReply:
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        TunnelProvider.Inst.HandleTunnelBuildReply( (II2NPHeader16)msg, (TunnelBuildReplyMessage)msg.Message );
-                    } );
-                    return true;
-
                 case I2NPMessage.MessageTypes.VariableTunnelBuildReply:
                     ThreadPool.QueueUserWorkItem( cb =>
                     {
-                        TunnelProvider.Inst.HandleVariableTunnelBuildReply( (II2NPHeader16)msg, (VariableTunnelBuildReplyMessage)msg.Message );
+                        TunnelProvider.Inst.HandleTunnelBuildReply( (II2NPHeader16)msg );
                     } );
                     return true;
 

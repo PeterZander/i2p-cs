@@ -11,8 +11,8 @@ namespace I2PCore.Tunnel
 {
     internal class ExplorationTunnelProvider
     {
-        public int TargetOutboundExploratoryTunnelCount = 20;
-        public int TargetInboundExploratoryTunnelCount = 20;
+        public int TargetOutboundExploratoryTunnelCount = 10;
+        public int TargetInboundExploratoryTunnelCount = 10;
         public int DefaultExploratoryTunnelHopCount = 1;
         public static readonly TickSpan TimeBetweenTunnelBuilds = TickSpan.Seconds( 2 );
 
@@ -27,7 +27,9 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                return TargetInboundExploratoryTunnelCount - TunnelMgr.ExploratoryActiveInboundTunnelCount;
+                return TargetInboundExploratoryTunnelCount - 
+                    ( TunnelMgr.ExploratoryInboundTunnelCount 
+                        + TunnelMgr.ExploratoryPendingInboundTunnelCount );
             }
         }
 
@@ -35,7 +37,9 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                return TargetOutboundExploratoryTunnelCount - TunnelMgr.ExploratoryActiveOutboundTunnelCount;
+                return TargetOutboundExploratoryTunnelCount - 
+                    ( TunnelMgr.ExploratoryOutboundTunnelCount
+                        + TunnelMgr.ExploratoryPendingOutboundTunnelCount );
             }
         }
 
@@ -66,7 +70,7 @@ namespace I2PCore.Tunnel
             return new TunnelInfo( hops );
         }
 
-        private void CreateExploratoryOutboundTunnel()
+        private Tunnel CreateExploratoryOutboundTunnel()
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
@@ -75,9 +79,10 @@ namespace I2PCore.Tunnel
 
             var tunnel = TunnelMgr.CreateTunnel( config );
             if ( tunnel != null ) TunnelMgr.AddTunnel( (OutboundTunnel)tunnel );
+            return tunnel;
         }
 
-        private void CreateExploratoryInboundTunnel()
+        private Tunnel CreateExploratoryInboundTunnel()
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
@@ -86,25 +91,30 @@ namespace I2PCore.Tunnel
 
             var tunnel = TunnelMgr.CreateTunnel( config );
             if ( tunnel != null ) TunnelMgr.AddTunnel( (InboundTunnel)tunnel );
+            return tunnel;
         }
 
         PeriodicAction TunnelBuild = new PeriodicAction( TimeBetweenTunnelBuilds );
 
         internal void Execute()
         {
-            TunnelBuild.Do( () => BuildNewTunnels() );
+            TunnelBuild.Do( BuildNewTunnels );
         }
 
         private void BuildNewTunnels()
         {
-            if ( OutboundTunnelsNeeded > 0 )
+            while ( OutboundTunnelsNeeded > 0 )
             {
-                CreateExploratoryOutboundTunnel();
+                Logging.LogDebugData( $"Exploratory OutboundTunnelsNeeded: {OutboundTunnelsNeeded} " +
+                    $"{TunnelMgr.ExploratoryOutboundTunnelCount} {TunnelMgr.ExploratoryPendingOutboundTunnelCount}" );
+                if ( CreateExploratoryOutboundTunnel() == null ) break;
             }
 
-            if ( InboundTunnelsNeeded > 0 )
+            while ( InboundTunnelsNeeded > 0 )
             {
-                CreateExploratoryInboundTunnel();
+                Logging.LogDebugData( $"Exploratory InboundTunnelsNeeded: {InboundTunnelsNeeded} " +
+                    $"{TunnelMgr.ExploratoryInboundTunnelCount} {TunnelMgr.ExploratoryPendingInboundTunnelCount}" );
+                if ( CreateExploratoryInboundTunnel() == null ) break;
             }
         }
 

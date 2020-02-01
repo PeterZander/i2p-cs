@@ -44,7 +44,7 @@ namespace I2PCore.Tunnel
             {
                 return ( TunnelMemberHops + ReplyTunnelHops ) * 
                     ( Config.Pool == TunnelConfig.TunnelPool.Exploratory 
-                        ? MeassuredTunnelBuildTimePerHopSeconds / 2
+                        ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
                         : MeassuredTunnelBuildTimePerHopSeconds ); 
             } 
         }
@@ -54,7 +54,7 @@ namespace I2PCore.Tunnel
             get
             {
                 if ( Config.Pool == TunnelConfig.TunnelPool.Exploratory ) 
-                    return TunnelLifetimeSeconds / 3;
+                    return TunnelLifetimeSeconds / 2;
                 return TunnelLifetimeSeconds;
             }
         }
