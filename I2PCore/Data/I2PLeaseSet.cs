@@ -77,10 +77,12 @@ namespace I2PCore.Data
                     foreach ( var one in remove ) Leases.Remove( one );
                 }
             }
+#if LOG_ALL_TUNNEL_TRANSFER
             else
             {
                 Logging.LogDebug( "I2PLeaseSet RemoveLease: No lease found to remove" );
             }
+#endif
         }
 
         public bool VerifySignature()

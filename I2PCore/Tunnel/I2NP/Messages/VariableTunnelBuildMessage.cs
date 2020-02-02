@@ -103,7 +103,9 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
                 requests.Add( rec );
 
+#if LOG_ALL_TUNNEL_TRANSFER
                 Logging.Log( rec.ToString() );
+#endif
             }
 
             // Physical record sort order
@@ -200,7 +202,9 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
                 requests.Add( rec );
 
+#if LOG_ALL_TUNNEL_TRANSFER
                 Logging.Log( rec.ToString() );
+#endif
             }
 
             // Physical record sort order

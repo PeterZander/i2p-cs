@@ -94,11 +94,12 @@ namespace I2PCore
                     }
                 }
                 sw2.Stop();
-                Logging.Log( string.Format( "Statistics load: Total: {0}, Read(): {1}, Constr: {2}, Dict: {3} ", 
-                    sw2.Elapsed, 
-                    readsw.Elapsed, 
-                    constrsw.Elapsed,
-                    dicsw.Elapsed ) );
+                Logging.Log( $"Statistics load: Total: {sw2.Elapsed}, " + 
+                    $"Read(): {readsw.Elapsed}, Constr: {constrsw.Elapsed}, " + 
+                    $"Dict: {dicsw.Elapsed} " );
+
+                // var times = Destinations.Select( d => d.Value.TunnelBuildTimeMsPerHop.ToString() );
+                // System.IO.File.WriteAllLines( "/tmp/ct.txt", times );
             }
         }
 
@@ -109,23 +110,21 @@ namespace I2PCore
             var sw2 = new Stopwatch();
             sw2.Start();
             var deleted = 0;
+            var updated = 0;
+            var created = 0;
             using ( var s = GetStore() )
             {
                 lock ( Destinations )
                 {
                     if ( !Destinations.Any() ) return;
 
-                    var avgageage = Destinations.Average( ds => (double)(ulong)ds.Value.LastSeen );
-
                     foreach ( var one in Destinations.ToArray() )
                     {
-                        if ( avgageage - (ulong)one.Value.LastSeen > twoweeks )
+                        if ( one.Value.Deleted && one.Value.StoreIx > 0 )
                         {
-                            if ( one.Value.StoreIx > 0 )
-                            {
-                                s.Delete( one.Value.StoreIx );
-                                one.Value.StoreIx = -1;
-                            }
+                            s.Delete( one.Value.StoreIx );
+                            one.Value.StoreIx = -1;
+
                             Destinations.Remove( one.Key );
                             ++deleted;
                             continue;
@@ -135,17 +134,24 @@ namespace I2PCore
 
                         if ( one.Value.StoreIx > 0 )
                         {
-                            s.Write( rec, one.Value.StoreIx );
+                            if ( one.Value.Updated )
+                            {
+                                s.Write( rec, one.Value.StoreIx );
+                                ++updated;
+                                one.Value.Updated = false;
+                            }
                         }
                         else
                         {
                             one.Value.StoreIx = s.Write( rec );
+                            ++created;
                         }
                     }
                 }
             }
             sw2.Stop();
-            Logging.Log( "Statistics save: " + sw2.Elapsed.ToString() + ", " + deleted.ToString() + " deleted." );
+            Logging.Log( $"Statistics save: {sw2.Elapsed}, {created} created, " +
+                $"{updated} updated, {deleted} deleted." );
         }
 
         public delegate void Accessor( DestinationStatistics ds );
@@ -153,7 +159,8 @@ namespace I2PCore
         public void Update( I2PIdentHash target, Accessor acc, bool success )
         {
             var rec = this[target];
-            if ( success ) rec.LastSeen = new I2PDate( DateTime.UtcNow );
+            rec.Updated = true;
+            if ( success ) rec.LastSeen = I2PDate.Now;
             acc( rec );
         }
 
@@ -229,7 +236,7 @@ namespace I2PCore
 
         public void FloodfillUpdateSuccess( I2PIdentHash hash )
         {
-            Update( hash, ds => Interlocked.Increment( ref ds.FloodfillUpdateSuccess ), false );
+            Update( hash, ds => Interlocked.Increment( ref ds.FloodfillUpdateSuccess ), true );
         }
 
         public void MTUUsed( IPEndPoint ep, MTUConfig mtu )
@@ -244,22 +251,29 @@ namespace I2PCore
             }
         }
 
-        float ScoreAverage = 0f;
-        float ScoreMaxStdDev = 5f;
-
-        public void UpdateScoreAverages( float avg, float stddev )
+        bool NodeInactive( 
+            DestinationStatistics d, 
+            float avg,
+            float stddev )
         {
-            ScoreAverage = avg;
+            var result =
+                ( d.FailedTunnelTest > 8 && d.FailedTunnelTest > 3 * d.SuccessfulTunnelTest ) ||
+                ( d.FailedConnects > 5 && d.FailedConnects > 3 * d.SuccessfulConnects );
 
-            if ( ScoreMaxStdDev * 1.1f < stddev )
-            {
-                ScoreMaxStdDev = stddev;
-
-                Logging.LogDebug( string.Format( "SessionStatistics: UpdateScoreAverages: ScoreMaxStdDev updated {0:0.00}", ScoreMaxStdDev ) );
-            }
+            return result;
         }
 
-        const double oneweek = 1000d * 60 * 60 * 24 * 7;
+        IEnumerable<I2PIdentHash> GetInactive( 
+            IEnumerable<KeyValuePair<I2PIdentHash,DestinationStatistics>> p ) 
+        {
+            if ( !p.Any() ) return Enumerable.Empty<I2PIdentHash>();
+
+            var avg = p.Average( d => d.Value.Score );
+            var stddev = p.StdDev( d => d.Value.Score );
+
+            return p.Where( d => NodeInactive( d.Value, avg, stddev ) )
+                .Select( d => d.Key );
+        }
 
         internal IEnumerable<I2PIdentHash> GetInactive()
         {
@@ -267,32 +281,46 @@ namespace I2PCore
             {
                 if ( !Destinations.Any() ) return Enumerable.Empty<I2PIdentHash>();
 
-                var recent = Destinations.Average( d => (double)(ulong)d.Value.LastSeen );
-                return Destinations.Where( d => 
-                    d.Value.Score < ScoreAverage - 2f * ScoreMaxStdDev ||
-                    recent - (double)(ulong)d.Value.LastSeen > oneweek ||
-                    ( d.Value.FailedTunnelTest > 2 && d.Value.FailedTunnelTest > 2 * d.Value.SuccessfulTunnelTest ) ||
-                    ( d.Value.FailedConnects > 3 && d.Value.FailedConnects > 2 * d.Value.SuccessfulConnects )
-                    ).Select( d => d.Key ).ToArray();
+                var notff = Destinations.Where( d => d.Value.FloodfillUpdateSuccess == 0
+                    && d.Value.FloodfillUpdateTimeout == 0 );
+
+                var ff = Destinations.Where( d => d.Value.FloodfillUpdateSuccess != 0
+                    || d.Value.FloodfillUpdateTimeout != 0 );
+
+                return GetInactive( notff )
+                    .Concat( GetInactive( ff ) )
+                    .ToArray();
             }
         }
 
-        internal void RemoveInactive()
+        internal void RemoveOldStatistics()
         {
+            const ulong oneweek = 1000 * 60 * 60 * 24 * 7;
+            var now = (float)(ulong)I2PDate.Now;
+
             lock ( Destinations )
             {
-                foreach( var one in GetInactive() )
+                var toremove = Destinations.Where( one =>
+                    Math.Abs( now - (float)(ulong)one.Value.Created ) > oneweek )
+                    .ToArray();
+
+                foreach( var one in toremove )
                 {
-                    Destinations.Remove( one );
+                    one.Value.Deleted = true;
                 }
             }
+
+            Save();
         }
 
         public void Remove( I2PIdentHash hash )
         {
             lock ( Destinations )
             {
-                Destinations.Remove( hash );
+                if ( Destinations.ContainsKey( hash ) )
+                {
+                    Destinations[hash].Deleted = true;
+                }
             }
         }
 

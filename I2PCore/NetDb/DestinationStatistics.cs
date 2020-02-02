@@ -14,7 +14,8 @@ namespace I2PCore
         const long DefaultTunnelBuildTimeMsPerHop = Tunnel.Tunnel.MeassuredTunnelBuildTimePerHopSeconds * 1200;
 
         public readonly I2PIdentHash Id;
-        public I2PDate LastSeen;
+        public I2PDate Created = I2PDate.Now;
+        public I2PDate LastSeen = I2PDate.Now;
 
         public long SuccessfulConnects;
         public long FailedConnects;
@@ -34,11 +35,12 @@ namespace I2PCore
         public float MaxBandwidthSeen;
 
         public int StoreIx;
+        public bool Deleted = false;
+        public bool Updated = false;
 
         public DestinationStatistics( I2PIdentHash id )
         {
             Id = id;
-            LastSeen = new I2PDate( DateTime.UtcNow );
             UpdateScore();
         }
 
@@ -53,16 +55,16 @@ namespace I2PCore
         float CachedScore;
         internal void UpdateScore()
         {
-            var score = SuccessfulConnects * 1.0f - FailedConnects * 3.00f 
+            var score = SuccessfulConnects * 1.0f - FailedConnects * 5.00f 
                 - SlowHandshakeConnect * 0.5f;
             score += SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f 
                 - TunnelBuildTimeout * 2.0f
                 + FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f;
-            score += SuccessfulTunnelTest * 0.01f - FailedTunnelTest * 0.003f;
+            score += SuccessfulTunnelTest * 0.1f - FailedTunnelTest * 0.03f;
 
             CachedScore = score + MaxBandwidthSeen / 1E5f
-                    - TunnelBuildTimeMsPerHop / 1000f
-                    - InformationFaulty * 15.00f;
+                    - TunnelBuildTimeMsPerHop / 200f
+                    - InformationFaulty * 3f;
         }
 
         public float Score
@@ -113,7 +115,8 @@ namespace I2PCore
         {
             Id = new I2PIdentHash( buf );
             LastSeen = new I2PDate( buf );
-            buf.Seek( 60 ); // Reserved space
+            Created = new I2PDate( buf );
+            buf.Seek( 52 ); // Reserved space
 
             var mapping = new I2PMapping( buf );
 
@@ -157,7 +160,8 @@ namespace I2PCore
         {
             Id.Write( dest );
             LastSeen.Write( dest );
-            dest.Write( BufUtils.Random( 60 ) ); // Reserved space
+            Created.Write( dest );
+            dest.Write( BufUtils.Random( 52 ) ); // Reserved space
 
             var mapping = CreateMapping();
 

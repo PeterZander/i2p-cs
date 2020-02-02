@@ -86,16 +86,16 @@ namespace I2PCore.Tunnel.I2NP.Data
         {
             var result = new StringBuilder();
 
-            result.AppendLine( "BuildRequestRecord" );
-            result.AppendLine( "ReceiveTunnel : " + ReceiveTunnel.ToString() );
-            result.AppendLine( "OurIdent      : " + OurIdent.ToString() );
-            result.AppendLine( "NextTunnel    : " + NextTunnel.ToString() );
-            result.AppendLine( "NextIdent     : " + NextIdent.ToString() );
-            result.AppendLine( "Flag          : 0x" + Flag.ToString( "X2" ) );
-            result.AppendLine( "ToAnyone      : " + ToAnyone.ToString() );
-            result.AppendLine( "FromAnyone    : " + FromAnyone.ToString() );
-            result.AppendLine( "RequestTime   : " + RequestTime.ToString() );
-            result.AppendLine( "SendMessageId : " + SendMessageId.ToString() );
+            result.AppendLine(  "BuildRequestRecord" );
+            result.AppendLine( $"ReceiveTunnel : {ReceiveTunnel}" );
+            result.AppendLine( $"OurIdent      : {OurIdent}" );
+            result.AppendLine( $"NextTunnel    : {NextTunnel}" );
+            result.AppendLine( $"NextIdent     : {NextIdent}" );
+            result.AppendLine( $"Flag          : 0x{Flag:X2}" );
+            result.AppendLine( $"ToAnyone      : {ToAnyone}" );
+            result.AppendLine( $"FromAnyone    : {FromAnyone}" );
+            result.AppendLine( $"RequestTime   : {RequestTime}" );
+            result.AppendLine( $"SendMessageId : {SendMessageId}" );
 
             return result.ToString();
         }

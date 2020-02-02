@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Data;
 using System.Threading;
 using I2PCore.Utils;
@@ -14,14 +13,16 @@ using I2PCore.Router;
 using I2PCore.Tunnel.I2NP;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using System.IO;
 using System.Net.Sockets;
+using System.Text;
 
 namespace I2PCore.Tunnel
 {
     public class TunnelProvider
     {
+        private const double TunnelSelectionElitism = 5.0;
+
         List<Tunnel> PendingOutbound = new List<Tunnel>();
         List<Tunnel> PendingInbound = new List<Tunnel>();
 
@@ -80,14 +81,18 @@ namespace I2PCore.Tunnel
                 new OutboundTunnelSelector( RouterDestTunnelSelector ),
                 new InboundTunnelSelector( RouterReplyTunnelSelector ) );
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "TunnelProvider";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "TunnelProvider",
+                IsBackground = true
+            };
             Worker.Start();
 
-            IncomingMessagePump = new Thread( () => RunIncomingMessagePump() );
-            IncomingMessagePump.Name = "TunnelProvider IncomingMessagePump";
-            IncomingMessagePump.IsBackground = true;
+            IncomingMessagePump = new Thread( RunIncomingMessagePump )
+            {
+                Name = "TunnelProvider IncomingMessagePump",
+                IsBackground = true
+            };
             IncomingMessagePump.Start();
 
             TransportProvider.Inst.IncomingMessage += new Action<ITransport,II2NPHeader>( DistributeIncomingMessage );
@@ -101,7 +106,7 @@ namespace I2PCore.Tunnel
 
         void RouterDestTunnelSelector( I2PLeaseSet ls, II2NPHeader16 header, GarlicCreationInfo info )
         {
-            var outtunnel = GetEstablishedOutboundTunnel();
+            var outtunnel = GetEstablishedOutboundTunnel( false );
             if ( outtunnel == null ) return;
 
             outtunnel.Send( new TunnelMessageRouter( header, info.Destination ) );
@@ -109,7 +114,7 @@ namespace I2PCore.Tunnel
 
         InboundTunnel RouterReplyTunnelSelector()
         {
-            return GetInboundTunnel();
+            return GetInboundTunnel( false );
         }
 
         PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 10 ) );
@@ -226,8 +231,7 @@ namespace I2PCore.Tunnel
                     }
                 }
 
-                Logging.LogInformation( string.Format(
-                    "Tunnel bandwidth {0,-35} {1}", tunnel, tunnel.Bandwidth ) );
+                Logging.LogInformation( $"Tunnel bandwidth {tunnel,-35} {tunnel.Bandwidth}" );
             }
         }
 
@@ -262,10 +266,15 @@ namespace I2PCore.Tunnel
             {
                 var timeout = pool.Where( t => t.CreationTime.DeltaToNowSeconds > t.TunnelEstablishmentTimeoutSeconds ).
                     ToArray();
+
+#if DEBUG
+                var removedtunnels = new List<Tunnel>();
+#endif
                 foreach ( var one in timeout )
                 {
-                    Logging.LogDebug( $"TunnelProvider: Removing {one.Pool} tunnel {one.TunnelDebugTrace} due to establishment timeout." );
-
+#if DEBUG
+                    removedtunnels.Add( one );
+#endif
                     foreach ( var dest in one.TunnelMembers ) NetDb.Inst.Statistics.TunnelBuildTimeout( dest.IdentHash );
 
                     RemoveTunnel( one );
@@ -288,6 +297,23 @@ namespace I2PCore.Tunnel
                         default: throw new NotImplementedException();
                     }
                 }
+#if DEBUG
+                if ( removedtunnels.Any() )
+                {
+                    var st = new StringBuilder();
+                    var pools = removedtunnels.GroupBy( t => t.Pool );
+                    foreach ( var onepool in pools )
+                    {
+                        st.Append( $"{onepool.First()} " );
+                        foreach ( var one in pool )
+                        {
+                            st.Append( $"{one.TunnelDebugTrace} " );
+                        }
+                    }
+
+                    Logging.LogDebug( $"TunnelProvider: Removing {st} due to establishment timeout." );
+                }
+#endif
             }
         }
 
@@ -394,12 +420,12 @@ namespace I2PCore.Tunnel
         {
             if ( config.Direction == TunnelConfig.TunnelDirection.Outbound )
             {
-                var replytunnel = GetInboundTunnel();
+                var replytunnel = GetInboundTunnel( true );
                 var tunnel = new OutboundTunnel( config, replytunnel.Config.Info.Hops.Count );
 
                 var req = tunnel.CreateBuildRequest( replytunnel );
-                Logging.LogDebug( string.Format( "TunnelProvider: Outbound tunnel {0} created to {1}, build id: {2}.", 
-                    tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short, tunnel.TunnelBuildReplyMessageId ) );
+                Logging.LogDebug( $"TunnelProvider: Outbound tunnel {tunnel.TunnelDebugTrace} " +
+                    $"created to {tunnel.Destination.Id32Short}, build id: {tunnel.TunnelBuildReplyMessageId}." );
 
 #if DEBUG
                 ReallyOldTunnelBuilds.Set( tunnel.TunnelBuildReplyMessageId,
@@ -412,12 +438,12 @@ namespace I2PCore.Tunnel
             }
             else
             {
-                var outtunnel = GetEstablishedOutboundTunnel();
+                var outtunnel = GetEstablishedOutboundTunnel( true );
                 if ( outtunnel == null ) return null;
 
                 var tunnel = new InboundTunnel( config, outtunnel.Config.Info.Hops.Count );
 
-                Logging.LogDebug( string.Format( "TunnelProvider: Inbound tunnel {0} created to {1}.", tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short ) );
+                Logging.LogDebug( $"TunnelProvider: Inbound tunnel {tunnel.TunnelDebugTrace} created to {tunnel.Destination.Id32Short}." );
 #if DEBUG
                 ReallyOldTunnelBuilds.Set( tunnel.TunnelBuildReplyMessageId,
                     new RefPair<TickCounter, int>( TickCounter.Now, outtunnel.Config.Info.Hops.Count + config.Info.Hops.Count ) );
@@ -537,108 +563,76 @@ namespace I2PCore.Tunnel
             }
         }
 
-        public InboundTunnel GetInboundTunnel()
+        public InboundTunnel GetInboundTunnel( bool allowexplo )
         {
-            var result = GetEstablishedInboundTunnel();
+            var result = GetEstablishedInboundTunnel( allowexplo );
             if ( result != null ) return result;
 
             return AddZeroHopTunnel( new InboundTunnel( null, 0 ) );
         }
 
-        public InboundTunnel GetEstablishedInboundTunnel()
+        double GenerateTunnelWeight( Tunnel t )
         {
-            IEnumerable<Tunnel> tunnels = Enumerable.Empty<Tunnel>();
+            var penalty = 2.0 * Tunnel.MeassuredTunnelBuildTimePerHopSeconds * 1000.0;
+
+            var result = t?.MinLatencyMeasured?.ToMilliseconds ?? penalty;
+            if ( t.NeedsRecreation ) result += penalty / 2.0;
+            if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
+            if ( !t.Active ) result += penalty;
+            if ( t.Expired ) result += penalty;
+
+            return result;
+        }
+
+        public InboundTunnel GetEstablishedInboundTunnel( bool allowexplo )
+        {
+            IEnumerable<Tunnel> tunnels;
 
             lock ( ClientsInbound )
             {
-                tunnels = tunnels.Concat( ClientsInbound.Where( t => !t.NeedsRecreation && t.MinLatencyMeasured != null ) );
+                tunnels = ClientsInbound.ToArray();
             }
 
-            lock ( ExploratoryInbound )
+            if ( allowexplo || !tunnels.Any())
             {
-                tunnels = tunnels.Concat( ExploratoryInbound.Where( t => !t.NeedsRecreation && t.MinLatencyMeasured != null ) );
-            }
-
-            if ( !tunnels.Any())
-            {
-                lock ( ClientsInbound )
-                {
-                    tunnels = tunnels.Concat( ClientsInbound.Where( t => t.Active ) );
-                }
-
                 lock ( ExploratoryInbound )
                 {
-                    tunnels = tunnels.Concat( ExploratoryInbound.Where( t => t.Active ) );
+                    tunnels = tunnels.Concat( ExploratoryInbound ).ToArray();
                 }
             }
 
-            if ( !tunnels.Any())
+            if ( tunnels.Any() )
             {
-                lock ( ClientsInbound )
-                {
-                    tunnels = tunnels.Concat( ClientsInbound );
-                }
+                var result = (InboundTunnel)tunnels.RandomWeighted(
+                    GenerateTunnelWeight, true, TunnelSelectionElitism );
 
-                lock ( ExploratoryInbound )
-                {
-                    tunnels = tunnels.Concat( ExploratoryInbound );
-                }
-            }
-
-            if ( tunnels.Any())
-            {
-                return (InboundTunnel)tunnels.Random();
+                return result;
             }
 
             return null;
         }
 
-        public OutboundTunnel GetEstablishedOutboundTunnel()
+        public OutboundTunnel GetEstablishedOutboundTunnel( bool allowexplo )
         {
-            IEnumerable<Tunnel> tunnels = Enumerable.Empty<Tunnel>();
+            IEnumerable<Tunnel> tunnels;
 
-            if ( !tunnels.Any())
+            lock ( ClientsOutbound )
+            {
+                tunnels = ClientsOutbound.ToArray();
+            }
+
+            if ( allowexplo || !tunnels.Any() )
             {
                 lock ( ClientsOutbound )
                 {
-                    tunnels = tunnels.Concat( ClientsOutbound.Where( t => !t.NeedsRecreation && t.MinLatencyMeasured != null ) );
-                }
-
-                lock ( ExploratoryOutbound )
-                {
-                    tunnels = tunnels.Concat( ExploratoryOutbound.Where( t => !t.NeedsRecreation && t.MinLatencyMeasured != null ) );
+                    tunnels = tunnels.Concat( ExploratoryOutbound ).ToArray();
                 }
             }
 
-            if ( !tunnels.Any())
+            if ( tunnels.Any() )
             {
-                lock ( ClientsOutbound )
-                {
-                    tunnels = tunnels.Concat( ClientsOutbound.Where( t => t.Active ) );
-                }
-
-                lock ( ExploratoryOutbound )
-                {
-                    tunnels = tunnels.Concat( ExploratoryOutbound.Where( t => t.Active ) );
-                }
-            }
-
-            if ( !tunnels.Any())
-            {
-                lock ( ClientsOutbound )
-                {
-                    tunnels = tunnels.Concat( ClientsOutbound );
-                }
-
-                lock ( ExploratoryOutbound )
-                {
-                    tunnels = tunnels.Concat( ExploratoryOutbound );
-                }
-            }
-
-            if ( tunnels.Any())
-            {
-                return (OutboundTunnel)tunnels.Random();
+                return (OutboundTunnel)tunnels.RandomWeighted(
+                    GenerateTunnelWeight, true, TunnelSelectionElitism );
             }
 
             return null;
@@ -801,7 +795,7 @@ namespace I2PCore.Tunnel
 
                                 ThreadPool.QueueUserWorkItem( cb =>
                                 {
-                                    lock ( DeliveryStatusReceivedLock ) if ( DeliveryStatusReceived != null ) DeliveryStatusReceived( (DeliveryStatusMessage)msg.Message );
+                                    lock ( DeliveryStatusReceivedLock ) DeliveryStatusReceived?.Invoke( (DeliveryStatusMessage)msg.Message );
                                 } );
                                 break;
 
@@ -841,7 +835,7 @@ namespace I2PCore.Tunnel
             {
                 if ( ds.ReplyTunnelId != 0 )
                 {
-                    var outtunnel = TunnelProvider.Inst.GetEstablishedOutboundTunnel();
+                    var outtunnel = TunnelProvider.Inst.GetEstablishedOutboundTunnel( true );
                     if ( outtunnel != null )
                     {
                         outtunnel.Send( new TunnelMessageRouter(
@@ -891,8 +885,7 @@ namespace I2PCore.Tunnel
         {
             lock ( TunnelIds )
             {
-                List<Tunnel> tunnels;
-                if ( !TunnelIds.TryGetValue( id, out tunnels ) )
+                if ( !TunnelIds.TryGetValue( id, out var tunnels ) )
                 {
                     var newlist = new List<Tunnel>();
                     newlist.Add( tunnel );
@@ -930,7 +923,7 @@ namespace I2PCore.Tunnel
         {
             var trmsg = (TunnelBuildMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-            Logging.Log( "HandleTunnelBuild: " + trmsg.ToString() );
+            Logging.Log( $"HandleTunnelBuild: {trmsg}" );
 #endif
             HandleTunnelBuildRecords( msg, trmsg.Records );
         }
@@ -939,7 +932,7 @@ namespace I2PCore.Tunnel
         {
             var trmsg = (VariableTunnelBuildMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
-            Logging.Log( "HandleVariableTunnelBuild: " + trmsg.ToString() );
+            Logging.Log( $"HandleVariableTunnelBuild: {trmsg}" );
 #endif
             HandleTunnelBuildRecords( msg, trmsg.Records );
         }
@@ -951,7 +944,7 @@ namespace I2PCore.Tunnel
 
             if ( tome.Count() != 1 )
             {
-                Logging.LogDebug( "HandleTunnelBuildRecords: Failed to find a ToPeer16 record. (" + tome.Count().ToString() + ")" );
+                Logging.LogDebug( $"HandleTunnelBuildRecords: Failed to find a ToPeer16 record. ({tome.Count()})" );
                 return;
             }
 
@@ -1003,11 +996,10 @@ namespace I2PCore.Tunnel
 
             if ( tunnels.Length == 0 )
             {
-                Logging.LogDebug( "HandleIncomingTunnelBuildRecords: Failed to find pending inbound tunnel with tunnel id " + drec.NextTunnel.ToString() );
 #if DEBUG
                 ReallyOldTunnelBuilds.ProcessItem( drec.NextTunnel, ( k, p ) =>
                 {
-                    Logging.LogDebug( string.Format( "Tunnel build req {0} age {1}sec / hop.", drec.NextTunnel, p.Left.DeltaToNowSeconds / p.Right ) );
+                    Logging.LogDebug( $"Tunnel build req failed {drec.NextTunnel} age {p.Left.DeltaToNowMilliseconds / p.Right} msec / hop. Unknown tunnel id." );
                 } );
 #endif
                 return;
@@ -1083,8 +1075,10 @@ namespace I2PCore.Tunnel
             BufLen replykey, BufLen replyiv, BuildResponseRecord.RequestResponse response )
         {
             myrec.Data.Randomize();
-            var responserec = new BuildResponseRecord( myrec.Data );
-            responserec.Reply = response;
+            var responserec = new BuildResponseRecord( myrec.Data )
+            {
+                Reply = response
+            };
             responserec.UpdateHash();
 
             var cipher = new CbcBlockCipher( new AesEngine() );
@@ -1102,15 +1096,13 @@ namespace I2PCore.Tunnel
             var any = FindPendingOutbound( header, PendingOutbound );
             any |= FindPendingOutbound( header, ExploratoryPendingOutbound );
 
+#if DEBUG
             if ( !any )
             {
-                Logging.LogDebug( $"HandleVariableTunnelBuildReply: Failed to find pending outbound tunnel with tunnel id {header.MessageId}" );
+                ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
+                    Logging.LogDebug( $"Tunnel build req failed {header.MessageId} age {p.Left.DeltaToNowMilliseconds / p.Right} msec / hop. MessageId unknown." )
+                );
             }
-#if DEBUG
-            ReallyOldTunnelBuilds.ProcessItem( header.MessageId, ( k, p ) =>
-            {
-                Logging.LogDebug( $"Tunnel build req {header.MessageId} age {p.Left.DeltaToNowSeconds / p.Right}sec / hop." );
-            } );
 #endif
         }
 
@@ -1289,8 +1281,8 @@ namespace I2PCore.Tunnel
                         return;
                     }
 
-                    var sendtunnel = GetEstablishedOutboundTunnel();
-                    var replytunnel = GetEstablishedInboundTunnel();
+                    var sendtunnel = GetEstablishedOutboundTunnel( false );
+                    var replytunnel = GetEstablishedInboundTunnel( false );
 
                     if ( sendtunnel == null || replytunnel == null )
                     {

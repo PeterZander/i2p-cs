@@ -37,6 +37,7 @@ namespace I2P
                 switch ( args[i] )
                 {
                     case "--addr":
+                    case "--address":
                         if ( args.Length > i ) 
                         {
                             RouterContext.Inst.DefaultExtAddress = IPAddress.Parse( args[++i] );

@@ -266,55 +266,58 @@ namespace I2PCore.Router
         {
             get
             {
-                var cache = MyRouterInfoCache;
-                if ( cache != null &&
-                    MyRouterInfoCacheCreated.DeltaToNowSeconds < NetDb.RouterInfoExpiryTimeSeconds / 15 )
+                lock ( MyRouterInfoCacheCreated )
                 {
-                    return cache;
+                    var cache = MyRouterInfoCache;
+                    if ( cache != null &&
+                        MyRouterInfoCacheCreated.DeltaToNowSeconds < NetDb.RouterInfoExpiryTimeSeconds / 15 )
+                    {
+                        return cache;
+                    }
+
+                    MyRouterInfoCacheCreated.SetNow();
+
+                    var caps = new I2PMapping();
+
+                    var capsstring = "LPR";
+                    if ( FloodfillEnabled ) capsstring += "f";
+
+                    caps["caps"] = capsstring;
+
+                    caps["netId"] = I2PConstants.I2P_NETWORK_ID.ToString();
+                    caps["coreVersion"] = I2PConstants.PROTOCOL_VERSION;
+                    caps["router.version"] = I2PConstants.PROTOCOL_VERSION;
+                    caps["stat_uptime"] = "90m";
+
+                    var ntcp = new I2PRouterAddress( ExtAddress, TCPPort, 11, "NTCP" );
+                    var ssu = new I2PRouterAddress( ExtAddress, UDPPort, 5, "SSU" );
+                    var addr = new I2PRouterAddress[] { ntcp, ssu };
+
+                    var ssucaps = "";
+                    if ( SSUHost.PeerTestSupported ) ssucaps += "B";
+                    if ( SSUHost.IntroductionSupported ) ssucaps += "C";
+
+                    ssu.Options["caps"] = ssucaps;
+                    ssu.Options["key"] = FreenetBase64.Encode( IntroKey );
+                    foreach ( var intro in SSUIntroducersInfo )
+                    {
+                        ssu.Options[intro.Key] = intro.Value;
+                    }
+
+                    var result = new I2PRouterInfo(
+                        MyRouterIdentity,
+                        new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ),
+                        addr,
+                        caps,
+                        PrivateSigningKey );
+
+                    MyRouterInfoCache = result;
+                    NetDb.Inst.FloodfillUpdate.TrigUpdate();
+
+                    Logging.Log( "RouterContext: New settings: " + result.ToString() );
+
+                    return result;
                 }
-
-                MyRouterInfoCacheCreated.SetNow();
-
-                var caps = new I2PMapping();
-
-                var capsstring = "LPR";
-                if ( FloodfillEnabled ) capsstring += "f";
-
-                caps["caps"] = capsstring;
-
-                caps["netId"] = I2PConstants.I2P_NETWORK_ID.ToString();
-                caps["coreVersion"] = I2PConstants.PROTOCOL_VERSION;
-                caps["router.version"] = I2PConstants.PROTOCOL_VERSION;
-                caps["stat_uptime"] = "90m";
-
-                var ntcp = new I2PRouterAddress( ExtAddress, TCPPort, 11, "NTCP" );
-                var ssu = new I2PRouterAddress( ExtAddress, UDPPort, 5, "SSU" );
-                var addr = new I2PRouterAddress[] { ntcp, ssu };
-
-                var ssucaps = "";
-                if ( SSUHost.PeerTestSupported ) ssucaps += "B";
-                if ( SSUHost.IntroductionSupported ) ssucaps += "C";
-
-                ssu.Options["caps"] = ssucaps;
-                ssu.Options["key"] = FreenetBase64.Encode( IntroKey );
-                foreach( var intro in SSUIntroducersInfo )
-                {
-                    ssu.Options[intro.Key] = intro.Value;
-                }
-
-                var result = new I2PRouterInfo(
-                    MyRouterIdentity,
-                    new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ), 
-                    addr,
-                    caps,
-                    PrivateSigningKey );
-
-                MyRouterInfoCache = result;
-                NetDb.Inst.FloodfillUpdate.TrigUpdate();
-
-                Logging.Log( "RouterContext: New settings: " + result.ToString() );
-
-                return result;
             }
         }
 

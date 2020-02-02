@@ -75,6 +75,7 @@ namespace I2PCore.Transport
             if ( lud != null )
             {
                 CurrentlyUnresolvableRouters.Add( key );
+                NetDb.Inst.Statistics.DestinationInformationFaulty( key );
             }
         }
 
@@ -148,7 +149,7 @@ namespace I2PCore.Transport
             foreach ( var one in remove )
             {
                 CurrentlyUnresolvableRouters.Add( one );
-                //NetDb.Inst.Statistics.DestinationInformationFaulty( one );
+                NetDb.Inst.Statistics.DestinationInformationFaulty( one );
             }
             NetDb.Inst.RemoveRouterInfo( remove );
 

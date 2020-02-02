@@ -85,20 +85,9 @@ namespace I2PCore.Tunnel.I2NP.Data
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.Append( "BuildResponseRecord" );
-
-            if ( Data == null )
-            {
-                result.Append( " Content: (null)" );
-            }
-            else
-            {
-                result.Append( " Content: Reply: " + Reply.ToString() );
-            }
-
-            return result.ToString();
+            return Data == null 
+                ? "BuildResponseRecord Content: (null)"
+                : $"BuildResponseRecord Content: Reply: {Reply}";
         }
     }
 }

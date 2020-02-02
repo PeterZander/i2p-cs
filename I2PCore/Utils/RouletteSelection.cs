@@ -13,32 +13,37 @@ namespace I2PCore.Utils
         public class RouletteSpace<K2>
         {
             public K2 Id;
-            public float Space;
+            public double Space;
             public float Fit;
 
             public override string ToString()
             {
-                return string.Format( "RouletteSpace: Fit {0:0.00}, Space {1:0.00}: {2}", Fit, Space, Id );
+                return $"RouletteSpace: Fit {Fit:0.00}, Space {Space:0.00}: {Id}";
             }
         }
 
-        public readonly List<RouletteSpace<K>> Wheel = new List<RouletteSpace<K>>();
-        public readonly IEnumerable<RouletteSpace<K>> WheelAverageOrBetter;
-        float TotalSpaceSum;
+        private const double Elitism = 5.0;
+        private const double MinAbsDevs = 1.0;
 
-        public float AverageFit;
-        public float StdDevFit;
+        public readonly IEnumerable<RouletteSpace<K>> Wheel;
+        readonly double TotalSpaceSum;
 
-        public float MinFit { get; protected set; }
-        public float MaxFit { get; protected set; }
+        public readonly float AverageFit;
+        public readonly float AbsDevFit;
+        public readonly float StdDevFit;
 
-        public static float RandomFitEMA = 0f;
+        public readonly float MinFit;
+        public readonly float MaxFit;
 
-        public RouletteSelection( IEnumerable<T> infos, Func<T,K> selkey, Func<K,float> selfit )
+        public RouletteSelection( 
+            IEnumerable<T> infos, 
+            Func<T,K> selkey, 
+            Func<K,float> selfit )
         {
             MinFit = float.MaxValue;
             TotalSpaceSum = 0;
 
+            var newwheel = new List<RouletteSpace<K>>();
             foreach ( var info in infos )
             {
                 var space = new RouletteSpace<K>()
@@ -48,8 +53,10 @@ namespace I2PCore.Utils
                 space.Fit = selfit( space.Id );
 
                 if ( space.Fit < MinFit ) MinFit = space.Fit;
-                Wheel.Add( space );
+                newwheel.Add( space );
             }
+
+            Wheel = newwheel;
 
             if ( !Wheel.Any() )
             {
@@ -59,17 +66,31 @@ namespace I2PCore.Utils
                 return;
             }
 
-            MaxFit = Wheel.Max( sp => sp.Fit );
-            AverageFit = Wheel.Average( sp => sp.Fit );
-            StdDevFit = Wheel.StdDev( sp => sp.Fit );
+            var fits = Wheel.Select( sp => sp.Fit );
+            MaxFit = fits.Max();
+            AverageFit = fits.Average();
+            AbsDevFit = fits.AbsDev();
+            StdDevFit = fits.StdDev();
 
-            var limit = AverageFit - StdDevFit / 10f;
-            var goodlist = Wheel.Where( sp => sp.Fit >= limit );
-            WheelAverageOrBetter = goodlist.Count() > 100 ? goodlist.ToArray() : Wheel.ToArray();
+            if ( AbsDevFit > 1.0 )
+            {
+                var limit = AverageFit - MinAbsDevs * AbsDevFit;
+                Wheel = Wheel.Where( sp => sp.Fit > limit );
 
+                fits = Wheel.Select( sp => sp.Fit );
+                MinFit = fits.Min();
+                MaxFit = fits.Max();
+                AverageFit = fits.Average();
+                AbsDevFit = fits.AbsDev();
+                StdDevFit = fits.StdDev();
+            }
+
+            // Make positive, and offset bottom 
+            // with Average
+            var offset = MinFit - ( AverageFit - MinFit );
             foreach ( var one in Wheel )
             {
-                one.Space = one.Fit - MinFit + 1;
+                one.Space = Math.Pow( one.Fit - offset, Elitism );
                 TotalSpaceSum += one.Space;
             }
         }
@@ -100,25 +121,26 @@ namespace I2PCore.Utils
             } 
         }
 
-        public K GetWeightedRandom()
+        public K GetWeightedRandom( HashSet<K> exclude )
         {
             lock ( Wheel )
             {
-                var pos = 0f;
-                var target = BufUtils.RandomFloat( TotalSpaceSum );
+                var pos = 0.0;
+                var subset = Wheel.Where( one => !exclude.Contains( one.Id ) );
+                var subsetsum = subset.Sum( one => one.Space );
+                var target = BufUtils.RandomDouble( subsetsum );
 
-                foreach ( var one in Wheel )
+                foreach ( var one in subset )
                 {
                     pos += one.Space;
                     if ( pos >= target )
                     {
-                        RandomFitEMA = ( 49 * RandomFitEMA + one.Space + MinFit - 1 ) / 50f;
-                        Logging.LogDebug( () => "Roulette: " + one.Id.ToString() );
+                        Logging.LogDebugData( $"Roulette: {one.Id}" );
                         return one.Id;
                     }
                 }
 
-                return Wheel[BufUtils.RandomInt( Wheel.Count )].Id;
+                return subset.Random().Id;
             }
         }
     }

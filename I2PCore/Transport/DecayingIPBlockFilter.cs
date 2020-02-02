@@ -10,9 +10,9 @@ namespace I2PCore.Transport
 {
     internal class DecayingIPBlockFilter
     {
-        const int BlockTimeMinutes = 3 * 60;
-        const int IPFaultHistoryWindowMinutes = 30;
-        const int NumberOfFailuresToBlock = 8;
+        const int BlockTimeMinutes = 30;
+        const int IPFaultHistoryWindowMinutes = 20;
+        const int NumberOfFailuresToBlock = 150;
 
         Dictionary<IPAddress, LinkedList<TickCounter>> MonitorIPWindow = new Dictionary<IPAddress, LinkedList<TickCounter>>();
         Dictionary<IPAddress, TickCounter> BlockedIPs = new Dictionary<IPAddress, TickCounter>();

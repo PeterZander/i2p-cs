@@ -520,26 +520,26 @@ namespace I2PCore.Transport.SSU
 
 
         LinkedList<IPAddress> ReportedAddresses = new LinkedList<IPAddress>();
-        TickCounter LastIPReport = TickCounter.MaxDelta;
+        TickCounter LastIPReport = null;
         TickCounter LastExternalIPProcess = TickCounter.MaxDelta;
 
         internal void ReportedAddress( IPAddress ipaddr )
         {
-            Logging.LogTransport( "SSU My external IP " + ipaddr.ToString() );
-
-            if ( LastExternalIPProcess.DeltaToNowMilliseconds < 20000 ) return;
+            if ( LastExternalIPProcess.DeltaToNowSeconds < ( LastIPReport == null ? 1: 60 ) ) return;
             LastExternalIPProcess.SetNow();
+
+            Logging.LogTransport( $"SSU My IP: My external IP {ipaddr}" );
 
             lock ( ReportedAddresses )
             {
                 ReportedAddresses.AddLast( ipaddr );
-                while ( ReportedAddresses.Count > 50 ) ReportedAddresses.RemoveFirst();
+                while ( ReportedAddresses.Count > 200 ) ReportedAddresses.RemoveFirst();
 
                 var first = ReportedAddresses.First.Value;
                 var firstbytes = first.GetAddressBytes();
                 if ( ReportedAddresses.Count() > 10 && ReportedAddresses.All( a => BufUtils.Equal( a.GetAddressBytes(), firstbytes ) ) )
                 {
-                    Logging.LogTransport( "SSU Start using unanimous remote reported external IP " + ipaddr.ToString() );
+                    Logging.LogTransport( $"SSU My IP: Start using unanimous remote reported external IP {ipaddr}" );
                     UpdateSSUReportedAddr( ipaddr );
                 }
                 else
@@ -547,7 +547,7 @@ namespace I2PCore.Transport.SSU
                     var freq = ReportedAddresses.GroupBy( a => a.GetAddressBytes() ).OrderBy( g => g.Count() );
                     if ( freq.First().Count() > 15 )
                     {
-                        Logging.LogTransport( "SSU Start using most frequently reported remote external IP " + ipaddr.ToString() );
+                        Logging.LogTransport( $"SSU My IP: Start using most frequently reported remote external IP {ipaddr}" );
                         UpdateSSUReportedAddr( ipaddr );
                     }
                 }
@@ -556,8 +556,10 @@ namespace I2PCore.Transport.SSU
 
         private void UpdateSSUReportedAddr( IPAddress ipaddr )
         {
-            if ( LastIPReport.DeltaToNow.ToMinutes < 30 ) return;
+            if ( LastIPReport?.DeltaToNow.ToMinutes < 30 ) return;
+            if ( LastIPReport == null ) LastIPReport = new TickCounter();
             LastIPReport.SetNow();
+
             MyRouterContext.SSUReportedAddr( ipaddr );
         }
 

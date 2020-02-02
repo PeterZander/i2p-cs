@@ -65,6 +65,8 @@ namespace I2PCore
 
         public readonly IdentResolver IdentHashLookup;
 
+        public readonly FloodfillUpdater FloodfillUpdate = new FloodfillUpdater();
+
         protected NetDb()
         {
             var dirname = RouterContext.RouterPath;
@@ -78,9 +80,11 @@ namespace I2PCore
                 Directory.CreateDirectory( dirname );
             }
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "NetDb";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "NetDb",
+                IsBackground = true
+            };
 
             IdentHashLookup = new IdentResolver( this );
             Worker.Start();
@@ -106,14 +110,13 @@ namespace I2PCore
                 var PeriodicSave = new PeriodicAction( TickSpan.Minutes( 5 ) );
 
                 var PeriodicFFUpdate = new PeriodicAction( TickSpan.Seconds( 5 ) );
-                var FloodfillUpdate = new FloodfillUpdater();
 
                 while ( !Terminated )
                 {
                     try
                     {
                         PeriodicSave.Do( () => Save( true ) );
-                        PeriodicFFUpdate.Do( () => FloodfillUpdate.Run() );
+                        PeriodicFFUpdate.Do( FloodfillUpdate.Run );
                         IdentHashLookup.Run();
                         Thread.Sleep( 2000 );
                     }
@@ -163,7 +166,7 @@ namespace I2PCore
         public string GetFullPath( I2PRouterInfo ri )
         {
             var hash = ri.Identity.IdentHash.Id64;
-			return GetFullPath( Path.Combine( "r" + hash[0], "routerInfo-" + hash + ".dat" ) );
+			return GetFullPath( Path.Combine( $"r{hash[0]}", $"routerInfo-{hash}.dat" ) );
         }
 
         List<string> GetNetDbFiles()
@@ -270,8 +273,6 @@ namespace I2PCore
                 Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( RouterInfos.Values.Select( p => p.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
-                Statistics.UpdateScoreAverages( Roulette.AverageFit, Roulette.StdDevFit );
-
                 RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     RouterInfos.Where( p => p.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
@@ -298,23 +299,21 @@ namespace I2PCore
 
             float Mode = 0f;
             var bins = 20;
-            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins, 2.5f );
+            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins, 3f );
             var maxcount = hist.Max( b => b.Count );
             if ( hist.Count() == bins && !hist.All( b => Math.Abs( b.Start ) < 0.01f ) )
             {
-                Mode = hist.Where( b => b.Count == maxcount ).First().Start + ( hist[1].Start - hist[0].Start ) / 2f;
+                Mode = hist.First( b => b.Count == maxcount ).Start + ( hist[1].Start - hist[0].Start ) / 2f;
             }
 
-            Logging.LogInformation( string.Format( 
-                "Roulette stats: Count {3}, Min {0:0.00}, Avg {1:0.00} ({7:0.00}), Mode {6:0.00}, Max {2:0.00}, Stddev: {5:0.00}, Skew {4:0.00}",
-                roulette.MinFit,
-                roulette.AverageFit,
-                roulette.MaxFit,
-                roulette.Wheel.Count,
-                roulette.Wheel.Skew( sp => sp.Fit ),
-                roulette.StdDevFit,
-                Mode,
-                RouletteSelection<I2PRouterInfo, I2PIdentHash>.RandomFitEMA ) );
+            Logging.LogInformation(
+                $"Roulette stats: Count {roulette.Wheel.Count()}, " +
+                $"Min {roulette.MinFit:0.00}, " +
+                $"Avg {roulette.AverageFit:0.00}, " +
+                $"Mode {Mode:0.00}, Max {roulette.MaxFit:0.00}, " +
+                $"Absdev: {roulette.AbsDevFit:0.00}, " +
+                $"Stddev: {roulette.StdDevFit:0.00}, " +
+                $"Skew {roulette.Wheel.Skew( sp => sp.Fit ):0.00}" );
 
             if ( Logging.LogLevel > Logging.LogLevels.Debug ) return;
 
@@ -323,16 +322,14 @@ namespace I2PCore
             {
                 var st = "";
                 for ( int i = 0; i < ( 40 * line.Count ) / maxcount; ++i ) st += "*";
-                Logging.LogDebug( String.Format( "Roulette stats {0,6:#0.0} ({2,5}): {1}", line.Start, st, line.Count ) );
+                Logging.LogInformation( $"Roulette stats {line.Start,6:#0.0} ({line.Count,5}): {st}" );
                 ++ix;
             }
 
-            var aobminval = roulette.WheelAverageOrBetter.Min( sp => sp.Fit );
-            Logging.LogDebug( String.Format( "Roulette WheelAverageOrBetter count: {0}, minfit: {1}", roulette.WheelAverageOrBetter.Count(), aobminval ) );
-
-            var min = roulette.Wheel.Where( sp => sp.Fit == roulette.MinFit ).Take( 10 );
-            var avg = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.AverageFit ) < roulette.StdDevFit * 0.3 ).Take( 10 );
-            var max = roulette.Wheel.Where( sp => sp.Fit == roulette.MaxFit ).Take( 10 );
+            var delta = roulette.AbsDevFit / 20;
+            var min = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.MinFit ) < delta ).Take( 10 );
+            var avg = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.AverageFit ) < delta ).Take( 10 );
+            var max = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.MaxFit ) < delta ).Take( 10 );
 
             if ( min.Any() && avg.Any() && max.Any() )
             {
@@ -343,9 +340,9 @@ namespace I2PCore
 
                 Logging.LogDebug( String.Format( "Roulette stats minfit: {0}, maxfit: {1}", mins, maxs ) );
 
-                Logging.LogDebug( "Min example: " + NetDb.Inst.Statistics[min.Random().Id].ToString() );
-                Logging.LogDebug( "Med example: " + NetDb.Inst.Statistics[avg.Random().Id].ToString() );
-                Logging.LogDebug( "Max example: " + NetDb.Inst.Statistics[max.Random().Id].ToString() );
+                Logging.LogDebug( $"Min example: {NetDb.Inst.Statistics[min.Random().Id]}" );
+                Logging.LogDebug( $"Med example: {NetDb.Inst.Statistics[avg.Random().Id]}" );
+                Logging.LogDebug( $"Max example: {NetDb.Inst.Statistics[max.Random().Id]}" );
             }
         }
 
@@ -373,17 +370,14 @@ namespace I2PCore
 
         void Save( bool onlyupdated )
         {
+            var created = 0;
+            var updated = 0;
             var deleted = 0;
-            var saved = 0;
 
             var sw = new Stopwatch();
             sw.Start();
 
             var inactive = Statistics.GetInactive();
-            if ( RouterInfos.Count - inactive.Count() <= RouterInfoCountLowWaterMark )
-            {
-                inactive = inactive.Take( RouterInfos.Count - RouterInfoCountLowWaterMark );
-            }
             RemoveRouterInfo( inactive );
 
             using ( var s = GetStore() )
@@ -408,13 +402,14 @@ namespace I2PCore
                                 if ( one.Value.Value.StoreIx > 0 )
                                 {
                                     s.Write( rec, one.Value.Value.StoreIx );
+                                    ++updated;
                                 }
                                 else
                                 {
                                     one.Value.Value.StoreIx = s.Write( rec );
+                                    ++created;
                                 }
                                 one.Value.Value.Updated = false;
-                                ++saved;
                             }
                         }
                         catch ( Exception ex )
@@ -455,16 +450,14 @@ namespace I2PCore
                 } );
             }
 
-            Logging.Log( string.Format( "NetDb.Save( {1} ): {0} entries saved, {2} deleted.", 
-                saved, 
-                onlyupdated ? "updated" : "all",
-                deleted ) );
+            Logging.Log( $"NetDb.Save( {( onlyupdated ? "updated" : "all" )} ): " +
+                $"{created} created, {updated} updated, {deleted} deleted." );
 
-            Statistics.Save();
+            Statistics.RemoveOldStatistics();
             UpdateSelectionProbabilities();
 
             sw.Stop();
-            Logging.Log( "NetDB: Save: " + sw.Elapsed.ToString() );
+            Logging.Log( $"NetDB: Save: {sw.Elapsed}" );
 
         }
 
@@ -482,7 +475,7 @@ namespace I2PCore
                     {
                         if ( !info.VerifySignature() )
                         {
-                            Logging.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
+                            Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
                             return;
                         }
 
@@ -490,7 +483,7 @@ namespace I2PCore
                         meta.Deleted = false;
                         meta.Updated = true;
                         RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( info, meta );
-                        Logging.Log( "NetDb: Updated RouterInfo for: " + info.Identity.IdentHash );
+                        Logging.LogDebugData( $"NetDb: Updated RouterInfo for: {info.Identity.IdentHash}" );
                     }
                     else
                     {
@@ -505,10 +498,12 @@ namespace I2PCore
                         return;
                     }
 
-                    var meta = new RouterInfoMeta();
-                    meta.Updated = true;
+                    var meta = new RouterInfoMeta
+                    {
+                        Updated = true
+                    };
                     RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
-                    Logging.Log( "NetDb: Added RouterInfo for: " + info.Identity.IdentHash );
+                    Logging.LogDebugData( $"NetDb: Added RouterInfo for: {info.Identity.IdentHash}" );
                 }
 
                 if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
@@ -530,8 +525,7 @@ namespace I2PCore
         {
             lock ( RouterInfos )
             {
-                KeyValuePair<I2PRouterInfo, RouterInfoMeta> pair;
-                if ( RouterInfos.TryGetValue( key, out pair ) )
+                if ( RouterInfos.TryGetValue( key, out var pair ) )
                 {
                     return !pair.Value.Deleted;
                 }
@@ -545,8 +539,7 @@ namespace I2PCore
             {
                 lock ( RouterInfos )
                 {
-                    KeyValuePair<I2PRouterInfo, RouterInfoMeta> pair;
-                    if ( RouterInfos.TryGetValue( key, out pair ) )
+                    if ( RouterInfos.TryGetValue( key, out var pair ) )
                     {
                         if ( pair.Value.Deleted ) return null;
                         return pair.Key;
@@ -573,46 +566,56 @@ namespace I2PCore
             {
                 lock ( RouterInfos )
                 {
-                    KeyValuePair<I2PRouterInfo, RouterInfoMeta> result;
-                    if ( RouterInfos.TryGetValue( key, out result ) ) yield return result.Key;
+                    if ( RouterInfos.TryGetValue( key, out var result ) ) yield return result.Key;
                 }
             }
         }
 
         Random Rnd = new Random();
 
-        I2PIdentHash GetRandomRouter( RouletteSelection<I2PRouterInfo, I2PIdentHash> r, bool exploratory )
+        private I2PIdentHash GetRandomRouter( 
+            RouletteSelection<I2PRouterInfo, I2PIdentHash> r,
+            IEnumerable<I2PIdentHash> exclude,
+            bool exploratory )
         {
             I2PIdentHash result;
             var me = RouterContext.Inst.MyRouterIdentity.IdentHash;
 
-            if ( exploratory ) lock ( RouterInfos )
+            var excludeset = new HashSet<I2PIdentHash>( exclude );
+
+            if ( exploratory )
+            {
+                lock ( RouterInfos )
                 {
+                    var subset = RouterInfos
+                            .Where( k => !excludeset.Contains( k.Key ) );
                     do
                     {
-                        lock ( r.Wheel )
-                        {
-                            result = Roulette.Wheel.Random().Id;
-                        }
+                        result = subset
+                            .Random()
+                            .Key;
                     } while ( result == me );
 
                     return result;
                 }
+            }
 
+            var retries = 0;
+            bool tryagain;
             do
             {
-                var one = r.GetWeightedRandom();
-                var retries = 0;
-                while ( !Contains( one ) && ++retries < 20 ) one = r.GetWeightedRandom();
-                result = one;
-            } while ( result == me );
+                result = r.GetWeightedRandom( excludeset );
+                tryagain = result == me;
+            } while ( tryagain && ++retries < 20 );
+
+            //Logging.LogInformation( $"GetRandomRouter selected {result}: {exclude.Any( k2 => k2 == result )}" );
 
             return result;
         }
 
         I2PRouterInfo GetRandomRouterInfo( RouletteSelection<I2PRouterInfo, I2PIdentHash> r, bool exploratory )
         {
-            return this[GetRandomRouter( r, exploratory )];
+            return this[GetRandomRouter( r, Enumerable.Empty<I2PIdentHash>(), exploratory )];
         }
 
         public I2PRouterInfo GetRandomRouterInfo( bool exploratory )
@@ -620,21 +623,15 @@ namespace I2PCore
             return GetRandomRouterInfo( Roulette, exploratory );
         }
 
-        ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 3 ), 1 );
+        private ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 7 ), 2 );
 
         public I2PIdentHash GetRandomRouterForTunnelBuild( bool exploratory )
         {
             I2PIdentHash result;
 
-            if ( exploratory ) return GetRandomRouter( Roulette, exploratory );
-
-            int retries = 0;
-            do
-            {
-                result = GetRandomRouter( Roulette, exploratory );
-            } while ( ++retries < 100 && !RecentlyUsedForTunnel.Test( result ) );
-
+            result = GetRandomRouter( Roulette, RecentlyUsedForTunnel, exploratory );
             RecentlyUsedForTunnel.Update( result );
+
             return result;
         }
 
@@ -648,9 +645,11 @@ namespace I2PCore
             return GetRandomRouterInfo( RouletteFloodFill, exploratory );
         }
 
+        readonly ItemFilterWindow<I2PIdentHash> RecentlyUsedForFF = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 15 ), 2 );
+
         public I2PIdentHash GetRandomFloodfillRouter( bool exploratory )
         {
-            return GetRandomRouter( RouletteFloodFill, exploratory );
+            return GetRandomRouter( RouletteFloodFill, RecentlyUsedForFF, exploratory );
         }
 
         public IEnumerable<I2PIdentHash> GetRandomFloodfillRouter( bool exploratory, int count )
@@ -740,12 +739,20 @@ namespace I2PCore
                     RouterInfos[hash].Value.Deleted = true;
                 }
             }
-            Statistics.Remove( hash );
         }
 
         public void RemoveRouterInfo( IEnumerable<I2PIdentHash> hashes )
         {
-            foreach( var hash in hashes ) RemoveRouterInfo( hash );
+            lock ( RouterInfos )
+            {
+                foreach ( var hash in hashes )
+                {
+                    if ( RouterInfos.ContainsKey( hash ) )
+                    {
+                        RouterInfos[hash].Value.Deleted = true;
+                    }
+                }
+            }
         }
 
         public void AddDatabaseSearchReply( DatabaseSearchReplyMessage dbsr )

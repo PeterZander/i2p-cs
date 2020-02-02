@@ -316,6 +316,46 @@ namespace I2PCore.Utils
             return src.Skip( RandomInt( src.Count() ) ).Take( 1 ).SingleOrDefault();
         }
 
+        public static T RandomWeighted<T>(
+            this IEnumerable<T> src,
+            Func<T, double> weight,
+            bool invertweight = false,
+            double powf = 1.0 )
+        {
+            var wsrc = src.Select( s => new
+            {
+                obj = s,
+                weight = weight( s )
+            } );
+
+            double min = 0.0;
+            double max = 0.0;
+            if ( invertweight )
+            {
+                min = wsrc.Min( s => s.weight );
+                max = wsrc.Max( s => s.weight );
+            }
+
+            var invsrc = wsrc.Select( s => new
+            {
+                s.obj,
+                weight = invertweight
+                    ? Math.Pow( max + min - s.weight, powf )
+                    : Math.Pow( s.weight, powf )
+            } );
+
+            var totalweight = invsrc.Sum( s => s.weight );
+            var target = RandomDouble( totalweight );
+
+            var one = invsrc.GetEnumerator();
+            while ( one.MoveNext() )
+            {
+                target -= one.Current.weight;
+                if ( target <= 0f ) return one.Current.obj;
+            }
+            return src.Last();
+        }
+
         static readonly byte[] ZeroArray = new byte[0];
         public static byte[] Random( int bytes )
         {
@@ -347,6 +387,11 @@ namespace I2PCore.Utils
         public static float RandomFloat( float max )
         {
             return (float)( Rnd.NextDouble() * max );
+        }
+
+        public static double RandomDouble( double max )
+        {
+            return Rnd.NextDouble() * max;
         }
 
         public static void Populate<T>( this IList<T> list, T value )
@@ -397,8 +442,30 @@ namespace I2PCore.Utils
                 list[ix] = list[i];
             }
         }
- 
-        public static float StdDev<T>( this IEnumerable<T> list, Func<T,float> select )
+
+        public static float AbsDev( this IEnumerable<float> list )
+        {
+            var avg = list.Average();
+            var count = list.Count();
+            var result = list.Sum( one => Math.Abs( one - avg ) );
+            return ( 1f / count ) * result;
+        }
+
+        public static float StdDev( this IEnumerable<float> list )
+        {
+            var result = 0f;
+            var avg = list.Average();
+            var count = 0;
+            foreach ( var one in list )
+            {
+                var v = one - avg;
+                result += v * v;
+                ++count;
+            }
+            return (float)Math.Sqrt( ( 1f / ( count - 1 ) ) * result );
+        }
+
+        public static float StdDev<T>( this IEnumerable<T> list, Func<T, float> select )
         {
             var result = 0f;
             var avg = list.Average( v => select( v ) );
@@ -440,56 +507,60 @@ namespace I2PCore.Utils
         public static HistogramBin[] Histogram<T>( this IEnumerable<T> list, 
             Func<T, float> select, 
             int bins, 
-            float lowerstddevs = float.MaxValue,
-            float upperstddevs = float.MaxValue )
+            float lowerabsdevs = float.MaxValue,
+            float upperabsdevs = float.MaxValue )
         {
             if ( list == null || !list.Any() ) return default( HistogramBin[] );
             var dbgcount = list.Count();
 
             var result = new HistogramBin[bins];
-            float min, max;
 
             float avg = 0f;
-            float stddev = 0f;
+            float absdev = 0f;
 
-            if ( lowerstddevs != float.MaxValue || upperstddevs != float.MaxValue )
-            {
-                avg = list.Average( v => select( v ) );
-                stddev = list.StdDev( v => select( v ) );
-            }
+            var values = list.Select( v => select( v ) );
 
-            if ( lowerstddevs == float.MaxValue || list.Count() < 3 )
+            if ( lowerabsdevs != float.MaxValue || upperabsdevs != float.MaxValue )
             {
-                min = list.Min( v => select( v ) );
-            }
-            else
-            {
-                var limit = avg - lowerstddevs * stddev;
-                var subset = list.Where( v => select( v ) > limit );
-                if ( subset == null || !subset.Any() ) return result;
-                min = subset.Min( v => select( v ) );
+                avg = values.Average();
+                absdev = values.AbsDev();
             }
 
-            if ( upperstddevs == float.MaxValue || list.Count() < 3 )
+            var min = values.Min();
+            var max = values.Max();
+
+            if ( lowerabsdevs != float.MaxValue && list.Count() > 3 )
             {
-                max = list.Max( v => select( v ) );
+                min = Math.Max( avg - absdev * lowerabsdevs, min );
             }
-            else
+
+            if ( upperabsdevs != float.MaxValue && list.Count() > 3 )
             {
-                var limit = avg + upperstddevs * stddev;
-                var subset = list.Where( v => select( v ) < limit );
-                if ( subset == null || !subset.Any() ) return result;
-                max = subset.Max( v => select( v ) );
+                max = Math.Min( avg + absdev * upperabsdevs, max );
             }
 
             if ( min == max ) return result;
 
             for ( int i = 0; i < bins; ++i ) result[i].Start = i * ( ( max - min ) / bins ) + min;
 
-            foreach ( var one in list )
+            foreach ( var one in values )
             {
-                var ix = Math.Min( result.Length - 1, (int)( ( bins * ( select( one ) - min ) ) / ( max - min ) ) );
-                ix = Math.Max( 0, ix );
+                var val = one;
+
+                if ( lowerabsdevs != float.MaxValue && list.Count() > 3 )
+                {
+                    val = Math.Max( avg - absdev * lowerabsdevs, val );
+                }
+
+                if ( upperabsdevs != float.MaxValue && list.Count() > 3 )
+                {
+                    val = Math.Min( avg + absdev * upperabsdevs, val );
+                }
+
+                var ix = Math.Max( 0, 
+                    Math.Min( 
+                        result.Length - 1, 
+                        (int)( ( bins * ( val - min ) ) / ( max - min ) ) ) );
                 ++result[ix].Count;
             }
             return result;

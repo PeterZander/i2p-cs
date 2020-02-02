@@ -6,13 +6,14 @@ using I2PCore.Utils;
 using I2PCore.Tunnel.I2NP.Data;
 using I2PCore.Data;
 using I2PCore.Router;
+using CM = System.Configuration.ConfigurationManager;
 
 namespace I2PCore.Tunnel
 {
     internal class ExplorationTunnelProvider
     {
-        public int TargetOutboundExploratoryTunnelCount = 10;
-        public int TargetInboundExploratoryTunnelCount = 10;
+        public int TargetOutboundExploratoryTunnelCount = 20;
+        public int TargetInboundExploratoryTunnelCount = 20;
         public int DefaultExploratoryTunnelHopCount = 1;
         public static readonly TickSpan TimeBetweenTunnelBuilds = TickSpan.Seconds( 2 );
 
@@ -21,6 +22,25 @@ namespace I2PCore.Tunnel
         internal ExplorationTunnelProvider( TunnelProvider tp )
         {
             TunnelMgr = tp;
+            ReadAppConfig();
+        }
+
+        public void ReadAppConfig()
+        {
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["OutboundExploratoryTunnels"] ) )
+            {
+                TargetOutboundExploratoryTunnelCount = int.Parse( CM.AppSettings["OutboundExploratoryTunnels"] );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["InboundExploratoryTunnels"] ) )
+            {
+                TargetInboundExploratoryTunnelCount = int.Parse( CM.AppSettings["InboundExploratoryTunnels"] );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["ExploratoryTunnelHops"] ) )
+            {
+                DefaultExploratoryTunnelHopCount = int.Parse( CM.AppSettings["ExploratoryTunnelHops"] );
+            }
         }
 
         internal int InboundTunnelsNeeded

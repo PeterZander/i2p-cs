@@ -8,16 +8,17 @@ using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Tunnel.I2NP.Data;
 using I2PCore.Utils;
 using I2PCore.Transport;
+using CM = System.Configuration.ConfigurationManager;
 
 namespace I2PCore.Tunnel
 {
     public class ClientDestination
     {
-        public int InboundTunnelHopCount = 2;
-        public int OutboundTunnelHopCount = 2;
+        public int InboundTunnelHopCount = 3;
+        public int OutboundTunnelHopCount = 3;
 
-        public int TargetOutboundTunnelCount = 4;
-        public int TargetInboundTunnelCount = 4;
+        public int TargetInboundTunnelCount = 2;
+        public int TargetOutboundTunnelCount = 2;
 
         List<OutboundTunnel> OutboundPending = new List<OutboundTunnel>();
         List<InboundTunnel> InboundPending = new List<InboundTunnel>();
@@ -31,7 +32,7 @@ namespace I2PCore.Tunnel
             {
                 lock ( InboundEstablishedPool )
                 {
-                    return TargetInboundTunnelCount - InboundEstablishedPool.Where( t => !t.NeedsRecreation ).Count() - InboundPending.Count;
+                    return TargetInboundTunnelCount - InboundEstablishedPool.Count( t => !t.NeedsRecreation ) - InboundPending.Count;
                 }
             }
         }
@@ -42,7 +43,7 @@ namespace I2PCore.Tunnel
             {
                 lock ( OutboundEstablishedPool )
                 {
-                    return TargetOutboundTunnelCount - OutboundEstablishedPool.Where( t => !t.NeedsRecreation ).Count() - OutboundPending.Count;
+                    return TargetOutboundTunnelCount - OutboundEstablishedPool.Count( t => !t.NeedsRecreation ) - OutboundPending.Count;
                 }
             }
         }
@@ -53,13 +54,11 @@ namespace I2PCore.Tunnel
             {
                 lock ( InboundEstablishedPool )
                 {
-                    //if ( InboundEstablishedPool.Where( t => !t.NeedsRecreation ).Count() < TargetInboundTunnelCount ) return false;
                     if ( InboundEstablishedPool.Count < TargetInboundTunnelCount ) return false;
                 }
 
                 lock ( OutboundEstablishedPool )
                 {
-                    //if ( OutboundEstablishedPool.Where( t => !t.NeedsRecreation ).Count() < TargetOutboundTunnelCount ) return false;
                     if ( OutboundEstablishedPool.Count < TargetOutboundTunnelCount ) return false;
                 }
                 
@@ -69,7 +68,7 @@ namespace I2PCore.Tunnel
 
         I2PDestinationInfo ThisDestination;
         I2PDestination MyDestination;
-        bool PublishDestination;
+        readonly bool PublishDestination;
 
         I2PLeaseSet LeaseSet;
         ClientTunnelProvider ClientTunnelMgr;
@@ -92,6 +91,9 @@ namespace I2PCore.Tunnel
             ClientTunnelMgr = tp;
             PublishDestination = publishdest;
             ThisDestination = dest;
+
+            ReadAppConfig();
+
             MyDestination = new I2PDestination( ThisDestination );
 
             LeaseSet = new I2PLeaseSet( MyDestination, null, new I2PLeaseInfo( ThisDestination ) );
@@ -108,11 +110,33 @@ namespace I2PCore.Tunnel
 
                 outtunnel.Send(
                     new TunnelMessageTunnel( header, lease.TunnelGw, lease.TunnelId ) );
-            },
-            () => InboundEstablishedPool.Random() );
+            }, () => InboundEstablishedPool.Random() );
 
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += new IdentResolver.IdentResolverResultLeaseSet( IdentHashLookup_LeaseSetReceived );
             NetDb.Inst.IdentHashLookup.LookupFailure += new IdentResolver.IdentResolverResultFail( IdentHashLookup_LookupFailure );
+        }
+
+        public void ReadAppConfig()
+        {
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["InboundTunnelsPerDestination"] ) )
+            {
+                TargetInboundTunnelCount = int.Parse( CM.AppSettings["InboundTunnelsPerDestination"] );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["OutboundTunnelsPerDestination"] ) )
+            {
+                TargetOutboundTunnelCount = int.Parse( CM.AppSettings["OutboundTunnelsPerDestination"] );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["InboundTunnelHops"] ) )
+            {
+                InboundTunnelHopCount = int.Parse( CM.AppSettings["InboundTunnelHops"] );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["OutboundTunnelHops"] ) )
+            {
+                OutboundTunnelHopCount = int.Parse( CM.AppSettings["OutboundTunnelHops"] );
+            }
         }
 
         public void Send( I2PLeaseSet ls, byte[] data, bool ack )

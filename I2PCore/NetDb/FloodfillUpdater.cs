@@ -43,8 +43,8 @@ namespace I2PCore
             {
                 if ( OutstandingRequests.TryGetValue( msg.MessageId, out var info ) )
                 {
-                    Logging.Log( string.Format( "FloodfillUpdater: Floodfill delivery status {0,10} from {1} received in {2} seconds.",
-                        msg.MessageId, info.FFRouter.Id32Short, info.Start.DeltaToNowSeconds ) );
+                    Logging.Log( string.Format( "FloodfillUpdater: Floodfill delivery status {0,10} from {1} received in {2} mseconds.",
+                        msg.MessageId, info.FFRouter.Id32Short, info.Start.DeltaToNowMilliseconds ) );
 
                     OutstandingRequests.Remove( msg.MessageId );
 
@@ -117,7 +117,7 @@ namespace I2PCore
             // if the token is greater than zero.
             // https://geti2p.net/spec/i2np#databasestore
 
-            var replytunnel = TunnelProvider.Inst.GetInboundTunnel();
+            var replytunnel = TunnelProvider.Inst.GetInboundTunnel( true );
             var ds = new DatabaseStoreMessage( RouterContext.Inst.MyRouterInfo,
                 token, replytunnel.Destination, replytunnel.ReceiveTunnelId );
 

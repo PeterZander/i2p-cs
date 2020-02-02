@@ -1,6 +1,4 @@
-﻿#define LOG_ALL_IDENT_LOOKUPS
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -67,7 +65,9 @@ namespace I2PCore
             var newitem = new IdentUpdateRequestInfo( ident, DatabaseLookupMessage.LookupTypes.RouterInfo );
             lock ( OutstandingQueries )
             {
-                Logging.Log( string.Format( "IdentResolver: Starting lookup of RouterInfo for {0}.", ident.Id32Short ) );
+#if LOG_ALL_IDENT_LOOKUPS
+                Logging.Log( $"IdentResolver: Starting lookup of RouterInfo for {ident.Id32Short}." );
+#endif
                 OutstandingQueries[ident] = newitem;
             }
             SendRIDatabaseLookup( ident, newitem );
@@ -78,7 +78,7 @@ namespace I2PCore
             var newitem = new IdentUpdateRequestInfo( ident, DatabaseLookupMessage.LookupTypes.LeaseSet );
             lock ( OutstandingQueries )
             {
-                Logging.Log( string.Format( "IdentResolver: Starting lookup of LeaseSet for {0}.", ident.Id32Short ) );
+                Logging.Log( $"IdentResolver: Starting lookup of LeaseSet for {ident.Id32Short}." );
                 OutstandingQueries[ident] = newitem;
             }
             SendLSDatabaseLookup( ident, newitem );
@@ -96,12 +96,11 @@ namespace I2PCore
             {
 #if LOG_ALL_IDENT_LOOKUPS
                 foundrouters.AppendFormat( "{0}{1}", ( foundrouters.Length != 0 ? ", " : "" ), router.Id32Short );
-                //foundrouters.AppendFormat( "{0}{1}{2}", ( foundrouters.Length != 0 ? ", " : "" ), router.Id32Short, FreenetBase64.Encode( router.Hash ) );
 #endif
                 if ( NetDb.Inst.Contains( router ) )
                 {
 #if LOG_ALL_IDENT_LOOKUPS
-                    Logging.Log( string.Format( "IdentResolver: Not looking up RouterInfo {0} from SearchReply as its already known.", router.Id32Short ) );
+                    Logging.Log( $"IdentResolver: Not looking up RouterInfo {router.Id32Short} from SearchReply as its already known." );
 #endif
                     continue;
                 }
@@ -110,9 +109,7 @@ namespace I2PCore
 
             lock ( OutstandingQueries )
             {
-                IdentUpdateRequestInfo info;
-
-                if ( !OutstandingQueries.TryGetValue( dsm.Key, out info ) ) return;
+                if ( !OutstandingQueries.TryGetValue( dsm.Key, out var info ) ) return;
 
                 ++info.Retries;
                 --info.WaitingFor;

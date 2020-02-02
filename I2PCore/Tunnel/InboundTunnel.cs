@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Data;
 using I2PCore.Utils;
 using I2PCore.Router;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Tunnel.I2NP.Data;
 using I2PCore.Transport;
 using System.Threading;
@@ -29,10 +26,10 @@ namespace I2PCore.Tunnel
         public readonly uint TunnelBuildReplyMessageId = BufUtils.RandomUint();
         public readonly int OutTunnelHops;
 
-        static object DeliveryStatusReceivedLock = new object();
+        static readonly object DeliveryStatusReceivedLock = new object();
         public static event Action<DeliveryStatusMessage> DeliveryStatusReceived;
 
-        object GarlicMessageReceivedLock = new object();
+        readonly object GarlicMessageReceivedLock = new object();
         public event Action<GarlicMessage> GarlicMessageReceived;
 
         public InboundTunnel( TunnelConfig config, int outtunnelhops ): base( config )
@@ -49,14 +46,18 @@ namespace I2PCore.Tunnel
 
                 ReceiveTunnelId = TunnelSetup.Hops.Last().TunnelId;
 
+#if LOG_ALL_TUNNEL_TRANSFER
                 Logging.LogDebug( $"InboundTunnel: Tunnel {Destination.Id32Short} created." );
+#endif
             }
             else
             {
                 Fake0HopTunnel = true;
 
-                var hops = new List<HopInfo>();
-                hops.Add( new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() ) );
+                var hops = new List<HopInfo>
+                {
+                    new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() )
+                };
                 TunnelSetup = new TunnelInfo( hops );
 
                 Config = new TunnelConfig(
@@ -68,7 +69,9 @@ namespace I2PCore.Tunnel
                 RemoteGateway = RouterContext.Inst.MyRouterIdentity.IdentHash;
                 GatewayTunnelId = ReceiveTunnelId;
 
+#if LOG_ALL_TUNNEL_TRANSFER
                 Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: 0-hop tunnel {Destination.Id32Short} created." );
+#endif
             }
         }
 
@@ -123,7 +126,7 @@ namespace I2PCore.Tunnel
             FragBufferReport.Do( delegate()
             {
                 var fbsize = Reassembler.BufferedFragmentCount;
-                Logging.Log( "InboundTunnel " + TunnelDebugTrace + ": " + Destination.Id32Short + " Fragment buffer size: " + fbsize.ToString() );
+                Logging.Log( $"InboundTunnel {TunnelDebugTrace}: {Destination.Id32Short} Fragment buffer size: {fbsize}" );
                 if ( fbsize > 2000 ) throw new Exception( "BufferedFragmentCount > 2000 !" ); // Trying to fill my memory?
             } );
 
@@ -158,7 +161,9 @@ namespace I2PCore.Tunnel
                 return true;
             }
 
-            Logging.LogDebug( "InboundTunnel " + TunnelDebugTrace + " HandleReceiveQueue: " + msg.MessageType.ToString() );
+#if LOG_ALL_TUNNEL_TRANSFER
+            Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace} HandleReceiveQueue: {msg.MessageType}" );
+#endif
 
             switch ( msg.MessageType )
             {
@@ -175,11 +180,14 @@ namespace I2PCore.Tunnel
 
                 case I2NPMessage.MessageTypes.DeliveryStatus:
 #if LOG_ALL_TUNNEL_TRANSFER
-                    Logging.LogDebug( "InboundTunnel " + TunnelDebugTrace + ": DeliveryStatus: " + msg.Message.ToString() );
+                    Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: DeliveryStatus: {msg.Message}" );
 #endif
                     
                     ThreadPool.QueueUserWorkItem( cb => {
-                        lock ( DeliveryStatusReceivedLock ) if ( DeliveryStatusReceived != null ) DeliveryStatusReceived( (DeliveryStatusMessage)msg.Message );
+                        lock ( DeliveryStatusReceivedLock )
+                        {
+                            DeliveryStatusReceived?.Invoke( (DeliveryStatusMessage)msg.Message );
+                        }
                     } );
                     break;
 
@@ -193,17 +201,20 @@ namespace I2PCore.Tunnel
 
                 case I2NPMessage.MessageTypes.Garlic:
 #if LOG_ALL_TUNNEL_TRANSFER
-                    Logging.Log( "InboundTunnel " + TunnelDebugTrace + ": Garlic: " + msg.Message.ToString() );
+                    Logging.Log( $"InboundTunnel {TunnelDebugTrace}: Garlic: {msg.Message}" );
 #endif
 
                     ThreadPool.QueueUserWorkItem( cb =>
                     {
-                        lock ( GarlicMessageReceivedLock ) if ( GarlicMessageReceived != null ) GarlicMessageReceived( (GarlicMessage)msg.Message );
+                        lock ( GarlicMessageReceivedLock )
+                        {
+                            GarlicMessageReceived?.Invoke( (GarlicMessage)msg.Message );
+                        }
                     } );
                     break;
 
                 default:
-                    Logging.LogWarning( "InboundTunnel " + TunnelDebugTrace + " HandleReceiveQueue: Dropped " + msg.ToString() );
+                    Logging.LogWarning( $"InboundTunnel {TunnelDebugTrace} HandleReceiveQueue: Dropped {msg}" );
                     break;
             }
 
@@ -221,26 +232,32 @@ namespace I2PCore.Tunnel
             {
                 if ( one.GetType() == typeof( TunnelMessageLocal ) )
                 {
-                    Logging.Log( "InboundTunnel " + TunnelDebugTrace + " TunnelData distributed Local :\r\n" + one.Header.ToString() );
+#if LOG_ALL_TUNNEL_TRANSFER
+                    Logging.Log( $"InboundTunnel {TunnelDebugTrace} TunnelData distributed Local :\r\n{one.Header}" );
+#endif
                     MessageReceived( ( (TunnelMessageLocal)one ).Header );
                 }
                 else
                 if ( one.GetType() == typeof( TunnelMessageRouter ) )
                 {
-                    Logging.Log( "InboundTunnel " + TunnelDebugTrace + " TunnelData distributed Router :\r\n" + one.Header.ToString() );
+#if LOG_ALL_TUNNEL_TRANSFER
+                    Logging.Log( $"InboundTunnel {TunnelDebugTrace} TunnelData distributed Router :\r\n{one.Header}" );
+#endif
                     TransportProvider.Send( ( (TunnelMessageRouter)one ).Destination, one.Header.Message );
                 }
                 else
                 if ( one.GetType() == typeof( TunnelMessageTunnel ) )
                 {
                     var tone = (TunnelMessageTunnel)one;
-                    Logging.Log( "InboundTunnel " + TunnelDebugTrace + " TunnelData distributed Tunnel :\r\n" + one.Header.ToString() );
+#if LOG_ALL_TUNNEL_TRANSFER
+                    Logging.Log( $"InboundTunnel {TunnelDebugTrace} TunnelData distributed Tunnel :\r\n{one.Header}" );
+#endif
                     var gwmsg = new TunnelGatewayMessage( tone.Header, tone.Tunnel );
                     TransportProvider.Send( tone.Destination, gwmsg );
                 }
                 else
                 {
-                    Logging.LogWarning( "InboundTunnel " + TunnelDebugTrace + " TunnelData without routing rules:\r\n" + one.Header.ToString() );
+                    Logging.LogWarning( $"InboundTunnel {TunnelDebugTrace} TunnelData without routing rules:\r\n{one.Header}" );
                 }
             }
         }
@@ -304,7 +321,7 @@ namespace I2PCore.Tunnel
 
         public override string ToString()
         {
-            return base.ToString() + " " + Destination.Id32Short;
+            return $"{base.ToString()} {Destination.Id32Short}";
         }
     }
 }

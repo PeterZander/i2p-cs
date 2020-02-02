@@ -12,7 +12,7 @@ namespace I2PCore.Tunnel.I2NP
 {
     public class ClientTunnelProvider
     {
-        const int NewTunnelCreationFactor = 4;
+        const int NewTunnelCreationFactor = 2;
 
         List<ClientDestination> Clients = new List<ClientDestination>();
         Dictionary<Tunnel, ClientDestination> Destinations = new Dictionary<Tunnel, ClientDestination>();
@@ -78,7 +78,7 @@ namespace I2PCore.Tunnel.I2NP
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype == null ? CreateOutgoingTunnelChain( dest ): prototype );
+                prototype ?? CreateOutgoingTunnelChain( dest ) );
 
             var tunnel = (OutboundTunnel)TunnelMgr.CreateTunnel( config );
             if ( tunnel != null )
@@ -95,12 +95,12 @@ namespace I2PCore.Tunnel.I2NP
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype == null ? CreateIncommingTunnelChain( dest ): prototype );
+                prototype ?? CreateIncommingTunnelChain( dest ) );
 
             var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( config );
             if ( tunnel != null )
             {
-                tunnel.GarlicMessageReceived += new Action<GarlicMessage>( tunnel_GarlicMessageReceived );
+                tunnel.GarlicMessageReceived += new Action<GarlicMessage>( GarlicMessageReceived );
                 TunnelMgr.AddTunnel( tunnel );
                 dest.AddInboundPending( tunnel );
                 lock ( Destinations ) Destinations[tunnel] = dest;
@@ -209,8 +209,7 @@ namespace I2PCore.Tunnel.I2NP
 
             if ( replace != null )
             {
-                Logging.LogDebug( "ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel " + replace.OldTunnel.ToString() + 
-                    " with new tunnel " + tunnel.ToString() );
+                Logging.LogDebug( $"ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel {replace.OldTunnel} with new tunnel {tunnel}" );
 
                 RemoveTunnelUnderReplacement( replace.OldTunnel );
                 //client.RemoveTunnel( replace.OldTunnel );
@@ -236,12 +235,13 @@ namespace I2PCore.Tunnel.I2NP
 
             if ( replace != null )
             {
-                Logging.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Failed replacing " + replace.OldTunnel.ToString() +
-                    " with " + tunnel.ToString() );
+                Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
+                    $"Failed replacing {replace.OldTunnel} with {tunnel}" );
 
                 if ( replace.OldTunnel.Expired )
                 {
-                    Logging.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
+                    Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
+                        $"Old tunnel expired. {replace.OldTunnel}" );
 
                     client.RemoveTunnel( replace.OldTunnel );
                 }
@@ -252,10 +252,8 @@ namespace I2PCore.Tunnel.I2NP
             else
             {
 /*
-#if DEBUG
-                DebugUtils.LogDebug( "ClientTunnelProvider: TunnelBuildTimeout: Unable to find a matching tunnel under replacement for " + 
-                    tunnel.ToString() );
-#endif
+                Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
+                    $"Unable to find a matching tunnel under replacement for {tunnel}" );
  */
             }
         }
@@ -306,7 +304,7 @@ namespace I2PCore.Tunnel.I2NP
                 /*
                 if ( replace.OldTunnel.Expired )
                 {
-                    DebugUtils.LogDebug( "ClientTunnelProvider: TunnelTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
+                    Logging.LogDebug( "ClientTunnelProvider: TunnelTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
 
                     client.RemovePoolTunnel( replace.OldTunnel );
                 }*/
@@ -359,10 +357,8 @@ namespace I2PCore.Tunnel.I2NP
             {
                 if ( !Destinations.TryGetValue( tunnel, out client ) )
                 {
-#if DEBUG
-                    Logging.LogDebug( "ClientTunnelProvider: TunnelEstablished: Unable to find a matching Destination for " +
-                        tunnel.ToString() );
-#endif
+                    Logging.LogDebug( $"ClientTunnelProvider: TunnelEstablished: " +
+                        $"Unable to find a matching Destination for {tunnel}" );
                     return null;
                 }
             }
@@ -393,7 +389,7 @@ namespace I2PCore.Tunnel.I2NP
 
         #region Client communication
 
-        void tunnel_GarlicMessageReceived( GarlicMessage msg )
+        void GarlicMessageReceived( GarlicMessage msg )
         {
         }
 
