@@ -121,7 +121,7 @@ namespace I2PCore.Transport.SSU
                                 foreach ( var sess in sessions ) ThreadPool.QueueUserWorkItem( cb => RunSession( sess, batchsync ) );
                                 if ( !batchsync.WaitOne( 5000 ) )
                                 {
-                                    Logging.LogDebug( "SSUHost: Run tasks counting error." );
+                                    Logging.LogTransport( "SSUHost: Run tasks counting error." );
                                 }
                             }
 
@@ -130,7 +130,7 @@ namespace I2PCore.Transport.SSU
                                 SSUSession sess;
                                 while ( ( sess = PopFailedSession() ) != null )
                                 {
-                                    Logging.LogDebug( "SSUHost: Failed Session " + sess.DebugId + " removed." );
+                                    Logging.LogTransport( "SSUHost: Failed Session " + sess.DebugId + " removed." );
 
                                     if ( sess.RemoteEP != null ) ReportEPProblem( sess.RemoteEP );
                                     RemoveSession( sess );
@@ -171,14 +171,14 @@ namespace I2PCore.Transport.SSU
                     var running = sess.Run();
                     if ( !running )
                     {
-                        Logging.LogDebug( "SSUHost: Terminated Session " + sess.DebugId + " removed." );
+                        Logging.LogTransport( "SSUHost: Terminated Session " + sess.DebugId + " removed." );
                         RemoveSession( sess );
                     }
 #if DEBUG
                     Stopwatch1.Stop();
                     if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
                     {
-                        Logging.LogDebug( () =>
+                        Logging.LogTransport( 
                             string.Format( "SSUHost Run: WARNING Session {0} used {1}ms cpu.", sess, Stopwatch1.ElapsedMilliseconds ) );
                     }
 #endif
@@ -212,7 +212,7 @@ namespace I2PCore.Transport.SSU
             catch ( FailedToConnectException fcex )
             {
                 AddFailedSession( sess );
-                Logging.LogDebug( () =>
+                Logging.LogTransport( 
                     string.Format( "SSUHost Run: Session failed to connect: {0}", fcex.Message ) );
 
                 if ( sess != null && sess.RemoteRouterIdentity != null )
@@ -296,7 +296,7 @@ namespace I2PCore.Transport.SSU
                 if ( size <= 37 )
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1} (hole punch, ignored)", size, ep ) );
+                    Logging.LogTransport( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1} (hole punch, ignored)", size, ep ) );
 #endif
                     return;
                 }
@@ -304,7 +304,7 @@ namespace I2PCore.Transport.SSU
                 var key = (IPEndPoint)ep;
 
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1}", size, ep ) );
+                Logging.LogTransport( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1}", size, ep ) );
 #endif
 
                 lock ( Sessions )
@@ -313,7 +313,7 @@ namespace I2PCore.Transport.SSU
                     {
                         if ( IPFilter.IsFiltered( ( (IPEndPoint)ep ).Address ) )
                         {
-                            Logging.LogDebug( () => string.Format( "SSUHost ReceiveCallback: IPAddress {0} is blocked. {1} bytes.",
+                            Logging.LogTransport( string.Format( "SSUHost ReceiveCallback: IPAddress {0} is blocked. {1} bytes.",
                                 key, size ) );
                             return;
                         }
@@ -322,9 +322,9 @@ namespace I2PCore.Transport.SSU
 
                         session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
                         Sessions[key] = session;
-                        Logging.LogDebug( "SSUHost: incoming connection " + session.DebugId + " from " + key.ToString() + " created." );
+                        Logging.LogTransport( "SSUHost: incoming connection " + session.DebugId + " from " + key.ToString() + " created." );
                         NeedCpu( session );
-                        if ( ConnectionCreated != null ) ConnectionCreated( session );
+                        ConnectionCreated?.Invoke( session );
                     }
                     else
                     {
@@ -366,7 +366,7 @@ namespace I2PCore.Transport.SSU
                 {
                     AddFailedSession( session );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( fcex );
+            Logging.LogTransport( fcex );
 #endif
                     if ( session != null )
                     {
@@ -378,7 +378,7 @@ namespace I2PCore.Transport.SSU
                 Stopwatch1.Stop();
                 if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
                 {
-                    Logging.LogDebug( () =>
+                    Logging.LogTransport(
                         string.Format( "SSUHost ReceiveCallback: WARNING Session {0} used {1}ms cpu.", session, Stopwatch1.ElapsedMilliseconds ) );
                 }
 #endif
@@ -406,7 +406,7 @@ namespace I2PCore.Transport.SSU
         {
             MySocket.BeginSendTo( data.BaseArray, data.BaseArrayOffset, data.Length, SocketFlags.None, ep, new AsyncCallback( SendCallback ), data );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( string.Format( "SSU Sent: {0} bytes [0x{0:X}] to {1}", data.Length, ep ) );
+            Logging.LogTransport( string.Format( "SSU Sent: {0} bytes [0x{0:X}] to {1}", data.Length, ep ) );
 #endif
         }
 
@@ -441,14 +441,14 @@ namespace I2PCore.Transport.SSU
 
                 if ( !AllowConnectToSelf && IsOurIP( remoteep.Address ) )
                 {
-                    Logging.Log( string.Format( "SSU AddSession: [{0}]:{1} - {2}. Dropped. Not connecting to ourselves.", dest.IdentHash.Id32, key, addr ) );
+                    Logging.LogTransport( string.Format( "SSU AddSession: [{0}]:{1} - {2}. Dropped. Not connecting to ourselves.", dest.IdentHash.Id32, key, addr ) );
                     return null;
                 }
 
                 key = remoteep;
 
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( string.Format( "SSU AddSession: [{0}]:{1} - {2}", dest.IdentHash.Id32, key, addr ) );
+                Logging.LogTransport( string.Format( "SSU AddSession: [{0}]:{1} - {2}", dest.IdentHash.Id32, key, addr ) );
 #endif
 
                 lock ( Sessions )
@@ -525,7 +525,7 @@ namespace I2PCore.Transport.SSU
 
         internal void ReportedAddress( IPAddress ipaddr )
         {
-            Logging.LogDebug( "SSU My external IP " + ipaddr.ToString() );
+            Logging.LogTransport( "SSU My external IP " + ipaddr.ToString() );
 
             if ( LastExternalIPProcess.DeltaToNowMilliseconds < 20000 ) return;
             LastExternalIPProcess.SetNow();
@@ -539,7 +539,7 @@ namespace I2PCore.Transport.SSU
                 var firstbytes = first.GetAddressBytes();
                 if ( ReportedAddresses.Count() > 10 && ReportedAddresses.All( a => BufUtils.Equal( a.GetAddressBytes(), firstbytes ) ) )
                 {
-                    Logging.Log( "SSU Start using unanimous remote reported external IP " + ipaddr.ToString() );
+                    Logging.LogTransport( "SSU Start using unanimous remote reported external IP " + ipaddr.ToString() );
                     UpdateSSUReportedAddr( ipaddr );
                 }
                 else
@@ -547,7 +547,7 @@ namespace I2PCore.Transport.SSU
                     var freq = ReportedAddresses.GroupBy( a => a.GetAddressBytes() ).OrderBy( g => g.Count() );
                     if ( freq.First().Count() > 15 )
                     {
-                        Logging.Log( "SSU Start using most frequently reported remote external IP " + ipaddr.ToString() );
+                        Logging.LogTransport( "SSU Start using most frequently reported remote external IP " + ipaddr.ToString() );
                         UpdateSSUReportedAddr( ipaddr );
                     }
                 }
@@ -580,7 +580,7 @@ namespace I2PCore.Transport.SSU
 
             if ( CurrentIntroducers.Count() >= 5 ) return;
 
-            Logging.LogDebug( $"SSU Introduction: Added introducer {intro.Host}, {intro.IntroKey}, {intro.IntroTag}, {intro.EndPoint}" );
+            Logging.LogTransport( $"SSU Introduction: Added introducer {intro.Host}, {intro.IntroKey}, {intro.IntroTag}, {intro.EndPoint}" );
             CurrentIntroducers.Set( intro.Host, intro );
             MyRouterContext.SetIntroducers( CurrentIntroducers.Select( i => i.Value ) );
         }

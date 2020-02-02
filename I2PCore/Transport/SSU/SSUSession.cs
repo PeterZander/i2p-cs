@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -75,7 +75,7 @@ namespace I2PCore.Transport.SSU
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.LogDebug( "SSUSession: " + DebugId + " Client instance created." );
+            Logging.LogTransport( "SSUSession: " + DebugId + " Client instance created." );
 #endif
 
             Fragmenter = new DataFragmenter();
@@ -103,7 +103,7 @@ namespace I2PCore.Transport.SSU
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.LogDebug( "SSUSession: " + DebugId + " Introducer instance created." );
+            Logging.LogTransport( "SSUSession: " + DebugId + " Introducer instance created." );
 #endif
 
             Fragmenter = new DataFragmenter();
@@ -125,7 +125,7 @@ namespace I2PCore.Transport.SSU
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter ) + 10000;
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.LogDebug( "SSUSession: " + DebugId + " Host instance created." );
+            Logging.LogTransport( "SSUSession: " + DebugId + " Host instance created." );
 #endif
 
             Fragmenter = new DataFragmenter();
@@ -155,12 +155,12 @@ namespace I2PCore.Transport.SSU
             if ( !RemoteAddr.Options.Contains( "host" ) || !RemoteAddr.Options.Contains( "port" ) )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.LogDebug( "SSUSession: Connect " + DebugId + ": No host info. Trying introducers." );
+                Logging.LogTransport( "SSUSession: Connect " + DebugId + ": No host info. Trying introducers." );
 #endif
                 if ( !RemoteAddr.Options.Contains( "ihost0" ) || !RemoteAddr.Options.Contains( "iport0" ) || !RemoteAddr.Options.Contains( "ikey0" ) )
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.LogDebug( "SSUSession: Connect +" + TransportInstance.ToString() + "+: No introducers declared." );
+                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: No introducers declared." );
 #endif
                     throw new FailedToConnectException( "SSU Introducer required, but no introducer information available" );
                 }
@@ -181,7 +181,7 @@ namespace I2PCore.Transport.SSU
 
                     if ( !RemoteAddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
 
-                    //DebugUtils.LogWarning( "SSUSession: Connect " + DebugId + ": " + RemoteAddr.Options.ToString() );
+                    //Logging.LogWarning( "SSUSession: Connect " + DebugId + ": " + RemoteAddr.Options.ToString() );
 
                     var intro = new IntroducerInfo( RemoteAddr.Options[$"ihost{i}"],
                         RemoteAddr.Options[$"iport{i}"],
@@ -189,7 +189,7 @@ namespace I2PCore.Transport.SSU
                         RemoteAddr.Options[$"itag{i}"] );
 
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.LogDebug( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Adding introducer '" +
+                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Adding introducer '" +
                         intro.EndPoint.ToString() + "'." );
 #endif
                     introducers.Add( intro );
@@ -198,7 +198,7 @@ namespace I2PCore.Transport.SSU
                 if ( introducers.Count == 0 )
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.LogDebug( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Ended up with no introducers." );
+                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Ended up with no introducers." );
 #endif
                     throw new FailedToConnectException( "SSU Introducer required, but no valid introducer information available" );
                 }
@@ -324,7 +324,7 @@ namespace I2PCore.Transport.SSU
 
             if ( CurrentState == null )
             {
-                Logging.Log( string.Format( "SSUSession {0}: Shuting down. No state.", DebugId ) );
+                Logging.LogTransport( string.Format( "SSUSession {0}: Shuting down. No state.", DebugId ) );
                 Host.NoCpu( this );
                 if ( ConnectionShutDown != null ) ConnectionShutDown( this );
                 IsTerminated = true;
@@ -338,7 +338,7 @@ namespace I2PCore.Transport.SSU
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( string.Format( "SSUSession +{0}+: Received {1} bytes [0x{1:X}].", TransportInstance, recvbuf.Length ) );
+            Logging.LogTransport( string.Format( "SSUSession +{0}+: Received {1} bytes [0x{1:X}].", TransportInstance, recvbuf.Length ) );
 #endif
 
             var cs = CurrentState;

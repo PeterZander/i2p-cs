@@ -83,7 +83,7 @@ namespace I2P.I2CP
                                 listener = CreateListener();
                                 listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
 
-                                DebugUtils.LogInformation( "NTCPHost: Running with new network settings. " +
+                                Logging.LogInformation( "NTCPHost: Running with new network settings. " +
                                     listener.LocalEndPoint.ToString() + ":" + RouterContext.Inst.TCPPort.ToString() + 
                                     " (" + RouterContext.Inst.ExtAddress.ToString() + ")" );
                             }

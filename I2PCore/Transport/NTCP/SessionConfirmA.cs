@@ -1,17 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using I2PCore.Data;
 using I2PCore.Utils;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Router;
-using System.Threading;
-using System.Net.Sockets;
 
 namespace I2PCore.Transport.NTCP
 {
@@ -28,8 +18,8 @@ namespace I2PCore.Transport.NTCP
 
             cleartext.Write( BufUtils.Flip32B( context.TimestampA ) );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SessionConfirmA send TimestampA: " + ( I2PDate.RefDate.AddSeconds( context.TimestampA ).ToString() ) );
-            DebugUtils.Log( "SessionConfirmA send TimestampB: " + ( I2PDate.RefDate.AddSeconds( context.TimestampB ).ToString() ) );
+            Logging.LogTransport( "SessionConfirmA send TimestampA: " + ( I2PDate.RefDate.AddSeconds( context.TimestampA ).ToString() ) );
+            Logging.LogTransport( "SessionConfirmA send TimestampB: " + ( I2PDate.RefDate.AddSeconds( context.TimestampB ).ToString() ) );
 #endif
 
             var sign = I2PSignature.DoSign( RouterContext.Inst.PrivateSigningKey,
@@ -61,8 +51,8 @@ namespace I2PCore.Transport.NTCP
             var ribuf = reader.ReadBufRefLen( rilen );
             context.TimestampA = reader.ReadFlip32();
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SessionConfirmA recv TimestampA: " + ( I2PDate.RefDate.AddSeconds( context.TimestampA ).ToString() ) );
-            DebugUtils.Log( "SessionConfirmA recv TimestampB: " + ( I2PDate.RefDate.AddSeconds( context.TimestampB ).ToString() ) );
+            Logging.LogTransport( "SessionConfirmA recv TimestampA: " + ( I2PDate.RefDate.AddSeconds( context.TimestampA ).ToString() ) );
+            Logging.LogTransport( "SessionConfirmA recv TimestampB: " + ( I2PDate.RefDate.AddSeconds( context.TimestampB ).ToString() ) );
 #endif
 
             context.RemoteRI = new I2PRouterIdentity( ribuf );
@@ -83,7 +73,7 @@ namespace I2PCore.Transport.NTCP
             if ( gotbytes < needbytes )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( "SessionConfirmA recv not enough data: " + datastart.Length.ToString() + ". I want " + needbytes.ToString() + " bytes." );
+                Logging.LogTransport( "SessionConfirmA recv not enough data: " + datastart.Length.ToString() + ". I want " + needbytes.ToString() + " bytes." );
 #endif
                 var buf = context.Client.BlockReceive( needbytes - gotbytes );
                 writer.Write( buf );
@@ -111,7 +101,7 @@ namespace I2PCore.Transport.NTCP
             );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SessionConfirmA recv: " + context.RemoteRI.Certificate.SignatureType.ToString() + 
+            Logging.LogTransport( "SessionConfirmA recv: " + context.RemoteRI.Certificate.SignatureType.ToString() + 
                 " signature check: " + sigok.ToString() + "." );
 #endif
             if ( !sigok ) throw new SignatureCheckFailureException( "NTCP SessionConfirmA recv signature check fail" );

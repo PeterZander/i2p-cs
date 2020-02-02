@@ -309,7 +309,7 @@ namespace I2PCore.Tunnel
             foreach ( var one in timeoutlist )
             {
                 /*
-                DebugUtils.LogDebug( "TunnelProvider: CheckForTunnelReplacementTimeout: " + one.Pool.ToString() + 
+                Logging.LogDebug( "TunnelProvider: CheckForTunnelReplacementTimeout: " + one.Pool.ToString() + 
                     " tunnel " + one.TunnelDebugTrace + " needs to be replaced." );
                  */
                 ClientsMgr.TunnelReplacementNeeded( one );
@@ -718,7 +718,7 @@ namespace I2PCore.Tunnel
                                 var ds = (DatabaseStoreMessage)msg.Message;
 #if LOG_ALL_TUNNEL_TRANSFER
                                 Logging.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.Key.Id32Short );
-                                //DebugUtils.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.ToString() );
+                                //Logging.Log( "RunIncomingMessagePump: DatabaseStore : " + ds.ToString() );
 #endif
                                 HandleDatabaseStore( ds );
                                 break;
@@ -825,14 +825,14 @@ namespace I2PCore.Tunnel
             if ( ds.RouterInfo != null )
             {
 #if LOG_ALL_TUNNEL_TRANSFER
-                //DebugUtils.Log( "HandleDatabaseStore: DatabaseStore RouterInfo" + ds.ToString() );
+                //Logging.Log( "HandleDatabaseStore: DatabaseStore RouterInfo" + ds.ToString() );
 #endif
                 NetDb.Inst.AddRouterInfo( ds.RouterInfo );
             }
             else
             {
 #if LOG_ALL_TUNNEL_TRANSFER
-                //DebugUtils.Log( "HandleDatabaseStore: DatabaseStore LeaseSet" + ds.ToString() );
+                //Logging.Log( "HandleDatabaseStore: DatabaseStore LeaseSet" + ds.ToString() );
 #endif
                 NetDb.Inst.AddLeaseSet( ds.LeaseSet );
             }
@@ -1042,32 +1042,28 @@ namespace I2PCore.Tunnel
                     }
 
                     var newrec = new BuildResponseRecord( new BufRefLen( rec.Data ) );
-#if LOG_ALL_TUNNEL_TRANSFER
-                    Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: My inbound tunnel {0}, {1} response: {2}.",
-                        tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
-#endif
 
                     decrypted.Add( newrec );
 
                     if ( newrec.Reply == BuildResponseRecord.RequestResponse.Accept )
                     {
-                        Logging.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Successful tunnel {0} member: {1}. Tunnel build reply: {2}",
-                            tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
+                        Logging.LogDebug( $"HandleTunnelBuildRecords: Successful tunnel {tunnel.TunnelDebugTrace} " +
+                            $"member: {hop.Peer.IdentHash.Id32Short}. Hop {i}. Reply: {newrec.Reply}" );
 
                         NetDb.Inst.Statistics.SuccessfulTunnelMember( hop.Peer.IdentHash );
                     }
                     else
                     {
-                        Logging.LogDebug( () => string.Format( "HandleTunnelBuildRecords: Unsuccessful tunnel {0} member: {1}. Tunnel build reply: {2}",
-                            tunnel.TunnelDebugTrace, hop.Peer.IdentHash.Id32Short, newrec.Reply ) );
+                        Logging.LogDebug( $"HandleTunnelBuildRecords: Unsuccessful tunnel {tunnel.TunnelDebugTrace} " +
+                            $"member: {hop.Peer.IdentHash.Id32Short}. Hop {i}. Reply: {newrec.Reply}" );
 
                         NetDb.Inst.Statistics.DeclinedTunnelMember( hop.Peer.IdentHash );
                     }
                 }
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: {0} My inbound tunnel {1} request for tunnel id {2}",
-                    tunnel.Destination.Id32Short, tunnel.TunnelDebugTrace, tunnel.ReceiveTunnelId ) );
+                Logging.LogDebug( $"HandleIncomingTunnelBuildRecords: {tunnel.Destination.Id32Short} " +
+                    $"My inbound tunnel {tunnel.TunnelDebugTrace} request for tunnel id {tunnel.ReceiveTunnelId}" );
 #endif
 
                 if ( decrypted.All( r => r.Reply == BuildResponseRecord.RequestResponse.Accept ) )
@@ -1076,8 +1072,7 @@ namespace I2PCore.Tunnel
                 }
                 else
                 {
-                    Logging.LogDebug( () => string.Format( "HandleIncomingTunnelBuildRecords: Tunnel {0} build rejected.",
-                        tunnel.TunnelDebugTrace ) );
+                    Logging.LogDebug( $"HandleIncomingTunnelBuildRecords: Tunnel {tunnel.TunnelDebugTrace} build rejected." );
 
                     tunnel.Shutdown();
                 }

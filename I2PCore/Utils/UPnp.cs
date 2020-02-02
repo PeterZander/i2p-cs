@@ -278,7 +278,7 @@ namespace I2PCore.Utils
 #if LOG_ALL_UPNP
             Logging.Log( "Upnp: XML: " + st );
 #else
-            DebugUtils.Log( "Upnp: Got device description XML." );
+            Logging.Log( "Upnp: Got device description XML." );
 #endif
             st = StripNamespaces( st );
 

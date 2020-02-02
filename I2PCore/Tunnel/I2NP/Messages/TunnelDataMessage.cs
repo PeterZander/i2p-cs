@@ -154,14 +154,14 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
             foreach ( var one in padcalc.TDMessages )
             {
-                //DebugUtils.Log( "New message" );
+                //Logging.Log( "New message" );
 
                 var writer = new BufRefLen( one.TunnelDataInstance.Payload );
 
                 writer.Seek( 24 ); // TunnelID, IV, Checksum of "Tunnel Message (Decrypted)"
                 if ( one.PaddingNeeded > 0 )
                 {
-                    //DebugUtils.Log( "Padding " + one.PaddingNeeded.ToString() + " bytes" );
+                    //Logging.Log( "Padding " + one.PaddingNeeded.ToString() + " bytes" );
                     writer.Write( new BufRefLen( BufUtils.RandomNZ( one.PaddingNeeded ) ) );
                 }
 
@@ -172,7 +172,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
                 {
                     var fragstart = new BufRefLen( writer );
                     frag.Append( writer );
-                    //DebugUtils.Log( "Fragment " + ( one.TunnelDataInstance.Writer - fragstart ).ToString() + " bytes" );
+                    //Logging.Log( "Fragment " + ( one.TunnelDataInstance.Writer - fragstart ).ToString() + " bytes" );
                 }
 
                 one.TunnelDataInstance.Checksum.Poke( I2PHashSHA256.GetHash( 

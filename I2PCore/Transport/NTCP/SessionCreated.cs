@@ -1,21 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using I2PCore.Data;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto.Digests;
-using I2PCore;
-using I2PCore.Transport.NTCP;
-using Org.BouncyCastle.Crypto.Paddings;
 using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto;
 using I2PCore.Utils;
-using I2PCore.Router;
 
 namespace I2PCore.Transport.NTCP
 {

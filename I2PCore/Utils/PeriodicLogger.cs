@@ -24,7 +24,7 @@ namespace I2PCore.Utils
 
         public void Log( Func<string> maker )
         {
-            LogAction.Do( () => Logging.Log( LogLevel, maker ) );
+            LogAction.Do( () => Logging.Log( LogLevel, maker() ) );
         }
     }
 }

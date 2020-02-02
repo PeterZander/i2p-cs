@@ -63,7 +63,7 @@ namespace I2PCore.Transport.SSU
             }
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.LogDebug( () => string.Format( 
+            Logging.LogTransport( () => string.Format( 
                 "SSU sending {0} fragment {1}, {2} bytes. IsLast: {3}",
                 MessageId, fragment.FragmentNumber, fragment.Data.Length, fragment.IsLast ) );
 #endif
@@ -118,7 +118,7 @@ namespace I2PCore.Transport.SSU
             foreach ( var one in fragments ) bits.AppendFormat( "{0}0X{1:X2}", ( bits.Length != 0 ? ", " : "" ), one );
             int notacked;
             lock ( Fragments ) notacked = Fragments.Count( f => !f.Ack );
-            DebugUtils.LogDebug( () => string.Format( "SSU received ACK {0} bits: {1}, not ACKed: {2} - {3}",
+            Logging.LogTransport( () => string.Format( "SSU received ACK {0} bits: {1}, not ACKed: {2} - {3}",
                 MessageId, bits, notacked, BitmapACKStatusDebug() ) );
 #endif
         }

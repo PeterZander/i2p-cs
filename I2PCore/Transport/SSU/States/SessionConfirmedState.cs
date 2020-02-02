@@ -41,7 +41,7 @@ namespace I2PCore.Transport.SSU
                 if ( ++Retries > HandshakeStateMaxRetries ) 
                     throw new FailedToConnectException( "SSU " + Session.DebugId + " Failed to connect" );
 
-                Logging.Log( "SSU SessionConfirmedState " + Session.DebugId + " : Resending SessionConfirmed message." );
+                Logging.LogTransport( "SSU SessionConfirmedState " + Session.DebugId + " : Resending SessionConfirmed message." );
 
                 // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
                 /**
@@ -82,15 +82,15 @@ namespace I2PCore.Transport.SSU
                     var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
                     var bport = BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port );
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( string.Format( "SSU SessionConfirmedState {0}: X for signature {1}.",
+                    Logging.LogTransport( string.Format( "SSU SessionConfirmedState {0}: X for signature {1}.",
                         Session.DebugId, Request.X.Key ) );
-                    DebugUtils.Log( string.Format( "SSU SessionConfirmedState {0}: Y for signature {1}.",
+                    Logging.LogTransport( string.Format( "SSU SessionConfirmedState {0}: Y for signature {1}.",
                         Session.DebugId, Request.Y.Key ) );
-                    DebugUtils.Log( string.Format( "SSU SessionConfirmedState {0}: Alice address for signature {1}. Port {2}.",
+                    Logging.LogTransport( string.Format( "SSU SessionConfirmedState {0}: Alice address for signature {1}. Port {2}.",
                         Session.DebugId, Request.SCMessage.Address, Request.SCMessage.Port ) );
-                    DebugUtils.Log( string.Format( "SSU SessionConfirmedState {0}: Bob address for signature {1}. Port {2}.",
+                    Logging.LogTransport( string.Format( "SSU SessionConfirmedState {0}: Bob address for signature {1}. Port {2}.",
                         Session.DebugId, baddr, bport ) );
-                    DebugUtils.Log( string.Format( "SSU SessionConfirmedState {0}: Relay tag {1}. Signon time {2}.",
+                    Logging.LogTransport( string.Format( "SSU SessionConfirmedState {0}: Relay tag {1}. Signon time {2}.",
                         Session.DebugId, Request.SCMessage.RelayTag, (BufLen)Session.SignOnTimeA ) );
 #endif
 
@@ -103,7 +103,7 @@ namespace I2PCore.Transport.SSU
                     writer.Write( sign );
 
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( string.Format( "SessionConfirmedState {0}: sending unfragmented SessionConfirmed. {1} bytes [0x{1:X}].",
+                    Logging.LogTransport( string.Format( "SessionConfirmedState {0}: sending unfragmented SessionConfirmed. {1} bytes [0x{1:X}].",
                         Session.DebugId,
                         writer - start - SSUHeader.FIXED_HEADER_SIZE ) );
 #endif
@@ -126,7 +126,7 @@ namespace I2PCore.Transport.SSU
             for ( int i = 0; i < datafragments.Count; ++i )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( string.Format( "SessionConfirmedState {0}: sending fragment {1} of {2}, {3} bytes [0x{3:X}].",
+                Logging.LogTransport( string.Format( "SessionConfirmedState {0}: sending fragment {1} of {2}, {3} bytes [0x{3:X}].",
                     Session.DebugId,
                     i + 1,
                     datafragments.Count + 1,
@@ -172,7 +172,7 @@ namespace I2PCore.Transport.SSU
                     writer.Write( sign );
 
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( string.Format( "SessionConfirmedState {0}: sending fragment {1} of {2}, {3} bytes [0x{3:X}].",
+                    Logging.LogTransport( string.Format( "SessionConfirmedState {0}: sending fragment {1} of {2}, {3} bytes [0x{3:X}].",
                         Session.DebugId,
                         frag + 1,
                         datafragments.Count + 1,
@@ -191,12 +191,12 @@ namespace I2PCore.Transport.SSU
             if ( header.MessageType == SSUHeader.MessageTypes.SessionCreated )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( "SSU SessionConfirmedState " + Session.DebugId + ": Unexpected message received: " + header.MessageType.ToString() );
+                Logging.LogTransport( "SSU SessionConfirmedState " + Session.DebugId + ": Unexpected message received: " + header.MessageType.ToString() );
 #endif
                 return this;
             }
 
-            Logging.Log( "SSU SessionConfirmedState: Session " + Session.DebugId + " established. " + 
+            Logging.LogTransport( "SSU SessionConfirmedState: Session " + Session.DebugId + " established. " + 
                 header.MessageType.ToString() + " received. Moving to Established state." );
             var next = new EstablishedState( Session );
             Session.ReportConnectionEstablished();

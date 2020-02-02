@@ -167,7 +167,7 @@ namespace I2PCore.Tunnel
                 if ( info == null )
                 {
                     /*
-                    DebugUtils.LogDebug( string.Format( "TagsTransferWindow: DeliveryStatusReceived: Non matching status message MsgId: {0}.",
+                    Logging.LogDebug( string.Format( "TagsTransferWindow: DeliveryStatusReceived: Non matching status message MsgId: {0}.",
                         dsmsg.MessageId ) );
                      */
                     return;

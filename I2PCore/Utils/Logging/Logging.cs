@@ -14,8 +14,9 @@ namespace I2PCore.Utils
         public enum LogLevels : int
         {
             Everything = 0,
-            DebugData = 1,
-            Debug = 5,
+            DebugData = 5,
+            Transport = 7,
+            Debug = 10,
             Information = 20,
             Warning = 50,
             Error = 100,
@@ -110,76 +111,82 @@ namespace I2PCore.Utils
         [Conditional( "DEBUG" )]
         public static void Log( string txt )
         {
-            Log( LogLevels.DebugData, () => txt );
+            Log( LogLevels.Debug, txt );
         }
 
         [Conditional( "DEBUG" )]
         public static void Log( Func<string> txtgen )
         {
-            Log( LogLevels.DebugData, txtgen );
+            Log( LogLevels.Debug, txtgen() );
         }
 
         [Conditional( "DEBUG" )]
         public static void LogDebug( string txt )
         {
-            Log( LogLevels.Debug, () => txt );
+            Log( LogLevels.Debug, txt );
+        }
+
+        [Conditional( "DEBUG" )]
+        public static void LogTransport( string txt )
+        {
+            Log( LogLevels.Transport, txt );
         }
 
         [Conditional( "DEBUG" )]
         public static void LogDebugData( string txt )
         {
-            Log( LogLevels.DebugData, () => txt );
+            Log( LogLevels.DebugData, txt );
         }
 
         [Conditional( "DEBUG" )]
         public static void LogDebug( Func<string> txtgen )
         {
-            Log( LogLevels.Debug, txtgen );
+            Log( LogLevels.Debug, txtgen() );
         }
 
         public static void LogInformation( string txt )
         {
-            Log( LogLevels.Information, () => txt );
+            Log( LogLevels.Information, txt );
         }
 
         public static void LogWarning( string txt )
         {
-            Log( LogLevels.Warning, () => txt );
+            Log( LogLevels.Warning, txt );
         }
 
         public static void LogWarning( Exception ex )
         {
-            Log( LogLevels.Warning, () => $"Exception: {Unwrap(ex)}" );
+            Log( LogLevels.Warning, $"Exception: {Unwrap(ex)}" );
         }
 
         public static void LogWarning( string module, Exception ex )
         {
-            Log( LogLevels.Warning, () => $"Exception ({module}): {Unwrap(ex)}" );
+            Log( LogLevels.Warning, $"Exception ({module}): {Unwrap(ex)}" );
         }
 
         public static void LogCritical( string txt )
         {
-            Log( LogLevels.Critical, () => txt );
+            Log( LogLevels.Critical, txt );
         }
 
         public static void LogCritical( Exception ex )
         {
-            Log( LogLevels.Critical, () => $"Exception: {Unwrap(ex)}" );
+            Log( LogLevels.Critical, $"Exception: {Unwrap(ex)}" );
         }
 
         public static void LogCritical( string module, Exception ex )
         {
-            Log( LogLevels.Critical, () => $"Exception ({module}): {Unwrap(ex)}" );
+            Log( LogLevels.Critical, $"Exception ({module}): {Unwrap(ex)}" );
         }
 
         static PeriodicAction CheckFileRotation = new PeriodicAction( TickSpan.Minutes( 1 ) );
         static readonly char[] TrimEndChars = new char[] { '\r', '\n', ' ', '\t' };
 
-        public static void Log( LogLevels level, Func<string> txtgen )
+        public static void Log( LogLevels level, string str )
         {
             if ( level < LogLevel ) return;
 
-            var st = $"{DateTime.Now} /{Thread.CurrentThread.ManagedThreadId,3}/: {txtgen().TrimEnd( TrimEndChars )}";
+            var st = $"{DateTime.Now} /{Thread.CurrentThread.ManagedThreadId,3}/: {str.TrimEnd( TrimEndChars )}";
 
             lock ( Lock )
             {
@@ -188,7 +195,7 @@ namespace I2PCore.Utils
 
                 if ( Store != null )
                 {
-                    CheckFileRotation.Do( () => Store.CheckStoreRotation() );
+                    CheckFileRotation.Do( Store.CheckStoreRotation );
                     Store.Log( st );
                 }
             }

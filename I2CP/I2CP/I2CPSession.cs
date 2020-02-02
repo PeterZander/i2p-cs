@@ -125,7 +125,7 @@ namespace I2P.I2CP
             {
                 var cd = MySocket.EndSend( ar );
 #if LOG_ALL_I2CP
-                DebugUtils.LogDebug( string.Format( "I2CP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
+                Logging.LogDebug( string.Format( "I2CP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
 #endif
             }
 

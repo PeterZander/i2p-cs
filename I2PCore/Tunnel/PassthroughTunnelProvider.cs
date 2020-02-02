@@ -190,7 +190,7 @@ namespace I2PCore.Tunnel
             /*
             if ( !NextHopFilter.Update( drec.NextIdent ) )
             {
-                DebugUtils.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Reject due same next destination. " +
+                Logging.LogDebug( () => string.Format( "PassthroughProvider AcceptingTunnels: Reject due same next destination. " +
                     "Running tunnels: {0}. Accept: {1}.",
                     RunningTunnels.Count, false ) );
             }

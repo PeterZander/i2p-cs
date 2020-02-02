@@ -1,14 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Data;
-using I2PCore.Router;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Engines;
+﻿using I2PCore.Data;
 using Org.BouncyCastle.Crypto.Modes;
 using I2PCore.Utils;
-using System.Net.Sockets;
 
 namespace I2PCore.Transport.NTCP
 {

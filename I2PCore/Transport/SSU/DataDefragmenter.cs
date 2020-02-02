@@ -38,7 +38,7 @@ namespace I2PCore.Transport.SSU
                 }
 
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( "SSU DataDefragmenter got msgid dup. Dropped. Will ACK " + frag.MessageId.ToString() );
+                Logging.LogTransport( "SSU DataDefragmenter got msgid dup. Dropped. Will ACK " + frag.MessageId.ToString() );
 #endif
                 return null;
             }
@@ -158,7 +158,7 @@ namespace I2PCore.Transport.SSU
                 foreach ( var msg in expl )
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( "SSU DataDefragmenter sent expl ack: " + msg.MessageId.ToString() + " (" + msg.ExplicitAcksSent.ToString() + ")" );
+                    Logging.LogTransport( "SSU DataDefragmenter sent expl ack: " + msg.MessageId.ToString() + " (" + msg.ExplicitAcksSent.ToString() + ")" );
 #endif
                     writer.Write32( msg.MessageId );
                     msg.AckSent.SetNow();
@@ -172,7 +172,7 @@ namespace I2PCore.Transport.SSU
                 foreach ( var msg in bitm )
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( "SSU DataDefragmenter sent bitmap ack: " + msg.MessageId.ToString() );
+                    Logging.LogTransport( "SSU DataDefragmenter sent bitmap ack: " + msg.MessageId.ToString() );
 #endif
                     writer.Write32( msg.MessageId );
                     writer.Write( msg.AckBitmap() );
@@ -195,7 +195,7 @@ namespace I2PCore.Transport.SSU
                 foreach ( var one in remove )
                 {
 #if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    DebugUtils.LogDebug( () => string.Format(
+                    Logging.LogTransport( string.Format(
                         "SSU DataDefragmenter discarding incomplete message: {0} age {1}, Bitmap acks sent: {2}, expl acks: {3}. Bitmap: {4}.",
                         one.Key, one.Value.Created, one.Value.BitmapAcksSent, one.Value.ExplicitAcksSent, one.Value.CurrentlyACKedBitmapDebug() ) );
 #endif
@@ -211,7 +211,7 @@ namespace I2PCore.Transport.SSU
                 foreach ( var one in remove )
                 {
 #if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    DebugUtils.LogDebug( () => string.Format(
+                    Logging.LogTransport( string.Format(
                         "SSU DataDefragmenter discarding incomplete message acks for: {0} age {1}, Bitmap acks sent: {2}, expl acks: {3}. Bitmap: {4}.",
                         one.MessageId, one.Created, one.BitmapAcksSent, one.ExplicitAcksSent, one.CurrentlyACKedBitmapDebug() ) );
 #endif

@@ -1,16 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Data;
-using System.Net.Sockets;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
+﻿using I2PCore.Data;
 using I2PCore.Utils;
 using I2PCore.Router;
-using System.Threading;
 
 namespace I2PCore.Transport.NTCP
 {
@@ -37,7 +27,7 @@ namespace I2PCore.Transport.NTCP
                 BufUtils.Flip32BL( context.TimestampA ),
                 BufUtils.Flip32BL( context.TimestampB ) );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SessionConfirmB: " + context.RemoteRI.Certificate.SignatureType.ToString() + " signature check: " + ok.ToString() );
+            Logging.LogTransport( "SessionConfirmB: " + context.RemoteRI.Certificate.SignatureType.ToString() + " signature check: " + ok.ToString() );
 #endif
             if ( !ok ) throw new SignatureCheckFailureException( "NTCP SessionConfirmB recv sig check failure" );
         }

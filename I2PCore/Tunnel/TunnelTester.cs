@@ -145,7 +145,7 @@ namespace I2PCore.Tunnel
             var outtunnels = TunnelProvider.Inst.GetOutboundTunnels().Shuffle().Take( RunsPerTest ).ToArray(); ;
             if ( !outtunnels.Any() )
             {
-                //DebugUtils.LogDebug( "TunnelTester: Failed to get a established outbound tunnel." );
+                //Logging.LogDebug( "TunnelTester: Failed to get a established outbound tunnel." );
                 return;
             }
 
@@ -216,7 +216,7 @@ namespace I2PCore.Tunnel
             var intunnels = TunnelProvider.Inst.GetInboundTunnels().Shuffle().Take( RunsPerTest * 2 ).ToArray();
             if ( !intunnels.Any() )
             {
-                //DebugUtils.LogDebug( "TunnelTester: Failed to get a established inbound tunnel." );
+                //Logging.LogDebug( "TunnelTester: Failed to get a established inbound tunnel." );
                 return;
             }
 

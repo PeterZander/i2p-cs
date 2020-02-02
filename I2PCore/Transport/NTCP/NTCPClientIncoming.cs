@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Router;
-using I2PCore.Data;
-using System.Net.Sockets;
-using I2PCore.Utils;
+﻿using System.Net.Sockets;
 using System.Net;
 
 namespace I2PCore.Transport.NTCP
@@ -32,7 +25,7 @@ namespace I2PCore.Transport.NTCP
         protected override void DHNegotiate()
         {
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "X1X +" + TransportInstance.ToString() + "+" );
+            Logging.LogTransport( "X1X +" + TransportInstance.ToString() + "+" );
 #endif
 
             DHHandshakeContext dhcontext = new DHHandshakeContext( this );
@@ -40,20 +33,20 @@ namespace I2PCore.Transport.NTCP
 
             SessionRequest.Receive( dhcontext, BlockReceive( 288 ) );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "X2X +" + TransportInstance.ToString() + "+" );
+            Logging.LogTransport( "X2X +" + TransportInstance.ToString() + "+" );
 #endif
 
             SendRaw( SessionCreated.Send( dhcontext ) );
 
             SessionConfirmA.Receive( dhcontext, BlockReceiveAtLeast( 448, 2048 ) );
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "X3X +" + TransportInstance.ToString() + "+" );
+            Logging.LogTransport( "X3X +" + TransportInstance.ToString() + "+" );
 #endif
 
             SendRaw( SessionConfirmB.Send( dhcontext ) );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "X4X +" + TransportInstance.ToString() + "+" );
+            Logging.LogTransport( "X4X +" + TransportInstance.ToString() + "+" );
 #endif
             NetDb.Inst.Statistics.SuccessfulConnect( NTCPContext.RemoteRouterIdentity.IdentHash );
 

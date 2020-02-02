@@ -41,7 +41,7 @@ namespace I2PCore.Transport
 
             if ( list.Count == NumberOfFailuresToBlock )
             {
-                Logging.LogDebug( "DecayingIPBlockFilter: Blocking " + addr.ToString() );
+                Logging.LogTransport( "DecayingIPBlockFilter: Blocking " + addr.ToString() );
 
                 lock ( BlockedIPs )
                 {
@@ -67,7 +67,7 @@ namespace I2PCore.Transport
 
                         if ( startcount >= NumberOfFailuresToBlock && one.Value.Count < NumberOfFailuresToBlock )
                         {
-                            Logging.LogDebug( "DecayingIPBlockFilter: Window under blocking level " + one.Key.ToString() );
+                            Logging.LogTransport( "DecayingIPBlockFilter: Window under blocking level " + one.Key.ToString() );
                             toremove.Add( one.Key );
                         }
                         else
@@ -92,7 +92,7 @@ namespace I2PCore.Transport
                 {
                     if ( blocktime.DeltaToNow.ToMinutes > BlockTimeMinutes )
                     {
-                        Logging.LogDebug( "DecayingIPBlockFilter: Unblocking " + addr.ToString() );
+                        Logging.LogTransport( "DecayingIPBlockFilter: Unblocking " + addr.ToString() );
                         BlockedIPs.Remove( addr );
                         return false;
                     }

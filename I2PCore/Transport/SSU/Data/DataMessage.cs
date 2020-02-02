@@ -30,7 +30,7 @@ namespace I2PCore.Transport.SSU
         {
             var dataflags = (DataMessageFlags)reader.Read8();
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SSU DataMessage rececived flag: " + dataflags.ToString() );
+            Logging.LogTransport( "SSU DataMessage rececived flag: " + dataflags.ToString() );
 #endif
             var explicitacks = ( dataflags & DataMessageFlags.ExplicitAcks ) != 0;
             var acksbitfields = ( dataflags & DataMessageFlags.BitfieldAcks ) != 0;

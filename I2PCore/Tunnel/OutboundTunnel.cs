@@ -268,7 +268,7 @@ namespace I2PCore.Tunnel
                 replytunnel.Destination, replytunnel.GatewayTunnelId,
                 TunnelBuildReplyMessageId );
 
-            //DebugUtils.Log( vtb.ToString() );
+            //Logging.Log( vtb.ToString() );
 
             return vtb;
         }

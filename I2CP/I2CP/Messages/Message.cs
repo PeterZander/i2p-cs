@@ -81,7 +81,7 @@ namespace I2P.I2CP.Messages
             var ar = buf.ToArray();
             dest.Write( ar, 0, ar.Length );
 
-            DebugUtils.Log( "Send: " + buf.Count );
+            Logging.Log( "Send: " + buf.Count );
         }*/
 
         public static I2CPMessage GetMessage( BufRefLen data )

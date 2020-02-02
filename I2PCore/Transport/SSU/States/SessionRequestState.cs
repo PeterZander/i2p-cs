@@ -60,7 +60,7 @@ namespace I2PCore.Transport.SSU
             if ( header.MessageType != SSUHeader.MessageTypes.SessionCreated )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( "SSU SessionRequestState: Received unexpected message " + tstime.ToString() + " : " + header.Flag.ToString() );
+                Logging.LogTransport( "SSU SessionRequestState: Received unexpected message " + tstime.ToString() + " : " + header.Flag.ToString() );
 #endif
                 return this;
             }
@@ -79,7 +79,7 @@ namespace I2PCore.Transport.SSU
             var btime = SSUHost.SSUDateTime( BufUtils.Flip32( Session.SignOnTimeB ) );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SSU SessionRequestState " + Session.DebugId + " : Received SessionCreated. " + tstime.ToString() + " : " + btime.ToString() );
+            Logging.LogTransport( "SSU SessionRequestState " + Session.DebugId + " : Received SessionCreated. " + tstime.ToString() + " : " + btime.ToString() );
 #endif
             Session.Host.ReportedAddress( ipaddr );
 
@@ -103,7 +103,7 @@ namespace I2PCore.Transport.SSU
                 SCMessage.RelayTag, SCMessage.SignOnTime );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SSU SessionRequestState: Signature check: " + sok.ToString() + ". " + Session.RemoteRouter.Certificate.SignatureType.ToString() );
+            Logging.LogTransport( "SSU SessionRequestState: Signature check: " + sok.ToString() + ". " + Session.RemoteRouter.Certificate.SignatureType.ToString() );
 #endif
             if ( !sok )
             {
@@ -121,14 +121,14 @@ namespace I2PCore.Transport.SSU
                         Session.IntroKey, relaytag ) );
             }
 
-            Logging.Log( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );
+            Logging.LogTransport( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );
             Session.ReportConnectionEstablished();
             return new SessionConfirmedState( Session, this );
         }
 
         private void SendSessionRequest()
         {
-            Logging.Log( "SSU SessionRequestState " + Session.DebugId + " : Resending SessionRequest message." );
+            Logging.LogTransport( "SSU SessionRequestState " + Session.DebugId + " : Resending SessionRequest message." );
 
             SendMessage(
                 SSUHeader.MessageTypes.SessionRequest,

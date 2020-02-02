@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 using I2PCore.Router;
 using System.Threading;
@@ -118,7 +117,7 @@ namespace I2PCore.Transport.NTCP
                 var socket = listener.EndAccept( ar );
 
                 var ntcpc = new NTCPClientIncoming( socket );
-                Logging.LogDebug( "NTCPHost: incoming connection " + ntcpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
+                Logging.LogTransport( "NTCPHost: incoming connection " + ntcpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
 
                 if ( ConnectionCreated != null ) ConnectionCreated( ntcpc );
 

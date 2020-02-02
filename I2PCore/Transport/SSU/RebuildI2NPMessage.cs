@@ -33,7 +33,7 @@ namespace I2PCore.Transport.SSU
                 Fragments[frag.FragmentNumber] = frag;
 
 #if LOG_ALL_TRANSPORT
-                DebugUtils.Log( "SSU received fragment " + frag.FragmentNumber.ToString() + " of message " + frag.MessageId.ToString() +
+                Logging.LogTransport( "SSU received fragment " + frag.FragmentNumber.ToString() + " of message " + frag.MessageId.ToString() +
                     ". IsLast: " + frag.IsLast.ToString() );
 #endif
 

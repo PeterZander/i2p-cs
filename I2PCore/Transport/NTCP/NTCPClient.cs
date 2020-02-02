@@ -1,28 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Net.Sockets;
 using System.Threading;
 using I2PCore.Utils;
 using I2PCore.Data;
 using System.IO;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Utilities.Encoders;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto.Digests;
-using I2PCore;
-using I2PCore.Transport.NTCP;
-using Org.BouncyCastle.Crypto.Paddings;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto;
 using System.Net;
-using I2PCore.Tunnel.I2NP;
-using System.Diagnostics;
 using I2PCore.Router;
-using I2PCore.Tunnel;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Tunnel.I2NP.Data;
 
@@ -191,7 +175,7 @@ namespace I2PCore.Transport.NTCP
             {
                 var cd = MySocket.EndSend( ar );
 #if LOG_ALL_TRANSPORT
-                //DebugUtils.LogDebug( string.Format( "NTCP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
+                //Logging.LogTransport( string.Format( "NTCP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
 #endif
             }
             catch ( Exception ex )
@@ -270,7 +254,7 @@ namespace I2PCore.Transport.NTCP
             lock ( SendQueueRaw )
             {
 #if LOG_ALL_TRANSPORT
-                DebugUtils.LogDebug( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
+                Logging.LogTransport( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
 #endif
                 SendQueueRaw.AddLast( data );
             }
@@ -294,7 +278,7 @@ namespace I2PCore.Transport.NTCP
                 else
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.LogDebug( string.Format( "NTCP {1} Recvatl ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
+                    Logging.LogTransport( string.Format( "NTCP {1} Recvatl ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
 #endif
                     pos += len;
                 }
@@ -319,7 +303,7 @@ namespace I2PCore.Transport.NTCP
                 else
                 {
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.LogDebug( string.Format( "NTCP {1} Blockr ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
+                    Logging.LogTransport( string.Format( "NTCP {1} Blockr ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
 #endif
                     pos += len;
                 }
@@ -360,8 +344,8 @@ namespace I2PCore.Transport.NTCP
                         RemoteDescription = MySocket.RemoteEndPoint.ToString();
 
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.LogDebug( "My local endpoint IP#   : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Address.ToString() );
-                        DebugUtils.LogDebug( "My local endpoint Port  : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Port.ToString() );
+                        Logging.LogTransport( "My local endpoint IP#   : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Address.ToString() );
+                        Logging.LogTransport( "My local endpoint Port  : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Port.ToString() );
 #endif
 
                         DHNegotiate();
@@ -414,7 +398,7 @@ namespace I2PCore.Transport.NTCP
                     while ( !Terminated )
                     {
                         var data = reader.Read();
-                        //DebugUtils.LogDebug( "Read: " + data.Length );
+                        //Logging.LogTransport( "Read: " + data.Length );
 
                         Watchdog.Inst.Ping( Thread.CurrentThread );
 
@@ -433,27 +417,27 @@ namespace I2PCore.Transport.NTCP
                 }
                 catch ( ThreadAbortException )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {0} Aborted", DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {0} Aborted", DebugId ) );
                 }
                 catch ( ThreadInterruptedException )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {0} Interrupted", DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {0} Interrupted", DebugId ) );
                 }
                 catch ( FailedToConnectException )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {0} Failed to connect", DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {0} Failed to connect", DebugId ) );
                 }
                 catch ( EndOfStreamEncounteredException )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {0} Disconnected", DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {0} Disconnected", DebugId ) );
                 }
                 catch ( IOException ex )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
                 catch ( SocketException ex )
                 {
-                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
                 catch ( Exception ex )
                 {
@@ -461,7 +445,7 @@ namespace I2PCore.Transport.NTCP
                     if ( ConnectionException == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionException!" );
 #endif
                     if ( ConnectionException != null ) ConnectionException( this, ex );
-                    Logging.LogDebug( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
+                    Logging.LogTransport( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
             }
         
@@ -480,7 +464,7 @@ namespace I2PCore.Transport.NTCP
                     Logging.Log( DebugId, ex );
                 }
 
-                Logging.LogDebug( string.Format( "NTCP {0} Shut down. {1}", DebugId, RemoteDescription ) );
+                Logging.LogTransport( string.Format( "NTCP {0} Shut down. {1}", DebugId, RemoteDescription ) );
 
                 try
                 {

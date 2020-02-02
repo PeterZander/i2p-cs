@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Data;
-using Org.BouncyCastle.Crypto.Digests;
+﻿using I2PCore.Data;
 using I2PCore.Utils;
 using I2PCore.Router;
 
@@ -41,7 +36,7 @@ namespace I2PCore.Transport.NTCP
             context.HXxorHI = new BufLen( I2PHashSHA256.GetHash( context.XBuf ) );
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( DebugUtils.LogLevels.Everything, 
+            Logging.LogTransport( 
                 "SessionRequest: Remote cert: " + context.RemoteRI.Certificate.ToString() + ". XBuf len: " + context.XBuf.Length.ToString() );
 #endif
             var idenhash = context.RemoteRI.IdentHash;

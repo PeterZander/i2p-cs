@@ -42,10 +42,10 @@ namespace I2PCore.Transport.SSU
                     {
                         Messages[CurrentMessage.MessageId] = CurrentMessage;
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.Log( "SSU Message to fragment: " + CurrentMessage.MessageId.ToString() + 
+                        Logging.LogTransport( "SSU Message to fragment: " + CurrentMessage.MessageId.ToString() + 
                             ", (" + CurrentMessage.Message.MessageType.ToString() + ")." );
 #endif
-                    }
+                        }
                 }
 
                 if ( CurrentMessage.Send( writer ) != null ) ++result;
@@ -57,7 +57,7 @@ namespace I2PCore.Transport.SSU
                         AckQueue.AddFirst( CurrentMessage );
                     }
 #if LOG_ALL_TRANSPORT
-                    DebugUtils.Log( "SSU Message " + CurrentMessage.MessageId.ToString() + " all fragments sent." );
+                    Logging.LogTransport( "SSU Message " + CurrentMessage.MessageId.ToString() + " all fragments sent." );
 #endif
                 }
             }
@@ -110,7 +110,7 @@ namespace I2PCore.Transport.SSU
                 {
 
 #if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    DebugUtils.LogDebug( () => string.Format(
+                    Logging.LogTransport( string.Format(
                             "SSU DataFragmenter discarding unACKed message: {0}, expl sends {1}, frag sends {2}/{3}, age {4}, " +
                             "Expl ACK: {5}, Bitmap acks: {6}.",
                             one.Key, one.Value.SendCount, one.Value.FragmentSendCount(), one.Value.FragmentCount(), one.Value.Created, 
@@ -128,7 +128,7 @@ namespace I2PCore.Transport.SSU
                 foreach ( var one in remove )
                 {
 #if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    DebugUtils.LogDebug( () => string.Format(
+                    Logging.LogTransport( string.Format(
                             "SSU DataFragmenter discarding queued unACKed message {0}, expl sends {1}, frag sends {2}/{3}, age {4}, " +
                             "Expl ACK: {5}, Bitmap acks: {6}.",
                             one.MessageId, one.SendCount, one.FragmentSendCount(), one.FragmentCount(), one.Created, 
@@ -142,7 +142,7 @@ namespace I2PCore.Transport.SSU
         public void GotAck( List<uint> acks )
         {
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SSU Received explicit ACKs: " + acks.Count.ToString() );
+            Logging.LogTransport( "SSU Received explicit ACKs: " + acks.Count.ToString() );
 #endif
             lock ( Messages )
             {
@@ -152,7 +152,7 @@ namespace I2PCore.Transport.SSU
                     {
                         Messages[ackmsgid].GotAck();
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.Log( "SSU Message " + ackmsgid.ToString() + " fully ACKed." );
+                        Logging.LogTransport( "SSU Message " + ackmsgid.ToString() + " fully ACKed." );
 #endif
 
                         Messages.Remove( ackmsgid );
@@ -160,7 +160,7 @@ namespace I2PCore.Transport.SSU
                     else
                     {
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.Log( "SSU Explicit ACK for unknown message " + ackmsgid.ToString() + " received." );
+                        Logging.LogTransport( "SSU Explicit ACK for unknown message " + ackmsgid.ToString() + " received." );
 #endif
                     }
                 }
@@ -178,7 +178,7 @@ namespace I2PCore.Transport.SSU
                         var msg = Messages[ackinfo.Key];
                         msg.GotAck( ackinfo.Value );
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.Log( "SSU Message " + ackinfo.Key.ToString() + " bitmap ACK. Fully ACKed: " + msg.AllFragmentsAcked.ToString() );
+                        Logging.LogTransport( "SSU Message " + ackinfo.Key.ToString() + " bitmap ACK. Fully ACKed: " + msg.AllFragmentsAcked.ToString() );
 #endif
 
                         if ( msg.AllFragmentsAcked )
@@ -189,7 +189,7 @@ namespace I2PCore.Transport.SSU
                     else
                     {
 #if LOG_ALL_TRANSPORT
-                        DebugUtils.Log( "SSU Bitmap ACK for unknown message " + ackinfo.Key.ToString() + " received." );
+                        Logging.LogTransport( "SSU Bitmap ACK for unknown message " + ackinfo.Key.ToString() + " received." );
 #endif
                     }
                 }

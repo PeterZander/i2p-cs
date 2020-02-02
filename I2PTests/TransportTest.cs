@@ -86,7 +86,7 @@ namespace I2PTests
         [TestMethod]
         public void TestSSU()
         {
-            DebugUtils.LogToFile( "TestSSU.log" );
+            Logging.LogToFile( "TestSSU.log" );
 
             RouterContext testcontext = new RouterContext( new I2PCertificate( I2PSigningKey.SigningKeyTypes.DSA_SHA1 ) );
             testcontext.DefaultTCPPort = 2048 + BufUtils.RandomInt( 5000 );

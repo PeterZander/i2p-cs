@@ -48,7 +48,7 @@ namespace I2PCore.Data
 
         public static byte[] DoSign( I2PSigningPrivateKey key, params BufLen[] bufs )
         {
-            //DebugUtils.LogDebug( "DoSign: " + key.Certificate.SignatureType.ToString() );
+            //Logging.LogDebug( "DoSign: " + key.Certificate.SignatureType.ToString() );
 
             switch ( key.Certificate.SignatureType )
             {
@@ -186,7 +186,7 @@ namespace I2PCore.Data
 
         public static bool DoVerify( I2PSigningPublicKey key, I2PSignature signed, params BufLen[] bufs )
         {
-            //DebugUtils.LogDebug( "DoVerify: " + key.Certificate.SignatureType.ToString() );
+            //Logging.LogDebug( "DoVerify: " + key.Certificate.SignatureType.ToString() );
 
             switch ( key.Certificate.SignatureType )
             {

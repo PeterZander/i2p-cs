@@ -29,7 +29,7 @@ namespace I2PCore.Transport.SSU
         {
             DataSent();
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ received: " + 
+            Logging.LogTransport( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ received: " + 
                 header.MessageType.ToString() + ": " + SSUHost.SSUDateTime( header.TimeStamp ).ToString() );
 #endif
             switch ( header.MessageType )
@@ -47,7 +47,7 @@ namespace I2PCore.Transport.SSU
                                 var i2npmsg = I2NPMessage.ReadHeader5( (BufRefLen)msg.GetPayload() );
 
 #if LOG_ALL_TRANSPORT
-                            DebugUtils.Log( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ complete message " + 
+                            Logging.LogTransport( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ complete message " + 
                                 msg.MessageId.ToString() + ": " + i2npmsg.Expiration.ToString() );
 #endif
 
@@ -67,7 +67,7 @@ namespace I2PCore.Transport.SSU
                     break;
 
                 case SSUHeader.MessageTypes.SessionDestroyed:
-                    Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: SessionDestroyed received.", Session.DebugId ) );
+                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: SessionDestroyed received.", Session.DebugId ) );
                     SendSessionDestroyed();
                     return null;
 
@@ -76,7 +76,7 @@ namespace I2PCore.Transport.SSU
                     break;
 
                 case SSUHeader.MessageTypes.RelayResponse:
-                    Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: RelayResponse received from {1}.", 
+                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: RelayResponse received from {1}.", 
                         Session.DebugId, Session.RemoteEP ) );
                     var response = new RelayResponse( reader );
                     Session.Host.ReportRelayResponse( header, response, Session.RemoteEP );
@@ -84,22 +84,22 @@ namespace I2PCore.Transport.SSU
 
                 case SSUHeader.MessageTypes.RelayIntro:
                     var intro = new RelayIntro( reader );
-                    Logging.LogDebug( () => $"SSU EstablishedState {Session.DebugId}: RelayIntro received from {Session.RemoteEP} for {intro.AliceEndpoint}." );
+                    Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: RelayIntro received from {Session.RemoteEP} for {intro.AliceEndpoint}." );
                     Session.Host.Send( intro.AliceEndpoint, new BufLen( new byte[0] ) );
                     break;
                 
                 case SSUHeader.MessageTypes.RelayRequest:
                     // if ( !SSUHost.IntroductionSupported ) throw new Exception( "SSU relay introduction not supported" );
-                    Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: Relay introduction not supported.", Session.DebugId ) );
+                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: Relay introduction not supported.", Session.DebugId ) );
                     break;
 
                 case SSUHeader.MessageTypes.SessionRequest:
-                    Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: SessionRequest received. Ending session.", Session.DebugId ) );
+                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: SessionRequest received. Ending session.", Session.DebugId ) );
                     SendSessionDestroyed();
                     return null;
 
                 default:
-                    Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: Unexpected message received: {1}.",
+                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: Unexpected message received: {1}.",
                         Session.DebugId, header.MessageType ) );
                     break;
             }
@@ -184,7 +184,7 @@ namespace I2PCore.Transport.SSU
                             ++fragmentcount;
                             current.Current.WriteTo( writer );
 #if LOG_ALL_TRANSPORT
-                            DebugUtils.Log( "SSU resending fragment " + current.Current.FragmentNumber.ToString() + 
+                            Logging.LogTransport( "SSU resending fragment " + current.Current.FragmentNumber.ToString() + 
                                 " of message " + current.Current.MessageId.ToString() +
                                 ". IsLast: " + current.Current.IsLast.ToString() );
 #endif
@@ -250,7 +250,7 @@ namespace I2PCore.Transport.SSU
             if ( !msg.IPAddressOk )
             {
 #if NO_LOG_ALL_TRANSPORT
-                Logging.Log( "SSU PeerTest " + Session.DebugId + ": HandleIncomingPeerTestPackage: IP Address not accepted. Ignorning. " + msg.ToString() );
+                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": HandleIncomingPeerTestPackage: IP Address not accepted. Ignorning. " + msg.ToString() );
 #endif
                 return;
             }
@@ -271,7 +271,7 @@ namespace I2PCore.Transport.SSU
                                 ( start, writer ) =>
                                 {
 #if NO_LOG_ALL_TRANSPORT
-                                    Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying response from Charlie to Alice " + msg.ToString() );
+                                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying response from Charlie to Alice " + msg.ToString() );
 #endif
                                     msg.WriteTo( writer );
 
@@ -290,7 +290,7 @@ namespace I2PCore.Transport.SSU
                                 ( start, writer ) =>
                                 {
 #if NO_LOG_ALL_TRANSPORT
-                                    Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to the final message from Alice " + msg.ToString() );
+                                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to the final message from Alice " + msg.ToString() );
 #endif
                                     msg.WriteTo( writer );
 
@@ -317,7 +317,7 @@ namespace I2PCore.Transport.SSU
                     ( start, writer ) =>
                     {
 #if NO_LOG_ALL_TRANSPORT
-                        Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to Bob. " + msg.ToString() );
+                        Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to Bob. " + msg.ToString() );
 #endif
                         msg.WriteTo( writer );
 
@@ -334,7 +334,7 @@ namespace I2PCore.Transport.SSU
                     ( start, writer ) =>
                     {
 #if NO_LOG_ALL_TRANSPORT
-                        Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Charlie, sending first probe to Alice. " + toalice.ToString() );
+                        Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, sending first probe to Alice. " + toalice.ToString() );
 #endif
                         toalice.WriteTo( writer );
 
@@ -349,7 +349,7 @@ namespace I2PCore.Transport.SSU
             if ( nonceinfo != null )
             {
 #if NO_LOG_ALL_TRANSPORT
-                Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Bob getting a iniation from Alice, but will drop it due to nonce clash. " + 
+                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob getting a iniation from Alice, but will drop it due to nonce clash. " + 
                     msg.ToString() );
 #endif
                 return;
@@ -361,7 +361,7 @@ namespace I2PCore.Transport.SSU
                 Session.RemoteEP.Address, Session.RemoteEP.Port,
                 msg.IntroKey );
 #if NO_LOG_ALL_TRANSPORT
-            Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Bob and sending first relay to Charlie: " + pt.ToString() );
+            Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob and sending first relay to Charlie: " + pt.ToString() );
 #endif
             Session.Host.SendFirstPeerTestToCharlie( pt );
             return;
@@ -376,7 +376,7 @@ namespace I2PCore.Transport.SSU
                 ( start, writer ) =>
                 {
 #if NO_LOG_ALL_TRANSPORT
-                    Logging.Log( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying first message to Charlie. " + msg.ToString() );
+                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying first message to Charlie. " + msg.ToString() );
 #endif
                     msg.WriteTo( writer );
 

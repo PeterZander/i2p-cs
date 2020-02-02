@@ -1,15 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Net.Sockets;
-using Org.BouncyCastle.Crypto;
+﻿using System.Net.Sockets;
 using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Utils;
 using System.Threading;
-using I2PCore.Router;
 
 namespace I2PCore.Transport.NTCP
 {
@@ -65,7 +57,7 @@ namespace I2PCore.Transport.NTCP
             NTCPDataSize = BlockLength;
             DecodeBufPos += 16;
 
-            //DebugUtils.Log( string.Format( "NTCPReader block length: {0} bytes [0x{0:X}]", BlockLength ) );
+            //Logging.LogTransport( string.Format( "NTCPReader block length: {0} bytes [0x{0:X}]", BlockLength ) );
 
             if ( BlockLength == 0 )
             {
@@ -110,7 +102,7 @@ namespace I2PCore.Transport.NTCP
             BlockLength = -1;
 
 #if LOG_ALL_TRANSPORT
-            DebugUtils.Log( string.Format( "NTCPReader +{1}+ block received: {0} bytes [0x{0:X}]", result.Length, Context.TransportInstance ) );
+            Logging.LogTransport( string.Format( "NTCPReader +{1}+ block received: {0} bytes [0x{0:X}]", result.Length, Context.TransportInstance ) );
 #endif
             return result.Clone();
         }

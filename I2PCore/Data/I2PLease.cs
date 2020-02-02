@@ -27,7 +27,7 @@ namespace I2PCore.Data
             TunnelId = new I2PTunnelId( reader );
 
             EndDate = new I2PDate( reader );
-            //DebugUtils.Log( "EndDate: " + EndDate.ToString() );
+            //Logging.Log( "EndDate: " + EndDate.ToString() );
         }
 
         public void Write( BufRefStream dest )

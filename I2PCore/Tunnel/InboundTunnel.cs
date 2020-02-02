@@ -297,7 +297,7 @@ namespace I2PCore.Tunnel
 
             var vtb = VariableTunnelBuildMessage.BuildInboundTunnel( TunnelSetup );
 
-            //DebugUtils.Log( vtb.ToString() );
+            //Logging.Log( vtb.ToString() );
 
             return vtb;
         }

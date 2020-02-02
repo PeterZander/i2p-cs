@@ -34,7 +34,7 @@ namespace I2PCore.Transport
             {
                 if ( QueuedMessages.TryGetValue( ri.Identity.IdentHash, out lud ) )
                 {
-                    Logging.Log( "UnknownRouterQueue: IdentHashLookup_RouterInfoReceived: Destination " + 
+                    Logging.LogTransport( "UnknownRouterQueue: IdentHashLookup_RouterInfoReceived: Destination " + 
                         ri.Identity.IdentHash.Id32Short + " found. Sending." );
 
                     QueuedMessages.Remove( ri.Identity.IdentHash );
@@ -65,7 +65,7 @@ namespace I2PCore.Transport
             {
                 if ( QueuedMessages.TryGetValue( key, out lud ) )
                 {
-                    Logging.Log( "UnknownRouterQueue: IdentHashLookup_LookupFailure: Destination " + 
+                    Logging.LogTransport( "UnknownRouterQueue: IdentHashLookup_LookupFailure: Destination " + 
                         key.Id32Short + " not found. Marking unresolvable." );
 
                     QueuedMessages.Remove( key );
@@ -132,7 +132,7 @@ namespace I2PCore.Transport
                 result = found.Select( m => m.Value ).ToArray();
                 foreach ( var one in found.ToArray() )
                 {
-                    Logging.Log( "UnknownRouterQueue: FindKnown: Destination " + one.Value.Destination.Id32Short + " found." );
+                    Logging.LogTransport( "UnknownRouterQueue: FindKnown: Destination " + one.Value.Destination.Id32Short + " found." );
                     QueuedMessages.Remove( one.Key );
                 }
 
@@ -140,7 +140,7 @@ namespace I2PCore.Transport
                     Select( m => m.Key ).ToArray();
                 foreach ( var one in remove )
                 {
-                    Logging.Log( "UnknownRouterQueue: FindKnown: Destination " + one.Id32Short + " timeout. Marked Unresolvable." );
+                    Logging.LogTransport( "UnknownRouterQueue: FindKnown: Destination " + one.Id32Short + " timeout. Marked Unresolvable." );
                     QueuedMessages.Remove( one );
                 }
             }
