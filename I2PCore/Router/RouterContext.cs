@@ -11,26 +11,19 @@ using System.Net.Sockets;
 using I2PCore.Transport.SSU.Data;
 
 // Todo list for all of I2PCore
-// TODO: I need to test my tunnels, because the cascade of tunnel losses, is probably due to really slow or faulty return/out tunnels.
 // TODO: Add leases
-// TODO: DestinationStatistics is never deleted
 // TODO: NTCP does not close the old listen socket when settings change.
 // TODO: Replace FailedToConnectException with return value?
 // TODO: Block router delivering A LOT of tunnelbuilds quickly
-// TODO: SSU: Add ability to be relay host
 // TODO: SSU: Too many MAC check fail in a long session. Am I using the wrong session key from time to time as well?
-// TODO: Move DecayingIPBlockFilter to TransportProvider (to be able to use in all transports)
 // TODO: IP block lists for incomming connections, NTCP
 // TODO: Add transport bandwidth statistics
 // TODO: Add tunnel bandwidth statistics
 // TODO: Add tunnel bandwidth limiting
-// TODO: Replace DateTime.Now with Environment.TickCount for performance reasons where possible
 // TODO: Add the cert / key split support for ECDSA_SHA512_P521
 // TODO: Add DatabaseLookup query support
 // TODO: Add floodfill server support
 // TODO: Add SSU PeerTest initiation
-// TODO: Change I2PType to stop using List<> as send buffer for I2NP messages. 
-//       (Code using ToByteArray() can often use a BufRef or BufRef enum instead.)
 // TODO: Implement connection limits (external)
 // TODO: Implement bandwidth limits (tunnels)
 // TODO: Refactor NTCP state machine and remove Watchdog
@@ -317,6 +310,7 @@ namespace I2PCore.Router
                     PrivateSigningKey );
 
                 MyRouterInfoCache = result;
+                NetDb.Inst.FloodfillUpdate.TrigUpdate();
 
                 Logging.Log( "RouterContext: New settings: " + result.ToString() );
 
@@ -373,7 +367,10 @@ namespace I2PCore.Router
 
         internal void NoIntroducers()
         {
-            SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
+            if ( SSUIntroducersInfo.Any() )
+            {
+                SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
+            }
         }
 
         internal void SetIntroducers( IEnumerable<IntroducerInfo> introducers )

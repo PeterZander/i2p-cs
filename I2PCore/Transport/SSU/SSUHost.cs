@@ -21,7 +21,7 @@ namespace I2PCore.Transport.SSU
         public event Action<ITransport> ConnectionCreated;
 
         public static readonly bool PeerTestSupported = true;
-        public static readonly bool IntroductionSupported = false;
+        public static readonly bool IntroductionSupported = true;
 
         internal delegate void RelayResponseInfo( SSUHeader header, RelayResponse response, IPEndPoint ep );
         object RelayResponseReceivedLock = new object();
@@ -70,7 +70,7 @@ namespace I2PCore.Transport.SSU
 
             sess.Terminate();
 
-            lock( FailedSessions )
+            lock ( FailedSessions )
             {
                 FailedSessions.Add( sess );
             }
@@ -462,9 +462,12 @@ namespace I2PCore.Transport.SSU
             }
 
             var newsess = new SSUSession( this, remoteep, addr, dest, MTUProvider, MyRouterContext );
-            if ( key != null ) lock ( Sessions )
+            if ( key != null )
             {
-                Sessions[key] = newsess;
+                lock ( Sessions )
+                {
+                    Sessions[key] = newsess;
+                }
             }
             return newsess;
         }
@@ -562,21 +565,22 @@ namespace I2PCore.Transport.SSU
 
 
         TimeWindowDictionary<IPAddress, IntroducerInfo> CurrentIntroducers =
-            new TimeWindowDictionary<IPAddress, IntroducerInfo>( TickSpan.Minutes( 10 ) );
-        
+            new TimeWindowDictionary<IPAddress, IntroducerInfo>( TickSpan.Minutes( 7 ) );
+
         internal void IntroductionRelayOffered( IntroducerInfo intro )
         {
-            if ( !RouterContext.Inst.IsFirewalled ) 
+            if ( !RouterContext.Inst.IsFirewalled )
             {
-                if ( CurrentIntroducers.Count() == 0 )
+                if ( !CurrentIntroducers.Any() )
                 {
                     MyRouterContext.NoIntroducers();
                 }
                 return;
             }
 
-            if ( CurrentIntroducers.Count() >= 3 ) return;
+            if ( CurrentIntroducers.Count() >= 5 ) return;
 
+            Logging.LogDebug( $"SSU Introduction: Added introducer {intro.Host}, {intro.IntroKey}, {intro.IntroTag}, {intro.EndPoint}" );
             CurrentIntroducers.Set( intro.Host, intro );
             MyRouterContext.SetIntroducers( CurrentIntroducers.Select( i => i.Value ) );
         }

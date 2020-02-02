@@ -12,7 +12,15 @@ namespace I2PCore.Utils
         int mFrequencyMilliSeconds;
         public int FrequencySeconds { get { return mFrequencyMilliSeconds / 1000; } set { mFrequencyMilliSeconds = value * 1000; } }
 
-        TickCounter LastAction;
+        public TickCounter LastAction { get; protected set; }
+        public TickSpan TimeToAction
+        {
+            get => LastAction.DeltaToNow;
+            set
+            {
+                LastAction = TickCounter.Now - TickSpan.Milliseconds( mFrequencyMilliSeconds ) + value;
+            }
+        }
         bool Autotrigger;
 
         protected PeriodicAction( int freqmsec, bool hastimedout )

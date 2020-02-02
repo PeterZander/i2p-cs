@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 using I2PCore.Tunnel;
 using I2PCore.Tunnel.I2NP.Data;
@@ -12,12 +11,12 @@ using I2PCore.Data;
 
 namespace I2PCore
 {
-    internal class FloodfillUpdater
+    public class FloodfillUpdater
     {
-        public readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 30 );
+        public readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 8 );
 
-        PeriodicAction StartNewUpdate = new PeriodicAction( TickSpan.Seconds( NetDb.RouterInfoExpiryTimeSeconds / 25 ), true );
-        PeriodicAction CheckForTimouts = new PeriodicAction( TickSpan.Seconds( 15 ) );
+        PeriodicAction StartNewUpdate = new PeriodicAction( TickSpan.Seconds( NetDb.RouterInfoExpiryTimeSeconds / 5 ), true );
+        PeriodicAction CheckForTimouts = new PeriodicAction( TickSpan.Seconds( 5 ) );
 
         class FFUpdateRequestInfo
         {
@@ -42,9 +41,7 @@ namespace I2PCore
         {
             lock ( OutstandingRequests )
             {
-                FFUpdateRequestInfo info;
-
-                if ( OutstandingRequests.TryGetValue( msg.MessageId, out info ) )
+                if ( OutstandingRequests.TryGetValue( msg.MessageId, out var info ) )
                 {
                     Logging.Log( string.Format( "FloodfillUpdater: Floodfill delivery status {0,10} from {1} received in {2} seconds.",
                         msg.MessageId, info.FFRouter.Id32Short, info.Start.DeltaToNowSeconds ) );
@@ -58,8 +55,16 @@ namespace I2PCore
 
         public void Run()
         {
-            StartNewUpdate.Do( () => StartNewUpdates() );
-            CheckForTimouts.Do( () => CheckTimeouts() );
+            StartNewUpdate.Do( StartNewUpdates );
+            CheckForTimouts.Do( CheckTimeouts );
+        }
+
+        public void TrigUpdate()
+        {
+            if ( StartNewUpdate.LastAction.DeltaToNowSeconds > 15 )
+            {
+                StartNewUpdate.TimeToAction = TickSpan.Seconds( 5 );
+            }
         }
 
         void StartNewUpdates()
