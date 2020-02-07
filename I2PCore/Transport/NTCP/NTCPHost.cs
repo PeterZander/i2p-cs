@@ -117,9 +117,10 @@ namespace I2PCore.Transport.NTCP
                 var socket = listener.EndAccept( ar );
 
                 var ntcpc = new NTCPClientIncoming( socket );
-                Logging.LogTransport( "NTCPHost: incoming connection " + ntcpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
+                Logging.LogTransport( $"NTCPHost: incoming connection {ntcpc.DebugId} from " + 
+                    $"{socket.RemoteEndPoint} created." );
 
-                if ( ConnectionCreated != null ) ConnectionCreated( ntcpc );
+                ConnectionCreated?.Invoke( ntcpc );
 
                 ntcpc.Connect();
                 lock ( Clients )

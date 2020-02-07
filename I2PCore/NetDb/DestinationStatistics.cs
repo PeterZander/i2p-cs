@@ -11,7 +11,13 @@ namespace I2PCore
 {
     public class DestinationStatistics: I2PType
     {
-        const long DefaultTunnelBuildTimeMsPerHop = Tunnel.Tunnel.MeassuredTunnelBuildTimePerHopSeconds * 1200;
+        static long DefaultTunnelBuildTimeMsPerHop
+        {
+            get
+            {
+                return Tunnel.Tunnel.MeassuredTunnelBuildTimePerHopSeconds * 1200;
+            }
+        }
 
         public readonly I2PIdentHash Id;
         public I2PDate Created = I2PDate.Now;
@@ -30,7 +36,7 @@ namespace I2PCore
         public long DeclinedTunnelMember;
         public long SuccessfulTunnelTest;
         public long FailedTunnelTest;
-        public long TunnelBuildTimeMsPerHop = DefaultTunnelBuildTimeMsPerHop;
+        public long TunnelBuildTimeMsPerHop;
 
         public float MaxBandwidthSeen;
 

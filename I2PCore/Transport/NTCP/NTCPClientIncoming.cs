@@ -1,5 +1,6 @@
 ﻿using System.Net.Sockets;
 using System.Net;
+using I2PCore.Router;
 
 namespace I2PCore.Transport.NTCP
 {
@@ -53,6 +54,8 @@ namespace I2PCore.Transport.NTCP
             NTCPContext.SessionKey = dhcontext.SessionKey;
             NTCPContext.Encryptor = dhcontext.Encryptor;
             NTCPContext.Dectryptor = dhcontext.Dectryptor;
+
+            RouterContext.Inst.IsFirewalled = false;
         }
 
     }

@@ -4,10 +4,11 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using I2PCore.Utils;
+using System.Collections;
 
 namespace I2PCore.Data
 {
-    public class I2PMapping: I2PType
+    public class I2PMapping: I2PType, IEnumerable<KeyValuePair<I2PString,I2PString>>
     {
 
         // The Mapping must be sorted by key so that the signature will be validated correctly in the router. 
@@ -17,7 +18,7 @@ namespace I2PCore.Data
         {
         }
 
-        public string this [string key]
+        public string this[string key]
         {
             set
             {
@@ -27,6 +28,16 @@ namespace I2PCore.Data
             {
                 return Mappings[new I2PString( key )].ToString();
             }
+        }
+
+        public I2PString TryGet( string key )
+        {
+            return Mappings.TryGetValue( new I2PString( key ), out var result ) ? result : null;
+        }
+
+        public bool TryGet( string key, out I2PString result )
+        {
+            return Mappings.TryGetValue( new I2PString( key ), out result );
         }
 
         public bool Contains( string key )
@@ -77,6 +88,16 @@ namespace I2PCore.Data
             result.Append( "<-" );
 
             return result.ToString();
+        }
+
+        public IEnumerator<KeyValuePair<I2PString, I2PString>> GetEnumerator()
+        {
+            return (IEnumerator<KeyValuePair<I2PString, I2PString>>)Mappings.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return Mappings.GetEnumerator();
         }
     }
 }

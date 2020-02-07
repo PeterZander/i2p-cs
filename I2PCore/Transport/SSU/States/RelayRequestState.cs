@@ -22,24 +22,19 @@ namespace I2PCore.Transport.SSU
 
         uint Nonce;
 
-        IList<IntroducerInfo> Introducers;
-        IntroducerInfo CurrentIntroducer;
+        readonly Dictionary<IntroducerInfo, SSUSession> Introducers;
 
-        internal RelayRequestState( SSUSession sess, IList<IntroducerInfo> introducers ): base( sess )
+        internal RelayRequestState( SSUSession sess, Dictionary<IntroducerInfo, SSUSession> introducers ): base( sess )
         {
+            if ( !introducers.Any() )
+            {
+                throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers" );
+            }
+
             Introducers = introducers;
 
-            if ( Introducers.Count == 0 )
-            {
-                throw new FailedToConnectException( "SSU +{Session.TransportInstance}+ Failed to find a non established introducer" );
-            }
-            else
-            {
-                CurrentIntroducer = Introducers[0];
-                Introducers.RemoveAt( 0 );
-
-                Session.Host.RelayResponseReceived += new SSUHost.RelayResponseInfo( Host_RelayResponseReceived );
-            }
+            foreach ( var one in introducers ) Logging.LogInformation( $"RelayRequestState {Session.DebugId} Trying {one.Key.EndPoint}" );
+            Session.Host.RelayResponseReceived += new SSUHost.RelayResponseInfo( Host_RelayResponseReceived );
         }
 
         PeriodicAction ResendRelayRequestAction = new PeriodicAction( TickSpan.Seconds( HandshakeStateTimeoutSeconds / 5 ), false );
@@ -57,31 +52,15 @@ namespace I2PCore.Transport.SSU
             if ( Timeout( HandshakeStateTimeoutSeconds ) )
             {
                 Session.Host.RelayResponseReceived -= Host_RelayResponseReceived; 
-                throw new FailedToConnectException( "SSU RelayRequestState {Session.DebugId} Failed to connect. Timeout." );
+                throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} Failed to connect. Timeout." );
             }
 
             ResendRelayRequestAction.Do( () =>
             {
                 if ( ++Retries > RelayRequestStateMaxRetries )
                 {
-                    Logging.LogTransport( $"SSU RelayRequestState: {Session.DebugId}" +
-                        $" Using introducer '{CurrentIntroducer.EndPoint}' timed out." );
-
-                    if ( Introducers.Count == 0 )
-                    {
-                        Session.Host.RelayResponseReceived -= Host_RelayResponseReceived;
-                        throw new FailedToConnectException( $"SSU +{Session.TransportInstance}+ Failed to find a non established introducer" );
-                    }
-                    else
-                    {
-                        CurrentIntroducer = Introducers[0];
-                        Introducers.RemoveAt( 0 );
-
-                        Logging.LogTransport( $"SSU RelayRequestState: +{Session.TransportInstance}+ " +
-                            $"Trying introducer '{CurrentIntroducer.EndPoint}' next." );
-
-                        Retries = 0;
-                    }
+                    Session.Host.RelayResponseReceived -= Host_RelayResponseReceived;
+                    throw new FailedToConnectException( $"SSU {Session.DebugId} Failed to find a non established introducer" );
                 }
 
                 SendRelayRequest();
@@ -92,36 +71,40 @@ namespace I2PCore.Transport.SSU
 
         private void SendRelayRequest()
         {
-            if ( CurrentIntroducer == null ) return;
+            foreach ( var one in Introducers )
+            {
+                var introducer = one.Key;
+                var isession = one.Value;
 
-            Logging.LogTransport( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {CurrentIntroducer.EndPoint}" );
+                Logging.LogTransport( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {introducer.EndPoint}" );
 
-            SendMessage(
-                CurrentIntroducer.EndPoint,
-                SSUHeader.MessageTypes.RelayRequest,
-                CurrentIntroducer.IntroKey,
-                CurrentIntroducer.IntroKey,
-                ( start, writer ) =>
-                {
-                    writer.WriteFlip32( CurrentIntroducer.IntroTag );
+                SendMessage(
+                    isession.RemoteEP,
+                    SSUHeader.MessageTypes.RelayRequest,
+                    isession.MACKey,
+                    isession.SharedKey,
+                    ( start, writer ) =>
+                    {
+                        writer.WriteFlip32( introducer.IntroTag );
 
-                    // The IP address is only included if it is be different than the packet's 
-                    // source address and port. In the current implementation, the IP length is 
-                    // always 0 and the port is always 0, and the receiver should use the 
-                    // packet's source address and port. https://geti2p.net/spec/ssu
-                    writer.Write8( 0 );
-                    writer.Write16( 0 );
+                        // The IP address is only included if it is be different than the packet's 
+                        // source address and port. In the current implementation, the IP length is 
+                        // always 0 and the port is always 0, and the receiver should use the 
+                        // packet's source address and port. https://geti2p.net/spec/ssu
+                        writer.Write8( 0 );
+                        writer.Write16( 0 );
 
-                    // Challenge is unimplemented, challenge size is always zero. https://geti2p.net/spec/ssu
-                    writer.Write8( 0 );
+                        // Challenge is unimplemented, challenge size is always zero. https://geti2p.net/spec/ssu
+                        writer.Write8( 0 );
 
-                    writer.Write( Session.MyRouterContext.IntroKey );
+                        writer.Write( Session.MyRouterContext.IntroKey );
 
-                    Nonce = BufUtils.RandomUint();
-                    writer.Write32( Nonce );
+                        Nonce = BufUtils.RandomUint();
+                        writer.Write32( Nonce );
 
-                    return true;
-                } );
+                        return true;
+                    } );
+            }
         }
 
         protected override BufLen CurrentMACKey { get { return Session.MyRouterContext.IntroKey; } }
@@ -129,16 +112,20 @@ namespace I2PCore.Transport.SSU
 
         void Host_RelayResponseReceived( SSUHeader header, RelayResponse response, IPEndPoint ep )
         {
+            Logging.LogTransport(
+                        $"SSU RelayRequestState: {Session.DebugId} RelayResponse from {ep} received." );
+
             if ( header.MessageType == SSUHeader.MessageTypes.RelayResponse )
             {
-                if ( ep.Address.Equals( CurrentIntroducer.EndPoint.Address ) )
+                if ( Introducers.Any( i => i.Value.RemoteEP == ep ) )
                 {
                     HandleRelayResponse( response );
                 }
                 else
                 {
                     Logging.LogTransport( 
-                        $"SSU RelayRequestState: {Session.DebugId} RelayResponse from {ep.Address} received. Waiting for response from {CurrentIntroducer.EndPoint.Address}." );
+                        $"SSU RelayRequestState: {Session.DebugId} RelayResponse from {ep} received. " +
+                        $"Ignored as not in wait set [{string.Join( ", ", Introducers.Select( i => i.Value.RemoteEP ) )}]." );
                 }
             }
         }

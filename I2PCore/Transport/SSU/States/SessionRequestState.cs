@@ -39,6 +39,10 @@ namespace I2PCore.Transport.SSU
         {
             if ( Timeout( HandshakeStateTimeoutSeconds ) )
             {
+                Session.Host.EPStatisitcs.ConnectionTimeout( Session.RemoteEP );
+                if ( Session.RemoteRouterIdentity != null )
+                    NetDb.Inst.Statistics.SlowHandshakeConnect( Session.RemoteRouterIdentity.IdentHash );
+
                 throw new FailedToConnectException( "SSU SessionRequestState " + Session.DebugId + " Failed to connect. Timeout." );
             }
 
@@ -60,7 +64,7 @@ namespace I2PCore.Transport.SSU
             if ( header.MessageType != SSUHeader.MessageTypes.SessionCreated )
             {
 #if LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU SessionRequestState: Received unexpected message " + tstime.ToString() + " : " + header.Flag.ToString() );
+                Logging.LogTransport( $"SSU SessionRequestState: Received unexpected message {tstime} : {header.Flag}" );
 #endif
                 return this;
             }
@@ -79,14 +83,14 @@ namespace I2PCore.Transport.SSU
             var btime = SSUHost.SSUDateTime( BufUtils.Flip32( Session.SignOnTimeB ) );
 
 #if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSU SessionRequestState " + Session.DebugId + " : Received SessionCreated. " + tstime.ToString() + " : " + btime.ToString() );
+            Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId} : Received SessionCreated. {tstime.ToString()} : {btime}" );
 #endif
             Session.Host.ReportedAddress( ipaddr );
 
             if ( !I2PSignature.SupportedSignatureType( Session.RemoteRouter.Certificate.SignatureType ) )
-                throw new SignatureCheckFailureException( "SSU SessionRequestState " + Session.DebugId + " : " +
-                    "Received non supported signature type: " +
-                    Session.RemoteRouter.Certificate.SignatureType.ToString() );
+                throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId} : " +
+                    $"Received non supported signature type: " +
+                    $"{Session.RemoteRouter.Certificate.SignatureType}" );
 
             var cipher = new CbcBlockCipher( new AesEngine() );
             cipher.Init( false, Session.SharedKey.ToParametersWithIV( header.IV ) );
@@ -107,28 +111,29 @@ namespace I2PCore.Transport.SSU
 #endif
             if ( !sok )
             {
-                throw new SignatureCheckFailureException( "SSU SessionRequestState " + Session.DebugId + ": Received SessionCreated signature check failed." +
+                throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId}: Received SessionCreated signature check failed." +
                     Session.RemoteRouter.Certificate.ToString() );
             }
 
             var relaytag = SCMessage.RelayTag.PeekFlip32( 0 );
             if ( relaytag != 0 )
             {
-                Session.Host.IntroductionRelayOffered( 
-                    new IntroducerInfo( 
-                        Session.RemoteEP.Address, 
-                        (ushort)Session.RemoteEP.Port, 
-                        Session.IntroKey, relaytag ) );
+                Session.RemoteIntroducerInfo = new IntroducerInfo(
+                        Session.RemoteEP.Address,
+                        (ushort)Session.RemoteEP.Port,
+                        Session.IntroKey, relaytag );
+
+                Session.Host.IntroductionRelayOffered( Session.RemoteIntroducerInfo );
             }
 
-            Logging.LogTransport( "SSU SessionRequestState: Session " + Session.DebugId + " created. Moving to SessionConfirmedState." );
+            Logging.LogTransport( $"SSU SessionRequestState: Session {Session.DebugId} created. Moving to SessionConfirmedState." );
             Session.ReportConnectionEstablished();
             return new SessionConfirmedState( Session, this );
         }
 
         private void SendSessionRequest()
         {
-            Logging.LogTransport( "SSU SessionRequestState " + Session.DebugId + " : Resending SessionRequest message." );
+            Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId}: Resending SessionRequest message." );
 
             SendMessage(
                 SSUHeader.MessageTypes.SessionRequest,

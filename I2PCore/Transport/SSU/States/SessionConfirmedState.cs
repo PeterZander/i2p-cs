@@ -29,6 +29,7 @@ namespace I2PCore.Transport.SSU
         {
             if ( Timeout( HandshakeStateTimeoutSeconds ) )
             {
+                Session.Host.EPStatisitcs.ConnectionTimeout( Session.RemoteEP );
                 if ( Session.RemoteRouterIdentity != null )
                     NetDb.Inst.Statistics.SlowHandshakeConnect( Session.RemoteRouterIdentity.IdentHash );
 

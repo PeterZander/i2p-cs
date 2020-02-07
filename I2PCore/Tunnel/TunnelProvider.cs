@@ -160,7 +160,7 @@ namespace I2PCore.Tunnel
                                     $"out: {ExploratoryOutboundTunnelCount,2} ( {ExploratoryPendingOutboundTunnelCount,2} )" );
 
                                 Logging.LogInformation(
-                                    $"Established passth tunnels   : {ExternalTunnels.Count,2}" );
+                                    $"Established passth tunnels   : {ExternalTunnels.Count,2}, Firewalled: {RouterContext.Inst.IsFirewalled}" );
 
                                 Logging.LogDebug( () => string.Format(
                                     "Unresolvable routers: {0}. Unresolved routers: {1}. IP addresses with execptions: {2}. SSU blocked IPs: {3}.",

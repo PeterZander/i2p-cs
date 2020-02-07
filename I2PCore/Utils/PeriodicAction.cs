@@ -9,29 +9,38 @@ namespace I2PCore.Utils
     {
         public delegate void PerformAction();
 
-        int mFrequencyMilliSeconds;
-        public int FrequencySeconds { get { return mFrequencyMilliSeconds / 1000; } set { mFrequencyMilliSeconds = value * 1000; } }
+        TickSpan mFrequency;
+
+        public TickSpan Frequency 
+        { 
+            get 
+            { 
+                return mFrequency;
+            } 
+            set 
+            { 
+                mFrequency = value;
+            } 
+        }
 
         public TickCounter LastAction { get; protected set; }
         public TickSpan TimeToAction
         {
-            get => LastAction.DeltaToNow;
+            get => ( LastAction + mFrequency ).DeltaToNow;
             set
             {
-                LastAction = TickCounter.Now - TickSpan.Milliseconds( mFrequencyMilliSeconds ) + value;
+                LastAction = TickCounter.Now - mFrequency + value;
             }
         }
+
         bool Autotrigger;
 
-        protected PeriodicAction( int freqmsec, bool hastimedout )
+        public PeriodicAction( TickSpan freq, bool hastimedout = false )
         {
-            mFrequencyMilliSeconds = freqmsec;
+            mFrequency = freq;
             Autotrigger = hastimedout;
             LastAction = new TickCounter();
         }
-
-        public PeriodicAction( TickSpan freq ): this( freq.ToMilliseconds, false ) { }
-        public PeriodicAction( TickSpan freq, bool hastimedout ) : this( freq.ToMilliseconds, hastimedout ) { }
 
         public void Reset()
         {
@@ -55,7 +64,7 @@ namespace I2PCore.Utils
         {
             if ( LastAction == null ) return;
 
-            if ( Autotrigger || LastAction.DeltaToNowMilliseconds > mFrequencyMilliSeconds )
+            if ( Autotrigger || LastAction.DeltaToNow > mFrequency )
             {
                 LastAction.SetNow();
                 action();

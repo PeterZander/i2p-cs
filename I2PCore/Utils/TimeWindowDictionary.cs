@@ -23,6 +23,11 @@ namespace I2PCore.Utils
             set { Set( key, value ); }
         }
 
+        internal void Clear()
+        {
+            lock( Memory ) Memory.Clear();
+        }
+
         public void Set( T ident, V value )
         {
             lock ( Memory )
@@ -32,9 +37,7 @@ namespace I2PCore.Utils
                     Cleanup();
                 }
 
-                KeyValuePair<V, TickCounter> pair;
-
-                if ( Memory.TryGetValue( ident, out pair ) )
+                if ( Memory.TryGetValue( ident, out var pair ) )
                 {
                     pair.Value.SetNow();
                 }

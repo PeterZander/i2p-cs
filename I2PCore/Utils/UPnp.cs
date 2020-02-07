@@ -89,13 +89,13 @@ namespace I2PCore.Utils
                 {
                     try
                     {
-                        DiscoverAction.Do( () => DiscoverDevices() );
+                        DiscoverAction.Do( DiscoverDevices );
 
                         GetExternalAddressAction.Do( delegate
                         {
-                            if ( GetExternalAddressAction.FrequencySeconds == 0 )
+                            if ( GetExternalAddressAction.Frequency.ToSeconds < 1.0 )
                             {
-                                GetExternalAddressAction.FrequencySeconds = 60 * 30;
+                                GetExternalAddressAction.Frequency = TickSpan.Seconds( 60 * 30 );
                                 GetExternalAddressAction.Start();
                             }
 
@@ -112,9 +112,9 @@ namespace I2PCore.Utils
 
                         ExternalPortMappingAction.Do( delegate
                         {
-                            if ( ExternalPortMappingAction.FrequencySeconds == 0 )
+                            if ( ExternalPortMappingAction.Frequency.ToSeconds < 1.0 )
                             {
-                                ExternalPortMappingAction.FrequencySeconds = LeaseMapDurationSeconds - 200;
+                                ExternalPortMappingAction.Frequency = TickSpan.Seconds( LeaseMapDurationSeconds - 200 );
                                 ExternalPortMappingAction.Start();
                             }
 
@@ -154,7 +154,7 @@ namespace I2PCore.Utils
             }
             var current = GetSpecificPortMappingEntry( ci, protocol, MappedExternalPort );
 
-            var addr = Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetwork ).First();
+            var addr = Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetwork );
 
             var duration = -1;
             var client = "";

@@ -776,5 +776,17 @@ namespace I2PCore
                 Logging.Log( ex );
             }
         }
+
+        public IEnumerable<I2PRouterInfo> FindRouterInfo( Func<I2PIdentHash,I2PRouterInfo,bool> filter )
+        {
+            lock ( RouterInfos )
+            {
+                return RouterInfos
+                    .Where( ri => filter( ri.Key, ri.Value.Key ) )
+                    .Select( ri => ri.Value.Key )
+                    .ToArray();
+            }
+        }
+
     }
 }

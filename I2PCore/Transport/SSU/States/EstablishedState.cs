@@ -67,7 +67,7 @@ namespace I2PCore.Transport.SSU
                     break;
 
                 case SSUHeader.MessageTypes.SessionDestroyed:
-                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: SessionDestroyed received.", Session.DebugId ) );
+                    Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: SessionDestroyed received from {Session.RemoteEP}." );
                     SendSessionDestroyed();
                     return null;
 
@@ -76,8 +76,7 @@ namespace I2PCore.Transport.SSU
                     break;
 
                 case SSUHeader.MessageTypes.RelayResponse:
-                    Logging.LogTransport( string.Format( "SSU EstablishedState {0}: RelayResponse received from {1}.", 
-                        Session.DebugId, Session.RemoteEP ) );
+                    Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: RelayResponse received from {Session.RemoteEP}." );
                     var response = new RelayResponse( reader );
                     Session.Host.ReportRelayResponse( header, response, Session.RemoteEP );
                     break;
@@ -89,6 +88,7 @@ namespace I2PCore.Transport.SSU
                     break;
                 
                 case SSUHeader.MessageTypes.RelayRequest:
+                    // TODO: Implement
                     // if ( !SSUHost.IntroductionSupported ) throw new Exception( "SSU relay introduction not supported" );
                     Logging.LogTransport( string.Format( "SSU EstablishedState {0}: Relay introduction not supported.", Session.DebugId ) );
                     break;
@@ -108,18 +108,41 @@ namespace I2PCore.Transport.SSU
         }
 
         PeriodicAction ResendFragmentsAction = new PeriodicAction( TickSpan.Seconds( 1 ) );
+        PeriodicAction UpdateSessionLengthStats = new PeriodicAction( TickSpan.Minutes( 5 ) );
+        TickCounter LastIntroducerKeepalive = TickCounter.Now;
 
         public override SSUState Run()
         {
             // Idle
             if ( Timeout( InactivityTimeoutSeconds ) )
             {
-                Logging.LogDebug( () => string.Format( "SSU EstablishedState {0}: Inactivity timeout. Sending SessionDestroyed.", Session.DebugId ) );
+                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: Inactivity timeout. Sending SessionDestroyed." );
                 SendSessionDestroyed();
                 return null;
             }
 
-            if ( Session.Defragmenter.GotAcks || Session.SendQueue.Count > 0 || Session.Fragmenter.GotUnsentFragments )
+            UpdateSessionLengthStats.Do( () =>
+                Session.Host.EPStatisitcs.UpdateSessionLength(
+                    Session.RemoteEP,
+                    Session.StartTime.DeltaToNow ) );
+
+            var dosend = Session.Defragmenter.GotAcks 
+                    || Session.SendQueue.Count > 0 
+                    || Session.Fragmenter.GotUnsentFragments;
+
+            if ( !dosend 
+                && Session.IsIntroducerConnection 
+                && LastIntroducerKeepalive.DeltaToNow.ToSeconds > 1.5 )
+            {
+                dosend = true;
+
+#if NO_LOG_ALL_TRANSPORT
+                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: Introducer Keepalive." );
+#endif
+                LastIntroducerKeepalive.SetNow();
+            }
+
+            if ( dosend )
             {
                 do
                 {
@@ -155,6 +178,8 @@ namespace I2PCore.Transport.SSU
 
                     return true;
                 } );
+
+            Session.Host.EPStatisitcs.UpdateSessionLength( Session.RemoteEP, Session.StartTime.DeltaToNow );
         }
 
         private void ResendNotAcked( IEnumerable<DataFragment> fragments )

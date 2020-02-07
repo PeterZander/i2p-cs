@@ -9,6 +9,7 @@ using I2PCore.Transport;
 using I2PCore.Tunnel.I2NP.Data;
 using System.Threading;
 using I2PCore.Utils;
+using I2PCore.Router;
 
 namespace I2PCore.Tunnel
 {
@@ -22,12 +23,24 @@ namespace I2PCore.Tunnel
         // "each hop expires the tunnel after 10 minutes" https://geti2p.net/spec/tunnel-creation
         public const int TunnelLifetimeSeconds = 10 * 60;
         public const int TunnelRecreationMarginSeconds = 2 * 60;
-        public const int TunnelRecreationMarginSecondsPerHop = MeassuredTunnelBuildTimePerHopSeconds * 8;
+        public static int TunnelRecreationMarginSecondsPerHop
+        {
+            get
+            {
+                return MeassuredTunnelBuildTimePerHopSeconds * 8;
+            }
+        }
 
         // Time per hop for "ok" routers
         // Avg     1223 ms
         // StdDev  1972 ms
-        public const int MeassuredTunnelBuildTimePerHopSeconds = 4;
+        public static int MeassuredTunnelBuildTimePerHopSeconds
+        {
+            get
+            {
+                return RouterContext.Inst.IsFirewalled ? 6 : 4;
+            }
+        }
 
         public virtual int LifetimeSeconds { get { return TunnelLifetimeSeconds; } }
 

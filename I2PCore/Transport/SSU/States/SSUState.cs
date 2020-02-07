@@ -26,8 +26,15 @@ namespace I2PCore.Transport.SSU
         //     private static final int MAX_IDLE_TIME = EXPIRE_TIMEOUT;
         //     public static final int MIN_EXPIRE_TIMEOUT = 165*1000;
 
-        //public const int InactivityTimeoutSeconds = 330;  // From PurpleI2P SSUSession.h SSU_TERMINATION_TIMEOUT
-        public const int InactivityTimeoutSeconds = 12 * 60; // Nearly all CPU is used for DH negotiations.
+        // From PurpleI2P SSUSession.h SSU_TERMINATION_TIMEOUT
+        //public const int InactivityTimeoutSeconds = 330;  
+        public static int InactivityTimeoutSeconds
+        {
+            get
+            {
+                return RouterContext.Inst.IsFirewalled ? 2 * 12 * 60 : 12 * 60;
+            }
+        }
 
         public TickCounter Created = TickCounter.Now;
         public TickCounter LastAction = TickCounter.Now;
@@ -37,7 +44,12 @@ namespace I2PCore.Transport.SSU
 
         protected SSUState( SSUSession sess ) { Session = sess; }
 
-        protected bool Timeout( int seconds ) { return LastAction.DeltaToNowSeconds > seconds || Created.DeltaToNow.ToMinutes > 20; }
+        protected bool Timeout( int seconds ) 
+        { 
+            return LastAction.DeltaToNowSeconds > seconds 
+                || Created.DeltaToNow.ToMinutes > ( RouterContext.Inst.IsFirewalled ? 40 : 20 );
+        }
+
         protected void DataSent() { LastAction.SetNow(); }
 
         public abstract SSUState Run();
@@ -82,7 +94,7 @@ namespace I2PCore.Transport.SSU
 
         int IntroMACsReceived = 0;
 
-        BufLen MACBuf = new BufLen( new byte[16] );
+        readonly BufLen MACBuf = new BufLen( new byte[16] );
 
         protected MACHealth VerifyMAC( SSUHeader header, BufLen key )
         {

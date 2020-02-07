@@ -21,8 +21,10 @@ namespace I2PCore.Data
             {
                 if ( !Options.Contains( "host" ) ) return null;
 
-                if ( IPTestHostName( Options["host"] ) == AddressFamily.InterNetwork )
+                var fam = IPTestHostName( Options["host"] );
+                if ( fam == AddressFamily.InterNetwork || fam == AddressFamily.InterNetworkV6 )
                     return IPAddress.Parse( Options["host"] );
+
                 var al = Dns.GetHostEntry( Options["host"] ).AddressList.
                     Where( a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork );
                 if ( al.Any() )
@@ -33,7 +35,7 @@ namespace I2PCore.Data
             } 
         }
 
-        public int Port { get { return int.Parse( Options["port"] ); } }
+        public int Port { get { return Options.TryGet( "port", out var port ) ? int.Parse( port.ToString() ) : -1; } }
 
         public bool HaveHostAndPort { get { return Options.Contains( "host" ) && Options.Contains( "port" ); } }
 
@@ -72,8 +74,7 @@ namespace I2PCore.Data
 
         public static AddressFamily IPTestHostName( string host )
         {
-            IPAddress address;
-            if ( IPAddress.TryParse( host, out address ) )
+            if ( IPAddress.TryParse( host, out var address ) )
             {
                 return address.AddressFamily;
             }

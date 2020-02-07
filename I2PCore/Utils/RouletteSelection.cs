@@ -87,6 +87,7 @@ namespace I2PCore.Utils
 
             // Make positive, and offset bottom 
             // with Average
+            // TODO: Average -> AbsDev
             var offset = MinFit - ( AverageFit - MinFit );
             foreach ( var one in Wheel )
             {

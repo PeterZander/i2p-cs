@@ -38,7 +38,15 @@ namespace I2PCore.Transport.SSU
         internal I2PKeysAndCert RemoteRouter;
         internal BufLen IntroKey;
 
+        // RelayTag from SessionCreated
         internal BufLen RelayTag = null;
+
+        // RemoteIntroducerInfo != null if the remote offered introduction
+        internal IntroducerInfo RemoteIntroducerInfo = null;
+
+        // True if we are firewalled and this is a current connection to
+        // a introducer. Try to keep alive.
+        internal bool IsIntroducerConnection = false;
 
         // Network byte order
         internal uint SignOnTimeA;
@@ -57,11 +65,13 @@ namespace I2PCore.Transport.SSU
         IMTUProvider MTUProvider;
         internal MTUConfig MTU;
 
-        internal DataDefragmenter Defragmenter = new DataDefragmenter();
-        internal DataFragmenter Fragmenter;
+        internal readonly DataDefragmenter Defragmenter = new DataDefragmenter();
+        internal readonly DataFragmenter Fragmenter = new DataFragmenter();
 
         internal LinkedList<II2NPHeader5> SendQueue = new LinkedList<II2NPHeader5>();
         internal LinkedList<BufRefLen> ReceiveQueue = new LinkedList<BufRefLen>();
+
+        internal TickCounter StartTime = TickCounter.Now;
 
         // We are client
         public SSUSession( SSUHost owner, IPEndPoint remoteep, I2PRouterAddress remoteaddr, I2PKeysAndCert rri, IMTUProvider mtup, RouterContext rc )
@@ -75,10 +85,8 @@ namespace I2PCore.Transport.SSU
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
 #if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSUSession: " + DebugId + " Client instance created." );
+            Logging.LogTransport( $"SSUSession: {DebugId} Client instance created." );
 #endif
-
-            Fragmenter = new DataFragmenter();
 
             if ( RemoteAddr == null ) throw new NullReferenceException( "SSUSession needs an address" );
 
@@ -103,10 +111,8 @@ namespace I2PCore.Transport.SSU
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
 #if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSUSession: " + DebugId + " Introducer instance created." );
+            Logging.LogTransport( $"SSUSession: {DebugId} Introducer instance created." );
 #endif
-
-            Fragmenter = new DataFragmenter();
 
             if ( RemoteAddr == null ) throw new NullReferenceException( "SSUSession needs an address" );
 
@@ -128,8 +134,6 @@ namespace I2PCore.Transport.SSU
             Logging.LogTransport( "SSUSession: " + DebugId + " Host instance created." );
 #endif
 
-            Fragmenter = new DataFragmenter();
-
             MTU = MTUProvider.GetMTU( remoteep );
 
             SendQueue.AddLast( ( new DeliveryStatusMessage( (ulong)I2PConstants.I2P_NETWORK_ID ) ).Header5 );
@@ -140,7 +144,7 @@ namespace I2PCore.Transport.SSU
 
         bool ConnectCalled = false;
 
-        public string DebugId { get { return "+" + TransportInstance.ToString() + "+"; } }
+        public string DebugId { get { return $"+{TransportInstance}+"; } }
 
         public void Connect()
         {
@@ -151,59 +155,20 @@ namespace I2PCore.Transport.SSU
             if ( ConnectCalled ) return;
             ConnectCalled = true;
 
-            // TODO: Add introducer request
-            if ( !RemoteAddr.Options.Contains( "host" ) || !RemoteAddr.Options.Contains( "port" ) )
+            if ( RemoteAddr.Options.Any( o => o.Key.ToString().StartsWith( "ihost", StringComparison.Ordinal ) ) )
             {
-#if LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSUSession: Connect " + DebugId + ": No host info. Trying introducers." );
-#endif
-                if ( !RemoteAddr.Options.Contains( "ihost0" ) || !RemoteAddr.Options.Contains( "iport0" ) || !RemoteAddr.Options.Contains( "ikey0" ) )
+                Logging.LogTransport( $"SSUSession: Connect {DebugId}: Trying introducers for " +
+                    $"{RemoteAddr.Options.TryGet( "host" )?.ToString() ?? RemoteAddr.Options.ToString()}." );
+
+                var introducers = GetIntroducers();
+
+                var intros = new Dictionary<IntroducerInfo, SSUSession>();
+                foreach( var i in introducers )
                 {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: No introducers declared." );
-#endif
-                    throw new FailedToConnectException( "SSU Introducer required, but no introducer information available" );
+                    Host.AccessSession( i.EndPoint, sess => intros[i] = sess );
                 }
 
-                var introducers = new List<IntroducerInfo>();
-
-                for ( int i = 0; i < 3; ++i )
-                {
-                    if ( !RemoteAddr.Options.Contains( $"ihost{i}" ) ) break;
-                    if ( !RemoteAddr.Options.Contains( $"iport{i}" ) ) break;
-                    if ( !RemoteAddr.Options.Contains( $"ikey{i}" ) ) break;
-                    if ( !RemoteAddr.Options.Contains( $"itag{i}" ) )
-                    {
-                        Logging.LogWarning(
-                          $"SSUSession: Connect +{TransportInstance}+: itag# not present! {RemoteAddr.Options}" );
-                        break;
-                    }
-
-                    if ( !RemoteAddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
-
-                    //Logging.LogWarning( "SSUSession: Connect " + DebugId + ": " + RemoteAddr.Options.ToString() );
-
-                    var intro = new IntroducerInfo( RemoteAddr.Options[$"ihost{i}"],
-                        RemoteAddr.Options[$"iport{i}"],
-                        RemoteAddr.Options[$"ikey{i}"],
-                        RemoteAddr.Options[$"itag{i}"] );
-
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Adding introducer '" +
-                        intro.EndPoint.ToString() + "'." );
-#endif
-                    introducers.Add( intro );
-                }
-
-                if ( introducers.Count == 0 )
-                {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSUSession: Connect +" + TransportInstance.ToString() + "+: Ended up with no introducers." );
-#endif
-                    throw new FailedToConnectException( "SSU Introducer required, but no valid introducer information available" );
-                }
-
-                CurrentState = new RelayRequestState( this, introducers );
+                CurrentState = new RelayRequestState( this, intros );
             }
             else
             {
@@ -211,6 +176,57 @@ namespace I2PCore.Transport.SSU
             }
 
             Host.NeedCpu( this );
+        }
+
+        private List<IntroducerInfo> GetIntroducers()
+        {
+            if ( !RemoteAddr.Options.Contains( "ihost0" ) || !RemoteAddr.Options.Contains( "iport0" ) || !RemoteAddr.Options.Contains( "ikey0" ) )
+            {
+#if LOG_ALL_TRANSPORT
+                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: No introducers declared." );
+#endif
+                throw new FailedToConnectException( "SSU Introducer required, but no introducer information available" );
+            }
+
+            var introducers = new List<IntroducerInfo>();
+
+            for ( int i = 0; i < 3; ++i )
+            {
+                if ( !RemoteAddr.Options.Contains( $"ihost{i}" ) ) break;
+                if ( !RemoteAddr.Options.Contains( $"iport{i}" ) ) break;
+                if ( !RemoteAddr.Options.Contains( $"ikey{i}" ) ) break;
+                if ( !RemoteAddr.Options.Contains( $"itag{i}" ) )
+                {
+                    Logging.LogWarning(
+                      $"SSUSession: Connect {DebugId}: itag# not present! {RemoteAddr.Options}" );
+                    break;
+                }
+
+                if ( !RemoteAddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
+
+                //Logging.LogWarning( $"SSUSession: Connect {DebugId}: {RemoteAddr.Options}" );
+
+                var intro = new IntroducerInfo( RemoteAddr.Options[$"ihost{i}"],
+                    RemoteAddr.Options[$"iport{i}"],
+                    RemoteAddr.Options[$"ikey{i}"],
+                    RemoteAddr.Options[$"itag{i}"] );
+
+#if LOG_ALL_TRANSPORT
+                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: " +
+                        $"Adding introducer '{intro.EndPoint}'." );
+#endif
+                introducers.Add( intro );
+            }
+
+            if ( !introducers.Any() )
+            {
+#if LOG_ALL_TRANSPORT
+                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: Ended up with no introducers." );
+#endif
+                throw new FailedToConnectException( "SSU Introducer required, but no valid introducer information available" );
+            }
+
+            return introducers;
         }
 
 #if DEBUG
@@ -225,22 +241,26 @@ namespace I2PCore.Transport.SSU
             {
                 var len = SendQueue.Count;
 
-                if ( len < SendQueueLengthUpperLimit ) SendQueue.AddLast( msg.Header5 );
+                if ( len < SendQueueLengthUpperLimit )
+                {
+                    SendQueue.AddLast( msg.Header5 );
+                }
 #if DEBUG
                 else
                 {
                     Logging.LogWarning(
-                        string.Format( "SSUSession {0}: SendQueue is {1} messages long! Dropping new message. Max queue: {2} ({3:###0}s)",
-                        DebugId, len, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
+                        $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
+                        $"Dropping new message. Max queue: {SessionMaxSendQueueLength} " +
+                        $"({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
                 }
 
                 SessionMaxSendQueueLength = Math.Max( SessionMaxSendQueueLength, len );
 
                 if ( ( len > SendQueueLengthWarningLimit ) && ( MinTimeBetweenSendQueueLogs.DeltaToNowMilliseconds > 4000 ) ) 
                 {
-                    Logging.LogWarning( 
-                        string.Format( "SSUSession {0}: SendQueue is {1} messages long! Max queue: {2} ({3:###0}s)",
-                        DebugId, len, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
+                    Logging.LogWarning(
+                        $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
+                        $"Max queue: {SessionMaxSendQueueLength} ({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
                     MinTimeBetweenSendQueueLogs.SetNow();
                 }
 #endif
@@ -264,8 +284,7 @@ namespace I2PCore.Transport.SSU
             }
 #if DEBUG
             Logging.LogWarning(
-                string.Format( "SSUSession {0}: ReceiveQueue is {1} messages long! Dropping new message.",
-                DebugId, len ) );
+                $"SSUSession {DebugId}: ReceiveQueue is {len} messages long! Dropping new message." );
 #endif
         }
 
@@ -324,9 +343,9 @@ namespace I2PCore.Transport.SSU
 
             if ( CurrentState == null )
             {
-                Logging.LogTransport( string.Format( "SSUSession {0}: Shuting down. No state.", DebugId ) );
+                Logging.LogTransport( $"SSUSession {DebugId}: Shuting down. No state." );
                 Host.NoCpu( this );
-                if ( ConnectionShutDown != null ) ConnectionShutDown( this );
+                ConnectionShutDown?.Invoke( this );
                 IsTerminated = true;
                 return false;
             }
@@ -338,7 +357,7 @@ namespace I2PCore.Transport.SSU
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
 #if LOG_ALL_TRANSPORT
-            Logging.LogTransport( string.Format( "SSUSession +{0}+: Received {1} bytes [0x{1:X}].", TransportInstance, recvbuf.Length ) );
+            Logging.LogTransport( string.Format( "SSUSession {0}: Received {1} bytes [0x{1:X}].", DebugId, recvbuf.Length ) );
 #endif
 
             var cs = CurrentState;
@@ -350,23 +369,25 @@ namespace I2PCore.Transport.SSU
 #if DEBUG
             if ( ConnectionException == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionException!" );
 #endif
-            if ( ConnectionException != null ) ConnectionException( this, ex );
+            ConnectionException?.Invoke( this, ex );
         }
 
         internal void MessageReceived( II2NPHeader newmessage )
         {
 #if DEBUG
-            if ( DataBlockReceived == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for DataBlockReceived!" );
+            if ( DataBlockReceived == null ) Logging.LogWarning( $"SSUSession: {DebugId} No observers for DataBlockReceived!" );
 #endif
-            if ( DataBlockReceived != null ) DataBlockReceived( this, newmessage );
+            DataBlockReceived?.Invoke( this, newmessage );
         }
 
         internal void ReportConnectionEstablished()
         {
 #if DEBUG
-            if ( ConnectionEstablished == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionEstablished!" );
+            if ( ConnectionEstablished == null ) Logging.LogWarning( $"SSUSession: {DebugId} No observers for ConnectionEstablished!" );
 #endif
-            if ( ConnectionEstablished != null ) ConnectionEstablished( this );
+            ConnectionEstablished?.Invoke( this );
+            Host.EPStatisitcs.UpdateConnectionTime( RemoteEP, StartTime.DeltaToNow );
+            Host.EPStatisitcs.ConnectionSuccess( RemoteEP );
         }
 
         internal void SendDroppedMessageDetected()
@@ -383,7 +404,7 @@ namespace I2PCore.Transport.SSU
 
         public override string ToString()
         {
-            return "'SSUSession: " + DebugId + " to " + ( RemoteEP == null ? "<null>" : RemoteEP.ToString() ) + "'";
+            return $"'SSUSession: {DebugId} to {RemoteEP?.ToString() ?? "<null>"}'";
         }
     }
 }

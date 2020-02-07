@@ -150,7 +150,7 @@ namespace I2PCore.Transport
             t.Terminate();
         }
 
-        object TsSearchLock = new object();
+        readonly object TsSearchLock = new object();
 
         protected ITransport GetEstablishedTransport( I2PIdentHash dest, bool create )
         {
@@ -424,6 +424,8 @@ namespace I2PCore.Transport
             return Send( dest, data, 0 );
         }
 
+        readonly static object TransportSelectionLock = new object();
+
         private static bool Send( I2PIdentHash dest, I2NPMessage data, int reclvl )
         {
             ITransport transp = null;
@@ -436,30 +438,33 @@ namespace I2PCore.Transport
                     return true;
                 }
 
-                if ( TransportProvider.Inst.CurrentlyUnknownRouters.Contains( dest ) )
+                lock ( TransportSelectionLock )
                 {
-                    TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
-                    return true;
-                }
+                    if ( TransportProvider.Inst.CurrentlyUnknownRouters.Contains( dest ) )
+                    {
+                        TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
+                        return true;
+                    }
 
-                transp = TransportProvider.Inst.GetEstablishedTransport( dest, false );
-                if ( transp != null )
-                {
-                    transp.Send( data );
-                    return true;
-                }
+                    transp = TransportProvider.Inst.GetEstablishedTransport( dest, false );
+                    if ( transp != null )
+                    {
+                        transp.Send( data );
+                        return true;
+                    }
 
-                if ( NetDb.Inst.Contains( dest ) )
-                {
-                    transp = TransportProvider.Inst.GetTransport( dest );
-                    if ( transp == null ) throw new ArgumentException( "Unable to contact " + dest.ToString() );
-                    transp.Send( data );
-                }
-                else
-                {
-                    if ( TransportProvider.Inst.CurrentlyUnresolvableRouters.Contains( dest ) ) throw new ArgumentException( "Unable to resolve " + dest.ToString() );
+                    if ( NetDb.Inst.Contains( dest ) )
+                    {
+                        transp = TransportProvider.Inst.GetTransport( dest );
+                        if ( transp == null ) throw new ArgumentException( "Unable to contact " + dest.ToString() );
+                        transp.Send( data );
+                    }
+                    else
+                    {
+                        if ( TransportProvider.Inst.CurrentlyUnresolvableRouters.Contains( dest ) ) throw new ArgumentException( "Unable to resolve " + dest.ToString() );
 
-                    TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
+                        TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
+                    }
                 }
             }
             catch ( FailedToConnectException ex )

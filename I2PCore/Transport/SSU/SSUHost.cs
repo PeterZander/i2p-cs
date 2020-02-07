@@ -24,17 +24,20 @@ namespace I2PCore.Transport.SSU
         public static readonly bool IntroductionSupported = true;
 
         internal delegate void RelayResponseInfo( SSUHeader header, RelayResponse response, IPEndPoint ep );
-        object RelayResponseReceivedLock = new object();
+
+        readonly object RelayResponseReceivedLock = new object();
         internal event RelayResponseInfo RelayResponseReceived;
 
         long IncommingConnectionAttempts;
+
+        public readonly EndpointStatistics EPStatisitcs = new EndpointStatistics();
 
 #if DEBUG
         const int SessionCallWarningLevelMilliseconds = 450;
 #endif
 
         RouterContext MyRouterContext;
-        IMTUProvider MTUProvider;
+        readonly IMTUProvider MTUProvider;
         HashSet<IPAddress> OurIPs;
 
         public SSUHost( RouterContext rc, IMTUProvider mtup )
@@ -45,9 +48,11 @@ namespace I2PCore.Transport.SSU
 
             OurIPs = new HashSet<IPAddress>( Dns.GetHostEntry( Dns.GetHostName() ).AddressList );
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "SSUHost";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "SSUHost",
+                IsBackground = true
+            };
             Worker.Start();
         }
 
@@ -171,15 +176,15 @@ namespace I2PCore.Transport.SSU
                     var running = sess.Run();
                     if ( !running )
                     {
-                        Logging.LogTransport( "SSUHost: Terminated Session " + sess.DebugId + " removed." );
+                        Logging.LogTransport( $"SSUHost: Terminated Session {sess.DebugId} removed." );
                         RemoveSession( sess );
                     }
 #if DEBUG
                     Stopwatch1.Stop();
                     if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
                     {
-                        Logging.LogTransport( 
-                            string.Format( "SSUHost Run: WARNING Session {0} used {1}ms cpu.", sess, Stopwatch1.ElapsedMilliseconds ) );
+                        Logging.LogTransport(
+                            $"SSUHost Run: WARNING Session {sess} used {Stopwatch1.ElapsedMilliseconds}ms cpu." );
                     }
 #endif
                 }
@@ -212,7 +217,7 @@ namespace I2PCore.Transport.SSU
             catch ( FailedToConnectException fcex )
             {
                 AddFailedSession( sess );
-                Logging.LogTransport( 
+                Logging.LogTransport(
                     string.Format( "SSUHost Run: Session failed to connect: {0}", fcex.Message ) );
 
                 if ( sess != null && sess.RemoteRouterIdentity != null )
@@ -258,8 +263,8 @@ namespace I2PCore.Transport.SSU
             MySocket = newsocket;
             if ( oldsocket != null ) oldsocket.Close();
 
-            Logging.LogInformation( "SSUHost: Running with new network settings. " +
-                local.ToString() + ":" + MyRouterContext.UDPPort.ToString() + " (" + MyRouterContext.ExtAddress.ToString() + ")" );
+            Logging.LogInformation( $"SSUHost: Running with new network settings. " +
+                $"{local}:{MyRouterContext.UDPPort} ({MyRouterContext.ExtAddress})" );
         }
 
         internal void NeedCpu( SSUSession sess )
@@ -313,8 +318,7 @@ namespace I2PCore.Transport.SSU
                     {
                         if ( IPFilter.IsFiltered( ( (IPEndPoint)ep ).Address ) )
                         {
-                            Logging.LogTransport( string.Format( "SSUHost ReceiveCallback: IPAddress {0} is blocked. {1} bytes.",
-                                key, size ) );
+                            Logging.LogTransport( $"SSUHost ReceiveCallback: IPAddress {key} is blocked. {size} bytes." );
                             return;
                         }
 
@@ -322,7 +326,8 @@ namespace I2PCore.Transport.SSU
 
                         session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
                         Sessions[key] = session;
-                        Logging.LogTransport( "SSUHost: incoming connection " + session.DebugId + " from " + key.ToString() + " created." );
+                        Logging.LogTransport( $"SSUHost: incoming connection " +
+                            $"{session.DebugId} from {key} created." );
                         NeedCpu( session );
                         ConnectionCreated?.Invoke( session );
                     }
@@ -379,7 +384,7 @@ namespace I2PCore.Transport.SSU
                 if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
                 {
                     Logging.LogTransport(
-                        string.Format( "SSUHost ReceiveCallback: WARNING Session {0} used {1}ms cpu.", session, Stopwatch1.ElapsedMilliseconds ) );
+                        $"SSUHost ReceiveCallback: WARNING Session {session} used {Stopwatch1.ElapsedMilliseconds}ms cpu." );
                 }
 #endif
             }
@@ -406,7 +411,7 @@ namespace I2PCore.Transport.SSU
         {
             MySocket.BeginSendTo( data.BaseArray, data.BaseArrayOffset, data.Length, SocketFlags.None, ep, new AsyncCallback( SendCallback ), data );
 #if LOG_ALL_TRANSPORT
-            Logging.LogTransport( string.Format( "SSU Sent: {0} bytes [0x{0:X}] to {1}", data.Length, ep ) );
+            Logging.LogTransport( $"SSU Sent: {data.Length} bytes [0x{0:X}] to {ep}" );
 #endif
         }
 
@@ -427,7 +432,7 @@ namespace I2PCore.Transport.SSU
         }
         #endregion
 
-        bool AllowConnectToSelf { get; set; }
+        bool AllowConnectToSelf { get; set; } = false;
 
         #region Session mgmt
         public ITransport AddSession( I2PRouterAddress addr, I2PKeysAndCert dest )
@@ -441,7 +446,7 @@ namespace I2PCore.Transport.SSU
 
                 if ( !AllowConnectToSelf && IsOurIP( remoteep.Address ) )
                 {
-                    Logging.LogTransport( string.Format( "SSU AddSession: [{0}]:{1} - {2}. Dropped. Not connecting to ourselves.", dest.IdentHash.Id32, key, addr ) );
+                    Logging.LogTransport( $"SSU AddSession: [{dest.IdentHash.Id32}]:{key} - {addr}. Dropped. Not connecting to ourselves." );
                     return null;
                 }
 
@@ -525,7 +530,7 @@ namespace I2PCore.Transport.SSU
 
         internal void ReportedAddress( IPAddress ipaddr )
         {
-            if ( LastExternalIPProcess.DeltaToNowSeconds < ( LastIPReport == null ? 1: 60 ) ) return;
+            if ( LastExternalIPProcess.DeltaToNowSeconds < ( LastIPReport == null ? 1 : 60 ) ) return;
             LastExternalIPProcess.SetNow();
 
             Logging.LogTransport( $"SSU My IP: My external IP {ipaddr}" );
@@ -566,28 +571,87 @@ namespace I2PCore.Transport.SSU
         #region Introduction
 
 
-        TimeWindowDictionary<IPAddress, IntroducerInfo> CurrentIntroducers =
-            new TimeWindowDictionary<IPAddress, IntroducerInfo>( TickSpan.Minutes( 7 ) );
+        enum GatherIntroducersStates { Startup, Established }
+        GatherIntroducersStates GatherIntroducersState = GatherIntroducersStates.Startup;
+        PeriodicAction ConsiderUpdateIntroducers = new PeriodicAction( TickSpan.Minutes( 1 ) );
 
         internal void IntroductionRelayOffered( IntroducerInfo intro )
         {
             if ( !RouterContext.Inst.IsFirewalled )
             {
-                if ( !CurrentIntroducers.Any() )
-                {
-                    MyRouterContext.NoIntroducers();
-                }
                 return;
             }
 
-            if ( CurrentIntroducers.Count() >= 5 ) return;
-
             Logging.LogTransport( $"SSU Introduction: Added introducer {intro.Host}, {intro.IntroKey}, {intro.IntroTag}, {intro.EndPoint}" );
-            CurrentIntroducers.Set( intro.Host, intro );
-            MyRouterContext.SetIntroducers( CurrentIntroducers.Select( i => i.Value ) );
+
+            switch ( GatherIntroducersState )
+            {
+                case GatherIntroducersStates.Startup:
+                    ConsiderUpdateIntroducers.Do( () =>
+                    {
+                        var intros = SelectIntroducers()
+                            .Select( p => p.Left.RemoteIntroducerInfo );
+
+                        if ( intros.Any() )
+                        {
+                            MyRouterContext.SetIntroducers( intros );
+                            ConsiderUpdateIntroducers.Frequency = TickSpan.Minutes( 10 );
+                            GatherIntroducersState = GatherIntroducersStates.Established;
+                        }
+                    } );
+                    break;
+
+                case GatherIntroducersStates.Established:
+                    ConsiderUpdateIntroducers.Do( () =>
+                    {
+                        MyRouterContext.SetIntroducers( SelectIntroducers()
+                            .Select( p => p.Left.RemoteIntroducerInfo ) );
+                    } );
+                    break;
+            }
         }
 
-        #endregion
+        private IEnumerable<RefPair<SSUSession, EndpointStatistic>> SelectIntroducers()
+        {
+#if NO_LOG_ALL_TRANSPORT
+            var stats = EPStatisitcs.ToArray().OrderBy( s => s.Value.Score );
+            foreach ( var one in stats )
+            {
+                Logging.LogTransport( one.Value.ToString() );
+            }
+#endif
+
+            var introsessions = FindSession( s => s.RemoteIntroducerInfo != null );
+
+            var prospects = introsessions
+                    .Select( s => new RefPair<SSUSession, EndpointStatistic>( 
+                        s, 
+                        EPStatisitcs[s.RemoteEP] ) )
+                    .OrderBy( p => p.Right.Score );
+
+            IEnumerable<RefPair<SSUSession, EndpointStatistic>> result;
+
+            if ( prospects.Count() > 10 )
+            {
+                result = prospects.Take( 3 );
+            }
+            else
+            {
+                result = prospects.Take( 2 );
+            }
+
+            if ( result.Any() )
+            {
+                FindSession( s =>
+                    s.IsIntroducerConnection = result.Any( r =>
+                        r.Left.RemoteEP == s.RemoteEP ) );
+            }
+
+            Logging.LogInformation( $"SSUHost: Selected new introducers {string.Join( ", ", result.Select( p => p.Right ) )}" );
+            return result;
+        }
+
+#endregion
 
         DecayingIPBlockFilter IPFilter = new DecayingIPBlockFilter();
         public int BlockedIPCount { get { return IPFilter.Count; } }
@@ -608,7 +672,7 @@ namespace I2PCore.Transport.SSU
             }
         }
 
-        #region PeerTest
+#region PeerTest
 
         internal PeerTestState PeerTestInstance = new PeerTestState();
         Dictionary<uint, PeerTestNonceInfo> KnownPeerTestNonces = new Dictionary<uint, PeerTestNonceInfo>();
@@ -645,7 +709,31 @@ namespace I2PCore.Transport.SSU
             }
         }
 
-        #endregion
+        internal bool AccessSession( IPEndPoint ep, Action<SSUSession> action )
+        {
+            lock ( Sessions )
+            {
+                if ( Sessions.TryGetValue( ep, out var session ) )
+                {
+                    action( session );
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        internal IEnumerable<SSUSession> FindSession( Func<SSUSession,bool> filter )
+        {
+            lock ( Sessions )
+            {
+                return Sessions
+                    .Where( p => filter( p.Value ) )
+                    .Select( p => p.Value )
+                    .ToArray();
+            }
+        }
+
+#endregion
     }
 
     internal class PeerTestNonceInfo

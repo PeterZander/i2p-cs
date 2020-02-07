@@ -37,7 +37,17 @@ namespace I2PCore.Router
 {
     public class RouterContext
     {
-        public bool IsFirewalled = true;
+        private bool IsFirewalledField = true;
+
+        public bool IsFirewalled
+        {
+            get => IsFirewalledField;
+            set
+            {
+                IsFirewalledField = value;
+                ClearCache();
+            }
+        }
 
         // IP settings
         public IPAddress DefaultExtAddress = null;
@@ -47,7 +57,7 @@ namespace I2PCore.Router
             {
                 if ( UseIpV6 )
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetworkV6 ).First();
+                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetworkV6 );
                 }
                 else
                 {
@@ -63,7 +73,7 @@ namespace I2PCore.Router
 
                     if ( DefaultExtAddress != null ) return DefaultExtAddress;
 
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetwork ).First();
+                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetwork );
                 }
             }
         }
@@ -74,11 +84,11 @@ namespace I2PCore.Router
             {
                 if ( UseIpV6 )
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetworkV6 ).First();
+                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetworkV6 );
                 }
                 else
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetwork ).First();
+                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetwork );
                 }
             }
         }
@@ -193,7 +203,7 @@ namespace I2PCore.Router
         private void NewIdentity( I2PCertificate cert )
         {
             Published = new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) );
-            Certificate = cert != null ? cert : new I2PCertificate( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
+            Certificate = cert ?? new I2PCertificate( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
             //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
             //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
             //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384 );
@@ -291,7 +301,6 @@ namespace I2PCore.Router
 
                     var ntcp = new I2PRouterAddress( ExtAddress, TCPPort, 11, "NTCP" );
                     var ssu = new I2PRouterAddress( ExtAddress, UDPPort, 5, "SSU" );
-                    var addr = new I2PRouterAddress[] { ntcp, ssu };
 
                     var ssucaps = "";
                     if ( SSUHost.PeerTestSupported ) ssucaps += "B";
@@ -307,7 +316,9 @@ namespace I2PCore.Router
                     var result = new I2PRouterInfo(
                         MyRouterIdentity,
                         new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ),
-                        addr,
+                        IsFirewalled 
+                            ? new I2PRouterAddress[] { ssu }
+                            : new I2PRouterAddress[] { ntcp, ssu },
                         caps,
                         PrivateSigningKey );
 
@@ -321,13 +332,18 @@ namespace I2PCore.Router
             }
         }
 
+        private void ClearCache()
+        {
+            MyRouterInfoCache = null;
+        }
+
         public void SSUReportedAddr( IPAddress extaddr )
         {
             if ( extaddr == null ) return;
             if ( SSUReportedExternalAddress != null && SSUReportedExternalAddress.Equals( extaddr ) ) return;
 
             SSUReportedExternalAddress = extaddr;
-            MyRouterInfoCache = null;
+            ClearCache();
         }
 
         internal void UpnpReportedAddr( string addr )
@@ -336,12 +352,12 @@ namespace I2PCore.Router
 
             UPnpExternalAddress = IPAddress.Parse( addr );
             UPnpExternalAddressAvailable = true;
-            MyRouterInfoCache = null;
+            ClearCache();
         }
 
         public void ApplyNewSettings()
         {
-            MyRouterInfoCache = null;
+            ClearCache();
             if ( NetworkSettingsChanged != null ) NetworkSettingsChanged();
         }
 
@@ -361,7 +377,7 @@ namespace I2PCore.Router
                 UPnpExternalUDPPort = port;
             }
             UPnpExternalAddressAvailable = true;
-            MyRouterInfoCache = null;
+            ClearCache();
 
             ApplyNewSettings();
         }
@@ -378,6 +394,12 @@ namespace I2PCore.Router
 
         internal void SetIntroducers( IEnumerable<IntroducerInfo> introducers )
         {
+            if ( !introducers.Any() )
+            {
+                NoIntroducers();
+                return;
+            }
+
             var result = new List<KeyValuePair<string, string>>();
             var ix = 0;
 
@@ -391,7 +413,7 @@ namespace I2PCore.Router
             }
 
             SSUIntroducersInfo = result;
-            MyRouterInfoCache = null;
+            ClearCache();
         }
     }
 }

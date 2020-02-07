@@ -241,6 +241,8 @@
     <Compile Include="Utils\Logging\Logging.cs" />
     <Compile Include="Utils\Logging\FileLogStore.cs" />
     <Compile Include="Utils\Logging\ILogStore.cs" />
+    <Compile Include="Transport\SSU\EndpointStatistics.cs" />
+    <Compile Include="Transport\SSU\EndpointStatistic.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
