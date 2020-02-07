@@ -85,13 +85,12 @@ namespace I2PCore.Utils
                 StdDevFit = fits.StdDev();
             }
 
-            // Make positive, and offset bottom 
-            // with Average
-            // TODO: Average -> AbsDev
-            var offset = MinFit - ( AverageFit - MinFit );
+            // Make positive, and offset bottom from 0
+            var baseoffset = Math.Max( 0.01, AbsDevFit );
+            var offset = -MinFit + baseoffset;
             foreach ( var one in Wheel )
             {
-                one.Space = Math.Pow( one.Fit - offset, Elitism );
+                one.Space = Math.Pow( one.Fit + offset, Elitism );
                 TotalSpaceSum += one.Space;
             }
         }

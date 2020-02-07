@@ -316,6 +316,7 @@ namespace I2PCore.Utils
             return src.Skip( RandomInt( src.Count() ) ).Take( 1 ).SingleOrDefault();
         }
 
+        // Expects all weights > 0
         public static T RandomWeighted<T>(
             this IEnumerable<T> src,
             Func<T, double> weight,
@@ -327,6 +328,11 @@ namespace I2PCore.Utils
                 obj = s,
                 weight = weight( s )
             } );
+
+#if DEBUG
+            if ( wsrc.Any( w => w.weight <= 0.0 ) )
+                throw new ArgumentException( "All weights must be > 0" ); 
+#endif
 
             double min = 0.0;
             double max = 0.0;
