@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Net;
 using I2PCore.Utils;
 using I2PCore.Transport.NTCP;
@@ -9,10 +8,6 @@ using System.Threading;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Data;
 using I2PCore.Tunnel.I2NP.Data;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto;
 using I2PCore.Router;
 using I2PCore.Transport.SSU.Data;
 
@@ -74,7 +69,13 @@ namespace I2PCore.Transport.SSU
         internal TickCounter StartTime = TickCounter.Now;
 
         // We are client
-        public SSUSession( SSUHost owner, IPEndPoint remoteep, I2PRouterAddress remoteaddr, I2PKeysAndCert rri, IMTUProvider mtup, RouterContext rc )
+        public SSUSession( 
+                SSUHost owner, 
+                IPEndPoint remoteep, 
+                I2PRouterAddress remoteaddr, 
+                I2PKeysAndCert rri, 
+                IMTUProvider mtup, 
+                RouterContext rc )
         {
             Host = owner;
             RemoteEP = remoteep;
@@ -95,34 +96,12 @@ namespace I2PCore.Transport.SSU
             MTU = MTUProvider.GetMTU( remoteep );
         }
 
-        // Session to introducer
-        internal SSUSession( SSUHost owner, IPEndPoint remoteep, IntroducerInfo ii, IMTUProvider mtup, RouterContext rc )
-        {
-            Host = owner;
-            RemoteEP = remoteep;
-            MTUProvider = mtup;
-            MyRouterContext = rc;
-
-            RemoteAddr = new I2PRouterAddress( ii.Host, ii.Port, 0, "SSU" );
-
-            // TODO: This is what PurpleI2P does. Seems strange... But there is no RouterInfo available for introducer sessions.
-            RemoteRouter = MyRouterContext.MyRouterIdentity;
-
-            TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
-
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( $"SSUSession: {DebugId} Introducer instance created." );
-#endif
-
-            if ( RemoteAddr == null ) throw new NullReferenceException( "SSUSession needs an address" );
-
-            IntroKey = ii.IntroKey;
-
-            MTU = MTUProvider.GetMTU( remoteep );
-        }
-
         // We are host
-        public SSUSession( SSUHost owner, IPEndPoint remoteep, IMTUProvider mtup, RouterContext rc )
+        public SSUSession( 
+                SSUHost owner, 
+                IPEndPoint remoteep, 
+                IMTUProvider mtup, 
+                RouterContext rc )
         {
             Host = owner;
             RemoteEP = remoteep;

@@ -22,8 +22,9 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 5.0;
-        private const double MinAbsDevs = 1.0;
+        private const double Elitism = 3.0;
+        private const double MinAbsDevs = 0.4;
+        private const double TopQuarterIshFactor = 0.3;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
         readonly double TotalSpaceSum;
@@ -86,39 +87,13 @@ namespace I2PCore.Utils
             }
 
             // Make positive, and offset bottom from 0
-            var baseoffset = Math.Max( 0.01, AbsDevFit );
+            var baseoffset = Math.Max( 0.01, AbsDevFit * TopQuarterIshFactor );
             var offset = -MinFit + baseoffset;
             foreach ( var one in Wheel )
             {
                 one.Space = Math.Pow( one.Fit + offset, Elitism );
                 TotalSpaceSum += one.Space;
             }
-        }
-
-        public IEnumerable<RouletteSelection<T, K>.RouletteSpace<K>> MinItems 
-        { 
-            get 
-            {
-                var minval = Wheel.Min( sp => sp.Fit );
-                return Wheel.Where( sp => sp.Fit == minval ); 
-            } 
-        }
-
-        public IEnumerable<RouletteSelection<T, K>.RouletteSpace<K>> AvgItems 
-        { 
-            get 
-            { 
-                return Wheel.Where( sp => Math.Abs( sp.Fit - AverageFit ) < StdDevFit * 0.3 ); 
-            } 
-        }
-
-        public IEnumerable<RouletteSelection<T, K>.RouletteSpace<K>> MaxItems 
-        { 
-            get 
-            {
-                var maxval = Wheel.Max( sp => sp.Fit );
-                return Wheel.Where( sp => sp.Fit == maxval ); 
-            } 
         }
 
         public K GetWeightedRandom( HashSet<K> exclude )

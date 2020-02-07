@@ -241,24 +241,40 @@ namespace I2PCore
                 Logging.Log( $"Store: {sw2.Elapsed}" );
             }
 
-            var files = GetNetDbFiles();
-            foreach ( var file in files )
+            var importfiles = GetNetDbFiles();
+            foreach ( var file in importfiles )
             {
                 AddRouterInfo( file );
             }
 
             lock ( RouterInfos )
-                if ( RouterInfos.Count == 0 )
             {
-                Logging.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
+                if ( !RouterInfos.Any() )
+                {
+                    Logging.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
+                }
             }
 
             Statistics.Load();
+
+            lock ( RouterInfos )
+            {
+                var fw = RouterInfos.Where( ri =>
+                    ri.Value.Key.Adresses.Any( a =>
+                        a.Options.Any( o =>
+                            o.Key.ToString() == "ihost0" ) ) );
+
+                foreach ( var ri in fw )
+                {
+                    Statistics.IsFirewalledUpdate( ri.Key, true );
+                }
+            }
+
             UpdateSelectionProbabilities();
 
             Save( true );
 
-            foreach ( var file in files )
+            foreach ( var file in importfiles )
             {
                 File.Delete( file );
             }
@@ -289,6 +305,19 @@ namespace I2PCore
                 ShowRouletteStatistics( RouletteNonFloodFill );
             }
 
+            /*
+            var l = new List<I2PIdentHash>();
+            for ( int i = 0; i < 1000; ++i )
+            {
+                l.Add( GetRandomRouter( Roulette, Enumerable.Empty<I2PIdentHash>(), false ) );
+            }
+            var lines = l.GroupBy( i => i ).OrderByDescending( g => g.Count() );
+            foreach( var one in lines )
+            {
+                Logging.LogInformation( $"R: {one.Count(),10}: {one.Key}" );
+            }
+            */
+
             Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
         }
 
@@ -299,7 +328,7 @@ namespace I2PCore
 
             float Mode = 0f;
             var bins = 20;
-            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins, 3f );
+            var hist = roulette.Wheel.Histogram( sp => sp.Fit, bins );
             var maxcount = hist.Max( b => b.Count );
             if ( hist.Count() == bins && !hist.All( b => Math.Abs( b.Start ) < 0.01f ) )
             {
@@ -504,6 +533,13 @@ namespace I2PCore
                     };
                     RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
                     Logging.LogDebugData( $"NetDb: Added RouterInfo for: {info.Identity.IdentHash}" );
+
+                    Statistics.IsFirewalledUpdate( 
+                            info.Identity.IdentHash, 
+                            info.Adresses
+                                .Any( a =>
+                                    a.Options.Any( o =>
+                                        o.Key.ToString() == "ihost0" ) ) );
                 }
 
                 if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
@@ -623,7 +659,8 @@ namespace I2PCore
             return GetRandomRouterInfo( Roulette, exploratory );
         }
 
-        private ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 7 ), 2 );
+        private ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel = 
+                new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 15 ), 2 );
 
         public I2PIdentHash GetRandomRouterForTunnelBuild( bool exploratory )
         {

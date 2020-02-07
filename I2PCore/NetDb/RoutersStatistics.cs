@@ -209,24 +209,14 @@ namespace I2PCore
             Update( hash, ds => Interlocked.Increment( ref ds.FailedTunnelTest ), false );
         }
 
-        // Not answering a build request is wose than declining
         public void TunnelBuildTimeout( I2PIdentHash hash )
         {
             Update( hash, ds => Interlocked.Increment( ref ds.TunnelBuildTimeout ), false );
         }
 
-#if DEBUG
-        float msph = 10000;
-        PeriodicLogger LogHopBuild = new PeriodicLogger( 30 );
-#endif
-
         public void TunnelBuildTimeMsPerHop( I2PIdentHash hash, long ms )
         {
-#if DEBUG
-            msph = ( msph * 49f + (float)ms ) / 50f;
-            LogHopBuild.Log( () => "Tunnel build time ema: " + msph.ToString( "F0" ) );
-#endif
-            Update( hash, ds => ds.TunnelBuildTimeMsPerHop = Math.Min( ds.TunnelBuildTimeMsPerHop, ms ), true );
+            Update( hash, ds => ds.TunnelBuildTimeMsPerHop = ( long)( ( 9.0 * ds.TunnelBuildTimeMsPerHop + ms ) / 10.0 ), true );
         }
 
         public void FloodfillUpdateTimeout( I2PIdentHash hash )
@@ -237,6 +227,11 @@ namespace I2PCore
         public void FloodfillUpdateSuccess( I2PIdentHash hash )
         {
             Update( hash, ds => Interlocked.Increment( ref ds.FloodfillUpdateSuccess ), true );
+        }
+
+        public void IsFirewalledUpdate( I2PIdentHash hash, bool isfw )
+        {
+            Update( hash, ds => ds.IsFirewalled = isfw, true );
         }
 
         public void MTUUsed( IPEndPoint ep, MTUConfig mtu )
@@ -251,10 +246,7 @@ namespace I2PCore
             }
         }
 
-        bool NodeInactive( 
-            RouterStatistics d, 
-            float avg,
-            float stddev )
+        bool NodeInactive( RouterStatistics d )
         {
             var result =
                 ( d.FailedTunnelTest > 8 && d.FailedTunnelTest > 3 * d.SuccessfulTunnelTest ) ||
@@ -268,10 +260,7 @@ namespace I2PCore
         {
             if ( !p.Any() ) return Enumerable.Empty<I2PIdentHash>();
 
-            var avg = p.Average( d => d.Value.Score );
-            var stddev = p.StdDev( d => d.Value.Score );
-
-            return p.Where( d => NodeInactive( d.Value, avg, stddev ) )
+            return p.Where( d => NodeInactive( d.Value ) )
                 .Select( d => d.Key );
         }
 
@@ -280,16 +269,7 @@ namespace I2PCore
             lock ( Routers )
             {
                 if ( !Routers.Any() ) return Enumerable.Empty<I2PIdentHash>();
-
-                var notff = Routers.Where( d => d.Value.FloodfillUpdateSuccess == 0
-                    && d.Value.FloodfillUpdateTimeout == 0 );
-
-                var ff = Routers.Where( d => d.Value.FloodfillUpdateSuccess != 0
-                    || d.Value.FloodfillUpdateTimeout != 0 );
-
-                return GetInactive( notff )
-                    .Concat( GetInactive( ff ) )
-                    .ToArray();
+                return GetInactive( Routers );
             }
         }
 

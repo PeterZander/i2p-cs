@@ -40,6 +40,8 @@ namespace I2PCore
 
         public float MaxBandwidthSeen;
 
+        public bool IsFirewalled;
+
         public int StoreIx;
         public bool Deleted = false;
         public bool Updated = false;
@@ -50,27 +52,28 @@ namespace I2PCore
             UpdateScore();
         }
 
-        const float MaxScore = 70f;
-        const float MedTargetPeriods = 30f;
+        const float MaxScore = 30f;
+        const float MedTargetPeriods = 3f;
 
         float DiminishingReturns( float val )
         {
-            return (float)( MaxScore - MaxScore / Math.Pow( 2, val / MedTargetPeriods ) );
+            return (float)( MaxScore * Math.Tanh( val / MedTargetPeriods ) );
         }
 
         float CachedScore;
         internal void UpdateScore()
         {
-            var score = SuccessfulConnects * 1.0f - FailedConnects * 5.00f 
-                - SlowHandshakeConnect * 0.5f;
-            score += SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f 
-                - TunnelBuildTimeout * 2.0f
-                + FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f;
-            score += SuccessfulTunnelTest * 0.1f - FailedTunnelTest * 0.03f;
+            var score = DiminishingReturns( SuccessfulConnects * 1.0f - FailedConnects * 5.00f 
+                - SlowHandshakeConnect * 0.5f );
+            score += DiminishingReturns( SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f 
+                - TunnelBuildTimeout * 2.0f )
+                + DiminishingReturns( FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f );
+            score += DiminishingReturns( SuccessfulTunnelTest * 0.1f - FailedTunnelTest * 0.03f )
+                - ( IsFirewalled ? 5f : 0f );
 
             CachedScore = score + MaxBandwidthSeen / 1E5f
-                    - TunnelBuildTimeMsPerHop / 200f
-                    - InformationFaulty * 3f;
+                    - TunnelBuildTimeMsPerHop / 100f
+                    - 3f * DiminishingReturns( InformationFaulty * 10f );
         }
 
         public float Score
@@ -139,6 +142,7 @@ namespace I2PCore
             FloodfillUpdateSuccess = TryGet( mapping, "FloodfillUpdateSuccess" );
             SuccessfulTunnelTest = TryGet( mapping, "SuccessfulTunnelTest" );
             FailedTunnelTest = TryGet( mapping, "FailedTunnelTest" );
+            IsFirewalled = TryGet( mapping, "IsFirewalled" ) != 0;
         }
 
         private I2PMapping CreateMapping()
@@ -158,6 +162,7 @@ namespace I2PCore
             mapping["FloodfillUpdateSuccess"] = FloodfillUpdateSuccess.ToString();
             mapping["SuccessfulTunnelTest"] = SuccessfulTunnelTest.ToString();
             mapping["FailedTunnelTest"] = FailedTunnelTest.ToString();
+            mapping["IsFirewalled"] = IsFirewalled ? "1" : "0";
 
             return mapping;
         }
