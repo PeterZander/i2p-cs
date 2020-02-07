@@ -114,10 +114,10 @@
     <Compile Include="Data\I2PTunnelId.cs" />
     <Compile Include="EndOfStreamEncounteredException.cs" />
     <Compile Include="FailedToConnectException.cs" />
-    <Compile Include="NetDb\DestinationStatistics.cs" />
+    <Compile Include="NetDb\RouterStatistics.cs" />
     <Compile Include="NetDb\FloodfillUpdater.cs" />
     <Compile Include="NetDb\PublishedBandwidth.cs" />
-    <Compile Include="NetDb\SessionStatistics.cs" />
+    <Compile Include="NetDb\RoutersStatistics.cs" />
     <Compile Include="NetDb\NetDb.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Router\Router.cs" />

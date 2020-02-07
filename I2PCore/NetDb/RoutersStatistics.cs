@@ -25,27 +25,27 @@ namespace I2PCore
         void MTUUsed( IPEndPoint ep, MTUConfig mtu );
     }
 
-    public class SessionStatistics: IMTUProvider
+    public class RoutersStatistics: IMTUProvider
     {
-        enum StoreRecordId : int { DestinationStatistics = 1 };
-        Dictionary<I2PIdentHash, DestinationStatistics> Destinations = new Dictionary<I2PIdentHash, DestinationStatistics>();
+        enum StoreRecordId : int { RouterStatistics = 1 };
+        Dictionary<I2PIdentHash, RouterStatistics> Routers = new Dictionary<I2PIdentHash, RouterStatistics>();
 
-        public DestinationStatistics this[ I2PIdentHash ix ]
+        public RouterStatistics this[ I2PIdentHash ix ]
         {
             get
             {
-                lock ( Destinations )
+                lock ( Routers )
                 {
-                    DestinationStatistics stat;
+                    RouterStatistics stat;
 
-                    if ( !Destinations.ContainsKey( ix ) )
+                    if ( !Routers.ContainsKey( ix ) )
                     {
-                        stat = new DestinationStatistics( ix );
-                        Destinations[ix] = stat;
+                        stat = new RouterStatistics( ix );
+                        Routers[ix] = stat;
                     }
                     else
                     {
-                        stat = Destinations[ix];
+                        stat = Routers[ix];
                     }
                     return stat;
                 }
@@ -76,13 +76,13 @@ namespace I2PCore
                     var reader = new BufRefLen( data );
                     switch ( (StoreRecordId)reader.Read32() )
                     {
-                        case StoreRecordId.DestinationStatistics:
+                        case StoreRecordId.RouterStatistics:
                             constrsw.Start();
-                            var one = new DestinationStatistics( reader );
+                            var one = new RouterStatistics( reader );
                             constrsw.Stop();
 
                             dicsw.Start();
-                            Destinations[one.Id] = one;
+                            Routers[one.Id] = one;
                             dicsw.Stop();
 
                             one.StoreIx = ix;
@@ -114,23 +114,23 @@ namespace I2PCore
             var created = 0;
             using ( var s = GetStore() )
             {
-                lock ( Destinations )
+                lock ( Routers )
                 {
-                    if ( !Destinations.Any() ) return;
+                    if ( !Routers.Any() ) return;
 
-                    foreach ( var one in Destinations.ToArray() )
+                    foreach ( var one in Routers.ToArray() )
                     {
                         if ( one.Value.Deleted && one.Value.StoreIx > 0 )
                         {
                             s.Delete( one.Value.StoreIx );
                             one.Value.StoreIx = -1;
 
-                            Destinations.Remove( one.Key );
+                            Routers.Remove( one.Key );
                             ++deleted;
                             continue;
                         }
 
-                        var rec = new BufLen[] { (BufLen)(int)StoreRecordId.DestinationStatistics, new BufLen( one.Value.ToByteArray() ) };
+                        var rec = new BufLen[] { (BufLen)(int)StoreRecordId.RouterStatistics, new BufLen( one.Value.ToByteArray() ) };
 
                         if ( one.Value.StoreIx > 0 )
                         {
@@ -154,7 +154,7 @@ namespace I2PCore
                 $"{updated} updated, {deleted} deleted." );
         }
 
-        public delegate void Accessor( DestinationStatistics ds );
+        public delegate void Accessor( RouterStatistics ds );
 
         public void Update( I2PIdentHash target, Accessor acc, bool success )
         {
@@ -245,14 +245,14 @@ namespace I2PCore
 
         public void UpdateScore()
         {
-            lock ( Destinations )
+            lock ( Routers )
             {
-                foreach ( var one in Destinations.ToArray() ) one.Value.UpdateScore();
+                foreach ( var one in Routers.ToArray() ) one.Value.UpdateScore();
             }
         }
 
         bool NodeInactive( 
-            DestinationStatistics d, 
+            RouterStatistics d, 
             float avg,
             float stddev )
         {
@@ -264,7 +264,7 @@ namespace I2PCore
         }
 
         IEnumerable<I2PIdentHash> GetInactive( 
-            IEnumerable<KeyValuePair<I2PIdentHash,DestinationStatistics>> p ) 
+            IEnumerable<KeyValuePair<I2PIdentHash,RouterStatistics>> p ) 
         {
             if ( !p.Any() ) return Enumerable.Empty<I2PIdentHash>();
 
@@ -277,14 +277,14 @@ namespace I2PCore
 
         internal IEnumerable<I2PIdentHash> GetInactive()
         {
-            lock ( Destinations )
+            lock ( Routers )
             {
-                if ( !Destinations.Any() ) return Enumerable.Empty<I2PIdentHash>();
+                if ( !Routers.Any() ) return Enumerable.Empty<I2PIdentHash>();
 
-                var notff = Destinations.Where( d => d.Value.FloodfillUpdateSuccess == 0
+                var notff = Routers.Where( d => d.Value.FloodfillUpdateSuccess == 0
                     && d.Value.FloodfillUpdateTimeout == 0 );
 
-                var ff = Destinations.Where( d => d.Value.FloodfillUpdateSuccess != 0
+                var ff = Routers.Where( d => d.Value.FloodfillUpdateSuccess != 0
                     || d.Value.FloodfillUpdateTimeout != 0 );
 
                 return GetInactive( notff )
@@ -298,9 +298,9 @@ namespace I2PCore
             const ulong oneweek = 1000 * 60 * 60 * 24 * 7;
             var now = (float)(ulong)I2PDate.Now;
 
-            lock ( Destinations )
+            lock ( Routers )
             {
-                var toremove = Destinations.Where( one =>
+                var toremove = Routers.Where( one =>
                     Math.Abs( now - (float)(ulong)one.Value.Created ) > oneweek )
                     .ToArray();
 
@@ -315,11 +315,11 @@ namespace I2PCore
 
         public void Remove( I2PIdentHash hash )
         {
-            lock ( Destinations )
+            lock ( Routers )
             {
-                if ( Destinations.ContainsKey( hash ) )
+                if ( Routers.ContainsKey( hash ) )
                 {
-                    Destinations[hash].Deleted = true;
+                    Routers[hash].Deleted = true;
                 }
             }
         }

@@ -9,7 +9,7 @@ using I2PCore.Tunnel;
 
 namespace I2PCore
 {
-    public class DestinationStatistics: I2PType
+    public class RouterStatistics: I2PType
     {
         static long DefaultTunnelBuildTimeMsPerHop
         {
@@ -44,7 +44,7 @@ namespace I2PCore
         public bool Deleted = false;
         public bool Updated = false;
 
-        public DestinationStatistics( I2PIdentHash id )
+        public RouterStatistics( I2PIdentHash id )
         {
             Id = id;
             UpdateScore();
@@ -117,7 +117,7 @@ namespace I2PCore
             }
         }
 
-        public DestinationStatistics( BufRef buf )
+        public RouterStatistics( BufRef buf )
         {
             Id = new I2PIdentHash( buf );
             LastSeen = new I2PDate( buf );

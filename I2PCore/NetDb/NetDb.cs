@@ -49,7 +49,7 @@ namespace I2PCore
         protected static Thread Worker;
         public static NetDb Inst { get; protected set; }
 
-        public SessionStatistics Statistics = new SessionStatistics();
+        public RoutersStatistics Statistics = new RoutersStatistics();
 
         RouletteSelection<I2PRouterInfo, I2PIdentHash> Roulette;
         RouletteSelection<I2PRouterInfo, I2PIdentHash> RouletteFloodFill;
