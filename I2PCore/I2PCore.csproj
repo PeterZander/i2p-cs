@@ -243,6 +243,11 @@
     <Compile Include="Utils\Logging\ILogStore.cs" />
     <Compile Include="Transport\SSU\EndpointStatistics.cs" />
     <Compile Include="Transport\SSU\EndpointStatistic.cs" />
+    <Compile Include="Transport\SSU\SSUHost.Sessions.cs" />
+    <Compile Include="Transport\SSU\SSUHost.Sockets.cs" />
+    <Compile Include="Transport\SSU\SSUHost.Utilities.cs" />
+    <Compile Include="Transport\SSU\SSUHost.Introducers.cs" />
+    <Compile Include="Transport\SSU\SSUHost.PeerTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
