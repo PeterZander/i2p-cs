@@ -8,30 +8,40 @@ using I2PCore.Router;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Transport;
 using I2PCore.Data;
+using CM = System.Configuration.ConfigurationManager;
 
 namespace I2PCore.Tunnel
 {
     internal class PassthroughTunnelProvider
     {
         static readonly TickSpan BlockRecentTunnelsWindow = TickSpan.Seconds( Tunnel.TunnelLifetimeSeconds * 3 );
-        const int MaxRunningPassthroughTunnels = 300;
+        int MaxRunningPassthroughTunnels = 300;
 
         TunnelProvider TunnelMgr;
 
         List<Tunnel> RunningTunnels = new List<Tunnel>();
 
         ItemFilterWindow<uint> AcceptedTunnelHashes = new ItemFilterWindow<uint>( BlockRecentTunnelsWindow, 2 );
-        ItemFilterWindow<I2PIdentHash> NextHopFilter = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 5 ), 2 );
+        readonly ItemFilterWindow<I2PIdentHash> NextHopFilter = new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 5 ), 2 );
 
         internal PassthroughTunnelProvider( TunnelProvider tp )
         {
             TunnelMgr = tp;
+            ReadAppConfig();
         }
 
-        PeriodicAction Maintenance = new PeriodicAction( TickSpan.Minutes( 15 ) );
+        readonly PeriodicAction Maintenance = new PeriodicAction( TickSpan.Minutes( 15 ) );
 
         internal void Execute()
         {
+        }
+
+        public void ReadAppConfig()
+        {
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["MaxPassthroughTunnels"] ) )
+            {
+                MaxRunningPassthroughTunnels = int.Parse( CM.AppSettings["MaxPassthroughTunnels"] );
+            }
         }
 
         internal void HandleTunnelBuildRecords(
