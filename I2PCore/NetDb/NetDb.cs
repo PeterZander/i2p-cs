@@ -270,6 +270,10 @@ namespace I2PCore
                 }
             }
 
+#if DEBUG
+            ShowDebugDatabaseInfo();
+#endif
+
             UpdateSelectionProbabilities();
 
             Save( true );
@@ -280,21 +284,88 @@ namespace I2PCore
             }
         }
 
+        private void ShowDebugDatabaseInfo()
+        {
+            lock ( RouterInfos )
+            {
+                Logging.LogDebug( $"NetDb: Router count: {RouterInfos.Count}" );
+
+                var nohost = RouterInfos
+                    .Where( ri => !ri.Value.Key.Adresses.Any( a => 
+                        a.Options.TryGet( "host" ) != null ) );
+                Logging.LogDebug( $"NetDb: No host: {nohost.Count()}" );
+
+                var ipv4 = RouterInfos
+                    .Where( ri => ri.Value.Key.Adresses.Any( a =>
+                        a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
+                Logging.LogDebug( $"NetDb: IPV4: {ipv4.Count()}" );
+
+                var ipv6 = RouterInfos
+                    .Where( ri => ri.Value.Key.Adresses.Any( a =>
+                        a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false ) );
+                Logging.LogDebug( $"NetDb: IPV6: {ipv6.Count()}" );
+
+                var onlyipv4 = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Key.Adresses.Any( a =>
+                            a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false )
+                        && !ri.Value.Key.Adresses.Any( a =>
+                            a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false ) );
+                Logging.LogDebug( $"NetDb: Only IPV4: {onlyipv4.Count()}" );
+
+                var onlyipv6 = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Key.Adresses.Any( a =>
+                            a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false )
+                        && !ri.Value.Key.Adresses.Any( a =>
+                            a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
+                Logging.LogDebug( $"NetDb: Only IPV6: {onlyipv6.Count()}" );
+
+                var ntcp = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
+                Logging.LogDebug( $"NetDb: NTCP: {ntcp.Count()}" );
+
+                var ssu = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
+                Logging.LogDebug( $"NetDb: SSU: {ssu.Count()}" );
+
+                var onlyntcp = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" )
+                            && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
+                Logging.LogDebug( $"NetDb: Only NTCP: {onlyntcp.Count()}" );
+
+                var onlyssu = RouterInfos
+                    .Where( ri => 
+                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" )
+                            && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
+                Logging.LogDebug( $"NetDb: Only SSU: {onlyssu.Count()}" );
+            }
+        }
+
         private void UpdateSelectionProbabilities()
         {
             Statistics.UpdateScore();
 
             lock ( RouterInfos )
             {
-                Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( RouterInfos.Values.Select( p => p.Key ),
+                var havehost = RouterInfos.Values.Where( rp =>
+                    rp.Key.Adresses.Any( a =>
+                        a.Options.Contains( "host" ) ) );
+
+                Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( havehost.Select( p => p.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                    RouterInfos.Where( p => p.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
+                    havehost.Where( p => p.Key.Options["caps"].Contains( 'f' ) )
+                        .Select( rp => rp.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                    RouterInfos.Where( ri => !ri.Value.Key.Options["caps"].Contains( 'f' ) ).Select( ri => ri.Value ).Select( p => p.Key ),
+                    havehost.Where( ri => !ri.Key.Options["caps"].Contains( 'f' ) )
+                        .Select( ri => ri.Key ),
                     ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
                 Logging.LogInformation( "All routers" );
@@ -305,20 +376,25 @@ namespace I2PCore
                 ShowRouletteStatistics( RouletteNonFloodFill );
             }
 
-            /*
+#if SHOW_PROBABILITY_PROFILE
+            ShowProbabilityProfile();
+#endif
+
+            Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
+        }
+
+        private void ShowProbabilityProfile()
+        {
             var l = new List<I2PIdentHash>();
             for ( int i = 0; i < 1000; ++i )
             {
                 l.Add( GetRandomRouter( Roulette, Enumerable.Empty<I2PIdentHash>(), false ) );
             }
             var lines = l.GroupBy( i => i ).OrderByDescending( g => g.Count() );
-            foreach( var one in lines )
+            foreach ( var one in lines )
             {
                 Logging.LogInformation( $"R: {one.Count(),10}: {one.Key}" );
             }
-            */
-
-            Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
         }
 
         private void ShowRouletteStatistics( RouletteSelection<I2PRouterInfo, I2PIdentHash> roulette )
@@ -496,11 +572,9 @@ namespace I2PCore
 
             lock ( RouterInfos )
             {
-                if ( RouterInfos.ContainsKey( info.Identity.IdentHash ) )
+                if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
                 {
-                    var indb = RouterInfos[info.Identity.IdentHash];
-
-                    if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Key.PublishedDate ).TotalSeconds > 10 )
+                    if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Key.PublishedDate ).TotalSeconds > 2 )
                     {
                         if ( !info.VerifySignature() )
                         {
@@ -691,78 +765,63 @@ namespace I2PCore
 
         public IEnumerable<I2PIdentHash> GetRandomFloodfillRouter( bool exploratory, int count )
         {
-            for ( int i = 0; i < count; ++i ) yield return GetRandomFloodfillRouter( exploratory );
+            for ( int i = 0; i < count; ++i )
+            {
+                yield return GetRandomFloodfillRouter( exploratory );
+            }
         }
 
         public IEnumerable<I2PRouterInfo> GetRandomFloodfillRouterInfo( bool exploratory, int count )
         {
-            for ( int i = 0; i < count; ++i ) yield return GetRandomFloodfillRouterInfo( exploratory );
+            for ( int i = 0; i < count; ++i )
+            {
+                yield return GetRandomFloodfillRouterInfo( exploratory );
+            }
         }
 
         public IEnumerable<I2PRouterInfo> GetRandomNonFloodfillRouterInfo( bool exploratory, int count )
         {
-            for ( int i = 0; i < count; ++i ) yield return GetRandomNonFloodfillRouterInfo( exploratory );
-        }
-
-        public IEnumerable<I2PRouterInfo> GetClosestNonFloodfill( I2PIdentHash reference, int count, List<I2PIdentHash> exclude )
-        {
-            lock ( RouletteNonFloodFill.Wheel )
+            for ( int i = 0; i < count; ++i )
             {
-                //var subset = RouletteNonFloodFill.WheelAverageOrBetter;
-                var subset = RouletteFloodFill.Wheel.AsEnumerable();
-                if ( exclude != null && exclude.Any() ) subset = subset.Where( inf => !exclude.Any( excl => excl == inf.Id ) );
-                subset = subset.Where( p => NetDb.Inst.Statistics[p.Id].Score >= RouletteNonFloodFill.AverageFit );
-                lock ( RouterInfos )
-                {
-                    subset = subset.Where( inf => RouterInfos.ContainsKey( inf.Id ) );
-                }
-                subset = subset.OrderBy( p => p.Id ^ reference.RoutingKey );
-                return Find( subset.Take( count ).Select( p => p.Id ) ).ToArray();
+                yield return GetRandomNonFloodfillRouterInfo( exploratory );
             }
         }
 
-        public IEnumerable<I2PIdentHash> GetClosestFloodfill( I2PIdentHash reference, int count, IList<I2PIdentHash> exclude, bool nextset )
+        public IEnumerable<I2PIdentHash> GetClosestFloodfill( 
+                I2PIdentHash reference, 
+                int count, 
+                IList<I2PIdentHash> exclude, 
+                bool nextset )
         {
             lock ( RouletteFloodFill.Wheel )
             {
-                //var subset = RouletteFloodFill.WheelAverageOrBetter;
-                var subset = RouletteFloodFill.Wheel.AsEnumerable();
+                var minfit = RouletteFloodFill.AverageFit -
+                        Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
 
-                if ( exclude != null && exclude.Any() ) subset = subset.Where( inf => !exclude.Any( excl => excl == inf.Id ) );
+                var subset = RouletteFloodFill.Wheel
+                        .Where( inf => inf.Fit > minfit );
 
-                var refkey = nextset ? reference.NextRoutingKey : reference.RoutingKey;
+                subset = ( exclude != null && exclude.Any() )
+                    ? subset.Where( inf => !exclude.Any( excl => excl == inf.Id ) )
+                    : subset;
 
-                /*
-                var subsetlim = count / 4;
-                if ( subsetlim < 250 && subset.Count() > 5 * count )
-                {
-                    if ( nextset )
-                    {
-                        var testsubset = subset.Where( p => ( p.Id[0] ^ refkey[0] ) <= subsetlim );
-                        // Found a smaller subset to sort?
-                        if ( testsubset.Count() >= count ) subset = testsubset;
-                    }
-                    else
-                    {
-                        var testsubset = subset.Where( p => ( p.Id[0] ^ refkey[0] ) <= subsetlim );
-                        // Found a smaller subset to sort?
-                        if ( testsubset.Count() >= count ) subset = testsubset;
-                    }
-                }*/
+                var refkey = nextset 
+                    ? reference.NextRoutingKey 
+                    : reference.RoutingKey;
 
-                if ( nextset )
-                {
-                    subset = subset.OrderBy( p => p.Id ^ refkey );
-                }
-                else
-                {
-                    subset = subset.OrderBy( p => p.Id ^ refkey );
-                }
-                return subset.Take( count ).Select( p => p.Id );
+                return subset
+                    .OrderBy( p => p.Id ^ refkey )
+                    .Take( count )
+                    .Select( p => p.Id )
+                    .ToArray();
             }
         }
 
-        public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo( I2PIdentHash reference, int count, List<I2PIdentHash> exclude, bool nextset )
+        public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo( 
+            I2PIdentHash reference, 
+            int count, 
+            List<I2PIdentHash> exclude, 
+            bool nextset )
         {
             return Find( GetClosestFloodfill( reference, count, exclude, nextset ) );
         }

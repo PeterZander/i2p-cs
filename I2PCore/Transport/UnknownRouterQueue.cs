@@ -22,8 +22,8 @@ namespace I2PCore.Transport
         internal UnknownRouterQueue( UnresolvableRouters unres )
         {
             CurrentlyUnresolvableRouters = unres;
-            NetDb.Inst.IdentHashLookup.LookupFailure += new IdentResolver.IdentResolverResultFail( IdentHashLookup_LookupFailure );
-            NetDb.Inst.IdentHashLookup.RouterInfoReceived += new IdentResolver.IdentResolverResultRouterInfo( IdentHashLookup_RouterInfoReceived );
+            NetDb.Inst.IdentHashLookup.LookupFailure += IdentHashLookup_LookupFailure;
+            NetDb.Inst.IdentHashLookup.RouterInfoReceived += IdentHashLookup_RouterInfoReceived;
         }
 
         void IdentHashLookup_RouterInfoReceived( I2PRouterInfo ri )
@@ -83,7 +83,10 @@ namespace I2PCore.Transport
 
         internal void Add( I2PIdentHash dest, I2NPMessage msg )
         {
-            if ( CurrentlyUnresolvableRouters.Contains( dest ) ) throw new RouterUnresolvableException( "Destination is tagged as unresolvable " + dest.ToString() );
+            if ( CurrentlyUnresolvableRouters.Contains( dest ) )
+            {
+                throw new RouterUnresolvableException( $"Destination is tagged as unresolvable {dest}" );
+            }
 
             var sendlookup = false;
 

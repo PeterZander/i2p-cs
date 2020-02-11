@@ -90,7 +90,7 @@ namespace I2PCore.Tunnel
             {
                 if ( Fake0HopTunnel ) return 100;
 
-                return ( TunnelMemberHops + TunnelMemberHops ) *
+                return OutTunnelHops + TunnelMemberHops *
                     ( Config.Pool == TunnelConfig.TunnelPool.Exploratory
                         ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
                         : MeassuredTunnelBuildTimePerHopSeconds );
@@ -101,8 +101,6 @@ namespace I2PCore.Tunnel
         { 
             get 
             {
-                if ( !Fake0HopTunnel && Config.Pool == TunnelConfig.TunnelPool.Exploratory )
-                    return TunnelLifetimeSeconds / 2;
                 return TunnelLifetimeSeconds; 
             } 
         }

@@ -30,7 +30,7 @@ namespace I2PCore.Transport.SSU
             LocalEP = new IPEndPoint( local, MyRouterContext.UDPPort );
             RemoteEP = LocalEP;
 
-            var newsocket = new Socket( AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp );
+            var newsocket = new Socket( local.AddressFamily, SocketType.Dgram, ProtocolType.Udp );
             newsocket.SetSocketOption( SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 65536 );
             newsocket.SetSocketOption( SocketOptionLevel.Socket, SocketOptionName.SendBuffer, 65536 );
             newsocket.Bind( LocalEP );
@@ -51,7 +51,10 @@ namespace I2PCore.Transport.SSU
                 EndPoint ep = RemoteEP;
                 var size = MySocket.EndReceiveFrom( ar, ref ep );
 
-                if ( ep.AddressFamily != AddressFamily.InterNetwork ) return; // TODO: Add IPV6
+                if ( ep.AddressFamily != AddressFamily.InterNetwork
+                    && ( !Router.RouterContext.Inst.UseIpV6 
+                        || ep.AddressFamily != AddressFamily.InterNetworkV6 ) )
+                            return; // TODO: Add IPV6
 
                 if ( size <= 37 )
                 {
@@ -61,7 +64,7 @@ namespace I2PCore.Transport.SSU
                     return;
                 }
 
-                var key = (IPEndPoint)ep;
+                var sessionendpoint = (IPEndPoint)ep;
 
 #if LOG_ALL_TRANSPORT
                 Logging.LogTransport( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1}", size, ep ) );
@@ -69,26 +72,26 @@ namespace I2PCore.Transport.SSU
 
                 lock ( Sessions )
                 {
-                    if ( !Sessions.ContainsKey( key ) )
+                    if ( !Sessions.ContainsKey( sessionendpoint ) )
                     {
                         if ( IPFilter.IsFiltered( ( (IPEndPoint)ep ).Address ) )
                         {
-                            Logging.LogTransport( $"SSUHost ReceiveCallback: IPAddress {key} is blocked. {size} bytes." );
+                            Logging.LogTransport( $"SSUHost ReceiveCallback: IPAddress {sessionendpoint} is blocked. {size} bytes." );
                             return;
                         }
 
                         ++IncommingConnectionAttempts;
 
                         session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
-                        Sessions[key] = session;
+                        Sessions[sessionendpoint] = session;
                         Logging.LogTransport( $"SSUHost: incoming connection " +
-                            $"{session.DebugId} from {key} created." );
+                            $"{session.DebugId} from {sessionendpoint} created." );
                         NeedCpu( session );
                         ConnectionCreated?.Invoke( session );
                     }
                     else
                     {
-                        session = Sessions[key];
+                        session = Sessions[sessionendpoint];
                     }
                 }
 
@@ -164,7 +167,12 @@ namespace I2PCore.Transport.SSU
 
         internal void Send( IPEndPoint ep, BufLen data )
         {
-            MySocket.BeginSendTo( data.BaseArray, data.BaseArrayOffset, data.Length, SocketFlags.None, ep, new AsyncCallback( SendCallback ), data );
+            MySocket.BeginSendTo( 
+                    data.BaseArray, data.BaseArrayOffset, data.Length, 
+                    SocketFlags.None, ep, 
+                    new AsyncCallback( SendCallback ), 
+                    data );
+
 #if LOG_ALL_TRANSPORT
             Logging.LogTransport( $"SSU Sent: {data.Length} bytes [0x{0:X}] to {ep}" );
 #endif

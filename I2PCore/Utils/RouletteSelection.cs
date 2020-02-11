@@ -22,8 +22,10 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 3.0;
-        private const double MinAbsDevs = 0.4;
+        private const double Elitism = 2.0;
+        private const double MinAbsDevs = 2.0;
+
+        // For 0 offset
         private const double TopQuarterIshFactor = 0.3;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
@@ -73,7 +75,7 @@ namespace I2PCore.Utils
             AbsDevFit = fits.AbsDev();
             StdDevFit = fits.StdDev();
 
-            if ( AbsDevFit > 1.0 )
+            if ( AbsDevFit > 5.0 )
             {
                 var limit = AverageFit - MinAbsDevs * AbsDevFit;
                 Wheel = Wheel.Where( sp => sp.Fit > limit );

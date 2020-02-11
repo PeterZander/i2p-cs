@@ -46,9 +46,11 @@ namespace I2PCore.Transport
 
             SsuHost = new SSUHost( RouterContext.Inst, NetDb.Inst.Statistics );
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "TransportProvider";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "TransportProvider",
+                IsBackground = true
+            };
             Worker.Start();
         }
 
@@ -209,57 +211,18 @@ namespace I2PCore.Transport
 
             try
             {
-                I2PRouterAddress ra_ntcp = null;
-                var ntcpaddr = ri.Adresses.Where( a => ( a.TransportStyle == "NTCP" ) &&
-                            a.Options.Contains( "host" ) &&
-                            a.Options.Contains( "port" ) &&
-                            ( RouterContext.Inst.UseIpV6 || a.Options["host"].Contains( '.' ) ) );
-                var a1 = ntcpaddr.Where( a => GetAddressFamiliy( a, "host" ) == System.Net.Sockets.AddressFamily.InterNetwork );
-                if ( a1.Any() )
-                {
-                    ra_ntcp = a1.Random();
-                }
-                else
-                {
-                    a1 = ntcpaddr.Where( a => Dns.GetHostEntry( a.Options["host"] ).AddressList.
-                        Any( aa => aa.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ) );
-                    if ( a1.Any() )
-                    {
-                        ra_ntcp = a1.Random();
-                    }
-                }
+                var ntcpaddr = ri.Adresses.Where( a => ( a.TransportStyle == "NTCP" ) 
+                            && a.HaveHostAndPort
+                            && ( RouterContext.Inst.UseIpV6 
+                                || a.Options.ValueContains( "host", "." ) ) );
 
-                I2PRouterAddress ra_ssu = null;
-                var ssuaddr = ri.Adresses.Where( a => ( a.TransportStyle == "SSU" ) && a.Options.Contains( "key" ) );
-                a1 = ssuaddr.Where( a => GetAddressFamiliy( a, "host" ) == System.Net.Sockets.AddressFamily.InterNetwork ||
-                    GetAddressFamiliy( a, "ihost0" ) == System.Net.Sockets.AddressFamily.InterNetwork );
-                if ( a1.Any() )
-                {
-                    ra_ssu = a1.Random();
-                }
-                else
-                {
-                    a1 = ntcpaddr.Where( a => Dns.GetHostEntry( a.Options["host"] ).AddressList.
-                        Any( aa => aa.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ) );
-                    if ( a1.Any() )
-                    {
-                        ra_ssu = a1.Random();
-                    }
-                    else
-                    {
-                        a1 = ntcpaddr.Where( a => Dns.GetHostEntry( a.Options["ihost0"] ).AddressList.
-                            Any( aa => aa.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ) );
-                        if ( a1.Any() )
-                        {
-                            ra_ssu = a1.Random();
-                        }
-                    }
-                }
+                var ssuaddr = ri.Adresses.Where( a => ( a.TransportStyle == "SSU" ) 
+                            && a.Options.Contains( "key" ) 
+                            && ( RouterContext.Inst.UseIpV6 
+                                || a.Options.ValueContains( "host", "." )
+                                || a.Options.ValueContains( "ihost0", "." ) ) );
 
-                I2PRouterAddress ra;
-
-                //if ( ra_ntcp != null ) ra = ra_ntcp; else ra = ra_ssu;
-                if ( ra_ssu != null ) ra = ra_ssu; else ra = ra_ntcp;
+                I2PRouterAddress ra = ssuaddr.Random() ?? ntcpaddr.Random();
 
                 if ( ra == null )
                 {

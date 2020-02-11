@@ -32,12 +32,13 @@ namespace I2PCore.Transport.SSU
         {
             get
             {
-                return RouterContext.Inst.IsFirewalled ? 2 * 12 * 60 : 12 * 60;
+                return 12 * 60;
             }
         }
 
         public TickCounter Created = TickCounter.Now;
-        public TickCounter LastAction = TickCounter.Now;
+        public TickCounter LastSend = TickCounter.Now;
+        public TickCounter LastReceive = TickCounter.Now;
         public int Retries = 0;
 
         protected SSUSession Session;
@@ -46,11 +47,12 @@ namespace I2PCore.Transport.SSU
 
         protected bool Timeout( int seconds ) 
         { 
-            return LastAction.DeltaToNowSeconds > seconds 
-                || Created.DeltaToNow.ToMinutes > ( RouterContext.Inst.IsFirewalled ? 40 : 20 );
+            return LastSend.DeltaToNowSeconds > seconds
+                || LastReceive.DeltaToNowSeconds > seconds;
         }
 
-        protected void DataSent() { LastAction.SetNow(); }
+        protected void DataSent() { LastSend.SetNow(); }
+        protected void DataReceived() { LastReceive.SetNow(); }
 
         public abstract SSUState Run();
 
@@ -85,6 +87,8 @@ namespace I2PCore.Transport.SSU
             Cipher.ProcessBytes( recvencr );
 
             header.SkipExtendedHeaders( reader );
+
+            DataReceived();
 
             return HandleMessage( header, reader );
         }

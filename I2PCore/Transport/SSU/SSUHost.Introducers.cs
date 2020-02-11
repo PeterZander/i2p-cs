@@ -52,7 +52,7 @@ namespace I2PCore.Transport.SSU
 
         private IEnumerable<RefPair<SSUSession, EndpointStatistic>> SelectIntroducers()
         {
-#if NO_LOG_ALL_TRANSPORT
+#if LOG_ALL_TRANSPORT
             var stats = EPStatisitcs.ToArray().OrderBy( s => s.Value.Score );
             foreach ( var one in stats )
             {
@@ -88,6 +88,13 @@ namespace I2PCore.Transport.SSU
 
             Logging.LogInformation( $"SSUHost: Selected new introducers {string.Join( ", ", result.Select( p => p.Right ) )}" );
             return result;
+        }
+
+        internal void IntroducerSessionTerminated( SSUSession s )
+        {
+            ConsiderUpdateIntroducers.TimeToAction = new TickSpan( 0 );
+
+            Logging.LogTransport( $"Introducer session terminated {s}" );
         }
     }
 }

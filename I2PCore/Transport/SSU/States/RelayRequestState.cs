@@ -28,12 +28,25 @@ namespace I2PCore.Transport.SSU
         {
             if ( !introducers.Any() )
             {
-                throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers" );
+                if ( Session.RemoteEP != null )
+                {
+                    Logging.LogTransport( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers. Trying direct connect." );
+                    NextState = new SessionRequestState( Session, false );
+                }
+                else
+                {
+                    throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers" );
+                }
             }
 
             Introducers = introducers;
 
-            foreach ( var one in introducers ) Logging.LogInformation( $"RelayRequestState {Session.DebugId} Trying {one.Key.EndPoint}" );
+            foreach ( var one in introducers )
+            {
+                Logging.LogInformation( $"RelayRequestState {Session.DebugId} " +
+                    $"Trying {one.Key.EndPoint} to reach " +
+                    $"{Session.RemoteAddr.Options.TryGet( "host" )?.ToString() ?? Session.RemoteAddr.Options.ToString()}" );
+            }
             Session.Host.RelayResponseReceived += new SSUHost.RelayResponseInfo( Host_RelayResponseReceived );
         }
 
@@ -60,7 +73,7 @@ namespace I2PCore.Transport.SSU
                 if ( ++Retries > RelayRequestStateMaxRetries )
                 {
                     Session.Host.RelayResponseReceived -= Host_RelayResponseReceived;
-                    throw new FailedToConnectException( $"SSU {Session.DebugId} Failed to find a non established introducer" );
+                    throw new FailedToConnectException( $"SSU {Session.DebugId} RelayRequestState, too many retries." );
                 }
 
                 SendRelayRequest();
@@ -142,7 +155,7 @@ namespace I2PCore.Transport.SSU
             Session.RemoteEP = response.CharlieEndpoint;
             Session.Host.RelayResponseReceived -= Host_RelayResponseReceived;
 
-            NextState = new SessionRequestState( Session );
+            NextState = new SessionRequestState( Session, true );
             return NextState;
         }
 

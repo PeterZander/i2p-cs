@@ -38,7 +38,7 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                return RouterContext.Inst.IsFirewalled ? 6 : 4;
+                return RouterContext.Inst.IsFirewalled ? 5 : 3;
             }
         }
 

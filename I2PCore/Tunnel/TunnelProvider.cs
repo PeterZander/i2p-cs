@@ -264,8 +264,9 @@ namespace I2PCore.Tunnel
         {
             lock ( pool )
             {
-                var timeout = pool.Where( t => t.CreationTime.DeltaToNowSeconds > t.TunnelEstablishmentTimeoutSeconds ).
-                    ToArray();
+                var timeout = pool.Where( t => 
+                    t.CreationTime.DeltaToNowSeconds > t.TunnelEstablishmentTimeoutSeconds )
+                        .ToArray();
 
 #if DEBUG
                 var removedtunnels = new List<Tunnel>();
@@ -275,7 +276,10 @@ namespace I2PCore.Tunnel
 #if DEBUG
                     removedtunnels.Add( one );
 #endif
-                    foreach ( var dest in one.TunnelMembers ) NetDb.Inst.Statistics.TunnelBuildTimeout( dest.IdentHash );
+                    foreach ( var dest in one.TunnelMembers )
+                    {
+                        NetDb.Inst.Statistics.TunnelBuildTimeout( dest.IdentHash );
+                    }
 
                     RemoveTunnel( one );
                     one.Shutdown();
@@ -359,7 +363,6 @@ namespace I2PCore.Tunnel
                     var ok = tunnel.Exectue();
                     if ( !ok )
                     {
-                        // Glitch
                         failed.Add( tunnel );
                     }
                     else
@@ -424,7 +427,8 @@ namespace I2PCore.Tunnel
                 var tunnel = new OutboundTunnel( config, replytunnel.Config.Info.Hops.Count );
 
                 var req = tunnel.CreateBuildRequest( replytunnel );
-                Logging.LogDebug( $"TunnelProvider: Outbound tunnel {tunnel.TunnelDebugTrace} " +
+                Logging.LogDebug( $"TunnelProvider: Outbound tunnel {config.Pool} " +
+                    $"({config.Info.Hops.Count}) {tunnel.TunnelDebugTrace} " +
                     $"created to {tunnel.Destination.Id32Short}, build id: {tunnel.TunnelBuildReplyMessageId}." );
 
 #if DEBUG
@@ -443,7 +447,9 @@ namespace I2PCore.Tunnel
 
                 var tunnel = new InboundTunnel( config, outtunnel.Config.Info.Hops.Count );
 
-                Logging.LogDebug( $"TunnelProvider: Inbound tunnel {tunnel.TunnelDebugTrace} created to {tunnel.Destination.Id32Short}." );
+                Logging.LogDebug( $"TunnelProvider: Inbound tunnel {config.Pool} " +
+                    $"({config.Info.Hops.Count}) {tunnel.TunnelDebugTrace} " +
+                    $"created to {tunnel.Destination.Id32Short}." );
 #if DEBUG
                 ReallyOldTunnelBuilds.Set( tunnel.TunnelBuildReplyMessageId,
                     new RefPair<TickCounter, int>( TickCounter.Now, outtunnel.Config.Info.Hops.Count + config.Info.Hops.Count ) );
@@ -576,7 +582,8 @@ namespace I2PCore.Tunnel
             var penalty = 2.0 * Tunnel.MeassuredTunnelBuildTimePerHopSeconds * 1000.0;
 
             var result = t?.MinLatencyMeasured?.ToMilliseconds ?? penalty;
-            if ( t.NeedsRecreation ) result += penalty / 2.0;
+            result += t.CreationTime.DeltaToNowMilliseconds;
+            if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
             if ( !t.Active ) result += penalty;
             if ( t.Expired ) result += penalty;
@@ -593,7 +600,7 @@ namespace I2PCore.Tunnel
                 tunnels = ClientsInbound.ToArray();
             }
 
-            if ( allowexplo || !tunnels.Any())
+            if ( allowexplo || !tunnels.Any() )
             {
                 lock ( ExploratoryInbound )
                 {
@@ -1039,14 +1046,14 @@ namespace I2PCore.Tunnel
 
                     if ( newrec.Reply == BuildResponseRecord.RequestResponse.Accept )
                     {
-                        Logging.LogDebug( $"HandleTunnelBuildRecords: Successful tunnel {tunnel.TunnelDebugTrace} " +
+                        Logging.LogDebug( $"HandleTunnelBuildRecords: {tunnel} {tunnel.TunnelDebugTrace} " +
                             $"member: {hop.Peer.IdentHash.Id32Short}. Hop {i}. Reply: {newrec.Reply}" );
 
                         NetDb.Inst.Statistics.SuccessfulTunnelMember( hop.Peer.IdentHash );
                     }
                     else
                     {
-                        Logging.LogDebug( $"HandleTunnelBuildRecords: Unsuccessful tunnel {tunnel.TunnelDebugTrace} " +
+                        Logging.LogDebug( $"HandleTunnelBuildRecords: {tunnel} {tunnel.TunnelDebugTrace} " +
                             $"member: {hop.Peer.IdentHash.Id32Short}. Hop {i}. Reply: {newrec.Reply}" );
 
                         NetDb.Inst.Statistics.DeclinedTunnelMember( hop.Peer.IdentHash );

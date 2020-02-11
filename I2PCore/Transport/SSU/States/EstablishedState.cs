@@ -17,6 +17,10 @@ namespace I2PCore.Transport.SSU
 {
     public class EstablishedState: SSUState
     {
+        protected readonly TickSpan IntroducerKeepaliveTimeout = TickSpan.Seconds( 1.5 );
+        protected readonly TickSpan NonIntroducerKeepaliveTimeout = TickSpan.Seconds( 3.5 );
+        protected readonly TickSpan NotFirewalledKeepaliveTimeout = TickSpan.Seconds( 15 );
+
         public EstablishedState( SSUSession sess )
             : base( sess )
         {
@@ -84,7 +88,13 @@ namespace I2PCore.Transport.SSU
                 case SSUHeader.MessageTypes.RelayIntro:
                     var intro = new RelayIntro( reader );
                     Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: RelayIntro received from {Session.RemoteEP} for {intro.AliceEndpoint}." );
-                    Session.Host.Send( intro.AliceEndpoint, new BufLen( new byte[0] ) );
+
+                    var data = new BufLen( new byte[12] );
+                    data.Randomize();
+                    Session.Host.Send( intro.AliceEndpoint, data );
+
+                    ++Session.Host.EPStatisitcs[Session.RemoteEP].RelayIntrosReceived;
+                    ++Session.RelayIntroductionsReceived;
                     break;
                 
                 case SSUHeader.MessageTypes.RelayRequest:
@@ -130,14 +140,34 @@ namespace I2PCore.Transport.SSU
                     || Session.SendQueue.Count > 0 
                     || Session.Fragmenter.GotUnsentFragments;
 
-            if ( !dosend 
-                && Session.IsIntroducerConnection 
-                && LastIntroducerKeepalive.DeltaToNow.ToSeconds > 1.5 )
+            TickSpan timeout = null;
+
+            if ( !dosend )
+            {
+                if ( Router.RouterContext.Inst.IsFirewalled )
+                {
+                    if ( Session.IsIntroducerConnection )
+                    {
+                        timeout = IntroducerKeepaliveTimeout;
+                    }
+                    else
+                    {
+                        timeout = NonIntroducerKeepaliveTimeout;
+                    }
+                }
+                else
+                {
+                    timeout = NotFirewalledKeepaliveTimeout;
+                }
+            }
+
+            if ( !dosend && LastIntroducerKeepalive.DeltaToNow > timeout )
             {
                 dosend = true;
 
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: Introducer Keepalive." );
+#if LOG_ALL_TRANSPORT
+                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}:" +
+                    $"{(Session.IsIntroducerConnection ? " Introducer" : "")} keepalive." );
 #endif
                 LastIntroducerKeepalive.SetNow();
             }

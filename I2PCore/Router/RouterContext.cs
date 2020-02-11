@@ -9,13 +9,16 @@ using I2PCore.Utils;
 using I2PCore.Transport.SSU;
 using System.Net.Sockets;
 using I2PCore.Transport.SSU.Data;
+using System.Net.NetworkInformation;
 
 // Todo list for all of I2PCore
+// TODO: Add bootstrapping of NetDb
+// TODO: SSU PeerTest with automatic firewall detection
+// TODO: Add IPV6
 // TODO: Add leases
+// TODO: Change to NUnit
 // TODO: NTCP does not close the old listen socket when settings change.
 // TODO: Replace FailedToConnectException with return value?
-// TODO: Block router delivering A LOT of tunnelbuilds quickly
-// TODO: SSU: Too many MAC check fail in a long session. Am I using the wrong session key from time to time as well?
 // TODO: IP block lists for incomming connections, NTCP
 // TODO: Add transport bandwidth statistics
 // TODO: Add tunnel bandwidth statistics
@@ -23,12 +26,10 @@ using I2PCore.Transport.SSU.Data;
 // TODO: Add the cert / key split support for ECDSA_SHA512_P521
 // TODO: Add DatabaseLookup query support
 // TODO: Add floodfill server support
-// TODO: Add SSU PeerTest initiation
 // TODO: Implement connection limits (external)
 // TODO: Implement bandwidth limits (tunnels)
-// TODO: Refactor NTCP state machine and remove Watchdog
+// TODO: Refactor NTCP using async and await, and remove Watchdog
 // TODO: Add decaying Bloom filters and remove packet duplicates
-// TODO: Add IPV6
 
 // Documentation errors:
 // SSU introduction: RouterIdentity and running session not needed. itag[0-4] missing on https://geti2p.net/en/docs/transport/ssu
@@ -49,32 +50,43 @@ namespace I2PCore.Router
             }
         }
 
+        public static IEnumerable<UnicastIPAddressInformation> GetAllLocalInterfaces(
+            IEnumerable<NetworkInterfaceType> types,
+            IEnumerable<AddressFamily> families )
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                           .Where( x => types.Any( t => t == x.NetworkInterfaceType )
+                                && x.OperationalStatus == OperationalStatus.Up )
+                           .SelectMany( x => x.GetIPProperties().UnicastAddresses )
+                           .Where( x => families.Any( f => f == x.Address.AddressFamily ) )
+                           .ToArray();
+        }
+
+        NetworkInterfaceType[] InterfaceTypes = new NetworkInterfaceType[]
+        {
+            NetworkInterfaceType.Ethernet,
+            NetworkInterfaceType.Wireless80211
+        };
+
         // IP settings
         public IPAddress DefaultExtAddress = null;
         public IPAddress ExtAddress
         {
             get
             {
-                if ( UseIpV6 )
+                if ( UPnpExternalAddressAvailable )
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetworkV6 );
+                    return UPnpExternalAddress;
                 }
-                else
+
+                if ( SSUReportedExternalAddress != null )
                 {
-                    if ( UPnpExternalAddressAvailable )
-                    {
-                        return UPnpExternalAddress;
-                    }
-
-                    if ( SSUReportedExternalAddress != null )
-                    {
-                        return SSUReportedExternalAddress;
-                    }
-
-                    if ( DefaultExtAddress != null ) return DefaultExtAddress;
-
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetwork );
+                    return SSUReportedExternalAddress;
                 }
+
+                if ( DefaultExtAddress != null ) return DefaultExtAddress;
+
+                return Address;
             }
         }
 
@@ -82,14 +94,29 @@ namespace I2PCore.Router
         {
             get
             {
-                if ( UseIpV6 )
+                IEnumerable<UnicastIPAddressInformation> ai;
+
+                if ( false ) // TODO: IPV6
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetworkV6 );
+                    ai = GetAllLocalInterfaces(
+                        InterfaceTypes,
+                        new AddressFamily[]
+                        {
+                            AddressFamily.InterNetwork,
+                            AddressFamily.InterNetworkV6
+                        } );
                 }
                 else
                 {
-                    return Dns.GetHostEntry( Dns.GetHostName() ).AddressList.First( a => a.AddressFamily == AddressFamily.InterNetwork );
+                    ai = GetAllLocalInterfaces(
+                        InterfaceTypes,
+                        new AddressFamily[]
+                        {
+                            AddressFamily.InterNetwork
+                        } );
                 }
+
+                return ai.Random().Address;
             }
         }
 

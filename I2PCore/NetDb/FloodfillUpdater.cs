@@ -69,7 +69,7 @@ namespace I2PCore
 
         void StartNewUpdates()
         {
-            var list = GetNewFFList();
+            var list = GetNewFFList( 4 );
 
             foreach ( var ff in list )
             {
@@ -147,9 +147,7 @@ namespace I2PCore
                 NetDb.Inst.Statistics.FloodfillUpdateTimeout( one.Value.FFRouter );
             }
 
-            // Get a wider selection
-            var list = NetDb.Inst.GetClosestFloodfill( RouterContext.Inst.MyRouterIdentity.IdentHash, 100, null, false );
-            list = list.Shuffle().Take( timeout.Length );
+            var list = GetNewFFList( timeout.Length );
 
             foreach ( var ff in list )
             {
@@ -163,18 +161,57 @@ namespace I2PCore
             }
         }
 
-        private static IEnumerable<I2PIdentHash> GetNewFFList()
+        private static IEnumerable<I2PIdentHash> GetNewFFList( int count )
         {
-            var list = NetDb.Inst.GetClosestFloodfill( RouterContext.Inst.MyRouterIdentity.IdentHash, 20, null, false );
-            if ( list == null || list.Count() == 0 ) list = NetDb.Inst.GetRandomFloodfillRouter( true, 20 );
-            list = list.Shuffle().Take( 4 );
+            var list = NetDb.Inst
+                .GetClosestFloodfill( 
+                    RouterContext.Inst.MyRouterIdentity.IdentHash, 
+                    count * 20, 
+                    null, 
+                    false );
 
             if ( DateTime.UtcNow.Hour >= 23 )
             {
-                var nextlist = NetDb.Inst.GetClosestFloodfill( RouterContext.Inst.MyRouterIdentity.IdentHash, 20, null, true ).Shuffle().Take( 4 );
+                var nextlist = NetDb.Inst
+                    .GetClosestFloodfill(
+                        RouterContext.Inst.MyRouterIdentity.IdentHash,
+                        20,
+                        null,
+                        true );
                 if ( nextlist != null ) list = list.Concat( nextlist );
             }
-            return list;
+
+            if ( !( list?.Any() ?? false ) )
+            {
+                list = NetDb.Inst.GetRandomFloodfillRouter( true, 20 );
+            }
+
+            var p = list.Select( i => 
+                new { 
+                    Id = i, 
+                    NetDb.Inst.Statistics[i].Score 
+                } );
+
+            var scores = p.Select( wr => wr.Score );
+            var pmin = scores.Min();
+            var pabsd = scores.AbsDev();
+
+            var result = new List<I2PIdentHash>();
+
+            while ( result.Count < count )
+            {
+                var r = p.RandomWeighted( wr => 
+                    wr.Score - pmin + pabsd * 0.2, 
+                    false, 
+                    2.0 );
+
+                if ( !result.Contains( r.Id ) )
+                {
+                    result.Add( r.Id );
+                }
+            }
+
+            return result;
         }
     }
 }

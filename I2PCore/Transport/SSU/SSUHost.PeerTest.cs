@@ -50,7 +50,7 @@ namespace I2PCore.Transport.SSU
         {
             lock ( Sessions )
             {
-                if ( Sessions.Count > 0 ) Sessions.Random().SendFirstPeerTestToCharlie( msg );
+                if ( Sessions.Count > 0 ) Sessions.Random().Value.SendFirstPeerTestToCharlie( msg );
             }
         }
     }

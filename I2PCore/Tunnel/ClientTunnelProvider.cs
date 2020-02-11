@@ -108,7 +108,7 @@ namespace I2PCore.Tunnel.I2NP
             return tunnel;
         }
 
-        PeriodicAction TunnelBuild = new PeriodicAction( TickSpan.Seconds( 2 ) );
+        PeriodicAction TunnelBuild = new PeriodicAction( TickSpan.Seconds( 1 ) );
         PeriodicAction DestinationExecute = new PeriodicAction( TickSpan.Seconds( 1 ) );
 
         internal void Execute()

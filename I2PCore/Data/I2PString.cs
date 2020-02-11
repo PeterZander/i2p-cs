@@ -73,22 +73,22 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return Str ?? "I2PString";
+            return Str ?? "[I2PString]";
         }
 
         public static bool operator ==( I2PString stl, string str )
         {
-            return StringComparer.InvariantCulture.Compare( stl.Str, str ) == 0;
+            return StringComparer.InvariantCulture.Compare( stl?.Str, str ) == 0;
         }
 
         public static bool operator !=( I2PString stl, string str )
         {
-            return StringComparer.InvariantCulture.Compare( stl.Str, str ) != 0;
+            return StringComparer.InvariantCulture.Compare( stl?.Str, str ) != 0;
         }
 
         public override bool Equals( object obj )
         {
-            if ( obj is I2PString ) return Str == ( (I2PString)obj ).Str;
+            if ( obj is I2PString ) return Str == ( (I2PString)obj )?.Str;
             if ( obj is string ) return this == (string)obj;
             return false;
         }

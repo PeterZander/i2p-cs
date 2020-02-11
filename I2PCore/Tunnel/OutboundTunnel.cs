@@ -41,7 +41,7 @@ namespace I2PCore.Tunnel
         { 
             get 
             {
-                return ( TunnelMemberHops + ReplyTunnelHops ) * 
+                return ReplyTunnelHops + TunnelMemberHops *
                     ( Config.Pool == TunnelConfig.TunnelPool.Exploratory 
                         ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
                         : MeassuredTunnelBuildTimePerHopSeconds ); 
@@ -52,8 +52,6 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                if ( Config.Pool == TunnelConfig.TunnelPool.Exploratory ) 
-                    return TunnelLifetimeSeconds / 2;
                 return TunnelLifetimeSeconds;
             }
         }
@@ -153,9 +151,9 @@ namespace I2PCore.Tunnel
                 }
 
                 ok &= accept && okhash;
-                Logging.LogDebug( $"{this}: HandleReceivedTunnelBuild reply[{ix}]: " +
+                Logging.LogDebug( $"HandleReceivedTunnelBuild: {this}: [{ix}] " +
                     $"from {hop.Peer.IdentHash.Id32Short}. {TunnelSetup.Hops.Count} hops, " +
-                    $"Tunnel build reply: {onerecord.Reply}" );
+                    $"Reply: {onerecord.Reply}" );
             }
 
             if ( ok )
@@ -174,6 +172,7 @@ namespace I2PCore.Tunnel
                     NetDb.Inst.Statistics.DeclinedTunnelMember( one.Peer.IdentHash );
                     one.ReplyProcessing = null; // We dont need this anymore
                 }
+                Shutdown();
             }
 
             return ok;

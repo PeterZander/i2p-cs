@@ -5,7 +5,7 @@ using System.Text;
 
 namespace I2PCore.Utils
 {
-    public class TickSpan: IEquatable<TickSpan>, IComparable<TickSpan>
+    public class TickSpan : IEquatable<TickSpan>, IComparable<TickSpan>
     {
         public readonly int Ticks;
 
@@ -22,6 +22,7 @@ namespace I2PCore.Utils
 
         public static TickSpan Milliseconds( int ms ) { return new TickSpan( ms ); }
         public static TickSpan Seconds( int s ) { return new TickSpan( s * 1000 ); }
+        public static TickSpan Seconds( double s ) { return new TickSpan( (int)( s * 1000 ) ); }
         public static TickSpan Minutes( int minutes ) { return new TickSpan( minutes * 60 * 1000 ); }
         public static TickSpan Hours( int hours ) { return new TickSpan( hours * 60 * 60 * 1000 ); }
         public static TickSpan Days( int days ) { return new TickSpan( days * 24 * 60 * 60 * 1000 ); }
@@ -167,7 +168,7 @@ namespace I2PCore.Utils
 
         public TickCounter()
         {
-             SetNow();
+            SetNow();
         }
 
         public TickCounter( int value )

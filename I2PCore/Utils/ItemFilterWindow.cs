@@ -58,7 +58,7 @@ namespace I2PCore.Utils
 
                 if ( Memory.TryGetValue( ident, out var list ) )
                 {
-                    return list.Count( t => t.DeltaToNowMilliseconds < MemorySpan.ToMilliseconds ) < Limit;
+                    return list.Count( t => t.DeltaToNow < MemorySpan ) < Limit;
                 }
 
                 return true;
@@ -76,7 +76,7 @@ namespace I2PCore.Utils
 
                 if ( Memory.TryGetValue( ident, out var list ) )
                 {
-                    return list.Count( t => t.DeltaToNowMilliseconds < MemorySpan.ToMilliseconds );
+                    return list.Count( t => t.DeltaToNow < MemorySpan );
                 }
 
                 return 0;
@@ -87,10 +87,11 @@ namespace I2PCore.Utils
         {
             lock ( Memory )
             {
-                if ( Memory.ContainsKey( key ) )
+                if ( Memory.TryGetValue( key, out var v ) )
                 {
-                    var active = Memory[key]
-                        .Where( t => t.DeltaToNowMilliseconds < MemorySpan.ToMilliseconds );
+                    var active = v
+                        .Where( t => t.DeltaToNow < MemorySpan );
+
                     foreach ( var one in active ) action( one );
                 }
             }
@@ -103,9 +104,11 @@ namespace I2PCore.Utils
 
             foreach ( var identpair in Memory.ToArray() )
             {
-                while ( identpair.Value.Count > 0 && identpair.Value.First.Value.DeltaToNowMilliseconds > MemorySpan.ToMilliseconds )
-                    identpair.Value.RemoveFirst();
-                if ( identpair.Value.Count == 0 ) Memory.Remove( identpair.Key );
+                while ( identpair.Value.Any()
+                    && identpair.Value.First.Value.DeltaToNow > MemorySpan )
+                        identpair.Value.RemoveFirst();
+
+                if ( !identpair.Value.Any() ) Memory.Remove( identpair.Key );
             }
         }
 
@@ -114,7 +117,7 @@ namespace I2PCore.Utils
             lock ( Memory )
             {
                 return Memory
-                    .Where( k => k.Value.Count( t => t.DeltaToNowMilliseconds < MemorySpan.ToMilliseconds ) >= Limit )
+                    .Where( k => k.Value.Count( t => t.DeltaToNow < MemorySpan ) >= Limit )
                     .Select( k => k.Key )
                     .ToList<T>()
                     .GetEnumerator();
@@ -126,7 +129,7 @@ namespace I2PCore.Utils
             lock ( Memory )
             {
                 return Memory
-                    .Where( k => k.Value.Count( t => t.DeltaToNowMilliseconds < MemorySpan.ToMilliseconds ) >= Limit )
+                    .Where( k => k.Value.Count( t => t.DeltaToNow < MemorySpan ) >= Limit )
                     .Select( k => k.Key )
                     .ToList<T>()
                     .GetEnumerator();

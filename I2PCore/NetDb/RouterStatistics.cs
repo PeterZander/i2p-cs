@@ -69,7 +69,7 @@ namespace I2PCore
                 - TunnelBuildTimeout * 2.0f )
                 + DiminishingReturns( FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f );
             score += DiminishingReturns( SuccessfulTunnelTest * 0.1f - FailedTunnelTest * 0.03f )
-                - ( IsFirewalled ? 5f : 0f );
+                - ( IsFirewalled ? 30f : 0f );
 
             CachedScore = score + MaxBandwidthSeen / 1E5f
                     - TunnelBuildTimeMsPerHop / 100f

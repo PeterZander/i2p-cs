@@ -306,14 +306,21 @@ namespace I2PCore.Utils
             Rnd.NextBytes( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
         }
 
-        public static V Random<K,V>( this IDictionary<K,V> dic )
+        public static V RandomValue<K,V>( this IDictionary<K,V> dic )
         {
-            return dic[dic.Keys.Skip( BufUtils.RandomInt( dic.Keys.Count - 1 ) ).Take( 1 ).SingleOrDefault()];
+            return dic[dic.Keys.Skip( BufUtils.RandomInt( dic.Keys.Count - 1 ) )
+                        .Take( 1 ).FirstOrDefault()];
+        }
+
+        public static KeyValuePair<K,V> Random<K,V>( this IDictionary<K,V> dic )
+        {
+            return dic.Skip( BufUtils.RandomInt( dic.Keys.Count - 1 ) )
+                        .Take( 1 ).FirstOrDefault();
         }
 
         public static T Random<T>( this IEnumerable<T> src )
         {
-            return src.Skip( RandomInt( src.Count() ) ).Take( 1 ).SingleOrDefault();
+            return src.Skip( RandomInt( src.Count() ) ).Take( 1 ).FirstOrDefault();
         }
 
         // Expects all weights > 0

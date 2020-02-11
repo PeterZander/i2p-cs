@@ -42,6 +42,7 @@ namespace I2PCore.Transport.SSU
         // True if we are firewalled and this is a current connection to
         // a introducer. Try to keep alive.
         internal bool IsIntroducerConnection = false;
+        internal int RelayIntroductionsReceived = 0;
 
         // Network byte order
         internal uint SignOnTimeA;
@@ -144,14 +145,17 @@ namespace I2PCore.Transport.SSU
                 var intros = new Dictionary<IntroducerInfo, SSUSession>();
                 foreach( var i in introducers )
                 {
-                    Host.AccessSession( i.EndPoint, sess => intros[i] = sess );
+                    Host.AccessSession( i.EndPoint, sess =>
+                    {
+                        if ( sess?.IsEstablished ?? false ) intros[i] = sess;
+                    } );
                 }
 
                 CurrentState = new RelayRequestState( this, intros );
             }
             else
             {
-                CurrentState = new SessionRequestState( this );
+                CurrentState = new SessionRequestState( this, false );
             }
 
             Host.NeedCpu( this );
@@ -302,36 +306,78 @@ namespace I2PCore.Transport.SSU
                     data = ReceiveQueue.First.Value;
                     ReceiveQueue.RemoveFirst();
                 }
-                DatagramReceived( data, null );
+                if ( !DatagramReceived( data, null ) ) return false;
             }
 
-            var cs = CurrentState;
-            if ( cs == null )
+            return RunCurrentState( s => s.Run(), 3 );
+        }
+
+        bool RunCurrentState( 
+                    Func<SSUState,SSUState> action,
+                    int maxstatechanges )
+        {
+            SSUState cs;
+
+            do
             {
-                IsTerminated = true;
-                return false;
-            }
+                cs = CurrentState;
+                if ( cs == null ) return false;
 
-            // TODO: Handle exceptions and make sure ConnectionShutDown gets called.
-            CurrentState = cs.Run();
-
-            if ( CurrentState != null && cs != CurrentState )
-            {
-                CurrentState = CurrentState.Run();
-            }
+                try
+                {
+                    CurrentState = action( cs );
+                }
+                catch ( Exception ex )
+                {
+                    Logging.Log( ex );
+                    return SessionTerminated();
+                }
+            } while ( CurrentState != null
+                    && CurrentState != cs
+                    && maxstatechanges-- > 0 );
 
             if ( CurrentState == null )
             {
-                Logging.LogTransport( $"SSUSession {DebugId}: Shuting down. No state." );
-                Host.NoCpu( this );
-                ConnectionShutDown?.Invoke( this );
-                IsTerminated = true;
-                return false;
+                return SessionTerminated();
             }
+
             return true;
         }
 
-        internal void DatagramReceived( BufRefLen recvbuf, IPEndPoint remoteep )
+        private bool SessionTerminated()
+        {
+            IsTerminated = true;
+            CurrentState = null;
+            Host.NoCpu( this );
+
+            Logging.LogTransport( $"SSUSession {DebugId}: Shutting down." );
+            ConnectionShutDown?.Invoke( this );
+
+            if ( RemoteEP != null && IsIntroducerConnection )
+            {
+                if ( RelayIntroductionsReceived == 0 )
+                {
+                    Host.EPStatisitcs[RemoteEP].RelayIntrosReceived -= 5000;
+                }
+
+                Host.IntroducerSessionTerminated( this );
+
+                IsIntroducerConnection = false;
+            }
+
+            return false;
+        }
+
+        internal bool IsEstablished
+        {
+            get
+            {
+                return CurrentState != null
+                    && ( CurrentState is EstablishedState );
+            }
+        }
+
+        internal bool DatagramReceived( BufRefLen recvbuf, IPEndPoint remoteep )
         {
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
@@ -339,8 +385,12 @@ namespace I2PCore.Transport.SSU
             Logging.LogTransport( string.Format( "SSUSession {0}: Received {1} bytes [0x{1:X}].", DebugId, recvbuf.Length ) );
 #endif
 
-            var cs = CurrentState;
-            if ( cs != null ) CurrentState = cs.DatagramReceived( recvbuf, remoteep );
+            if ( !RunCurrentState( s => s.DatagramReceived( recvbuf, remoteep ), 1 ) )
+            {
+                return SessionTerminated();
+            }
+
+            return true;
         }
 
         internal void RaiseException( Exception ex )

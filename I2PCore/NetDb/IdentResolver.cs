@@ -179,16 +179,21 @@ namespace I2PCore
 
         public void Run()
         {
-            CheckForTimouts.Do( () => CheckTimeouts() );
-            ExploreNewRouters.Do( () => ExplorationRouterLookup() );
+            CheckForTimouts.Do( CheckTimeouts );
+            ExploreNewRouters.Do( ExplorationRouterLookup );
         }
 
         private void SendRIDatabaseLookup( I2PIdentHash ident, IdentUpdateRequestInfo info )
         {
-            var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, info.AlreadyQueried, false ).ToArray();
-            if ( ff == null || ff.Length == 0 )
+            var ff = NetDb.Inst.GetClosestFloodfill( 
+                ident, 
+                10, 
+                info.AlreadyQueried, 
+                false );
+
+            if ( ( ff?.Count() ?? 0 ) == 0 )
             {
-                Logging.Log( "IdentResolver: failed to find a floodfill router to lookup (" + ident.ToString() + "): " );
+                Logging.Log( $"IdentResolver: failed to find a floodfill router to lookup ({ident}): " );
                 return;
             }
 
@@ -228,7 +233,11 @@ namespace I2PCore
             if ( replytunnel == null ) return;
              */
 
-            var ff = NetDb.Inst.GetClosestFloodfill( ident, DatabaseLookupSelectFloodfillCount * 2, info.AlreadyQueried, false ).ToArray();
+            var ff = NetDb.Inst.GetClosestFloodfill( 
+                    ident, 
+                    DatabaseLookupSelectFloodfillCount * 2, 
+                    info.AlreadyQueried, 
+                    false );
 
 #if LOG_ALL_IDENT_LOOKUPS
             StringBuilder foundrouters = new StringBuilder();
@@ -247,9 +256,9 @@ namespace I2PCore
             var st2 = foundrouterskeys.ToString();
 #endif
 
-            if ( ff == null || ff.Length == 0 )
+            if ( ( ff?.Count() ?? 0 ) == 0 )
             {
-                Logging.Log( "IdentResolver failed to find a floodfill router to lookup (" + ident.ToString() + "): " );
+                Logging.Log( $"IdentResolver failed to find a floodfill router to lookup ({ident}): " );
                 return;
             }
 
@@ -316,7 +325,10 @@ namespace I2PCore
         {
             I2PIdentHash ident = new I2PIdentHash( true );
 
-            var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null, false ).Shuffle().Take( DatabaseLookupSelectFloodfillCount ).ToArray();
+            var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null, false )
+                    .Shuffle()
+                    .Take( DatabaseLookupSelectFloodfillCount )
+                    .ToArray();
 
             foreach ( var oneff in ff )
             {

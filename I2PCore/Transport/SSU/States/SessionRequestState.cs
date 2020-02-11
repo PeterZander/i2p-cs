@@ -23,8 +23,12 @@ namespace I2PCore.Transport.SSU
 
         internal SessionCreated SCMessage;
 
-        public SessionRequestState( SSUSession sess ): base( sess )
+        protected readonly bool RemoteIsFirewalled;
+
+        public SessionRequestState( SSUSession sess, bool remoteisfirewalled ): base( sess )
         {
+            RemoteIsFirewalled = remoteisfirewalled;
+
             var keys = I2PPrivateKey.GetNewKeyPair();
             PrivateKey = keys.PrivateKey;
             X = keys.PublicKey;
@@ -115,25 +119,30 @@ namespace I2PCore.Transport.SSU
                     Session.RemoteRouter.Certificate.ToString() );
             }
 
-            var relaytag = SCMessage.RelayTag.PeekFlip32( 0 );
-            if ( relaytag != 0 )
+            if ( !RemoteIsFirewalled )
             {
-                Session.RemoteIntroducerInfo = new IntroducerInfo(
-                        Session.RemoteEP.Address,
-                        (ushort)Session.RemoteEP.Port,
-                        Session.IntroKey, relaytag );
+                var relaytag = SCMessage.RelayTag.PeekFlip32( 0 );
+                if ( relaytag != 0 )
+                {
+                    Session.RemoteIntroducerInfo = new IntroducerInfo(
+                            Session.RemoteEP.Address,
+                            (ushort)Session.RemoteEP.Port,
+                            Session.IntroKey, relaytag );
 
-                Session.Host.IntroductionRelayOffered( Session.RemoteIntroducerInfo );
+                    Session.Host.IntroductionRelayOffered( Session.RemoteIntroducerInfo );
+                }
             }
 
-            Logging.LogTransport( $"SSU SessionRequestState: Session {Session.DebugId} created. Moving to SessionConfirmedState." );
+            Logging.LogTransport( $"SSU SessionRequestState: Session {Session.DebugId} " +
+            	$"to {Session.RemoteEP} created. Moving to SessionConfirmedState." );
             Session.ReportConnectionEstablished();
             return new SessionConfirmedState( Session, this );
         }
 
         private void SendSessionRequest()
         {
-            Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId}: Resending SessionRequest message." );
+            Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId}: " +
+                $"sending SessionRequest message to {Session.RemoteEP}." );
 
             SendMessage(
                 SSUHeader.MessageTypes.SessionRequest,

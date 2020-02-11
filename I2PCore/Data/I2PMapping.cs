@@ -45,6 +45,13 @@ namespace I2PCore.Data
             return Mappings.ContainsKey( new I2PString( key ) );
         }
 
+        public bool ValueContains( string key, string value )
+        {
+            var val = TryGet( key );
+            if ( val == null ) return false;
+            return val.ToString().Contains( value );
+        }
+
         public I2PMapping( BufRef buf )
         {
             var bytes = buf.ReadFlip16();

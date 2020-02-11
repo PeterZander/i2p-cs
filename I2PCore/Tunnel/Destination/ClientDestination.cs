@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using I2PCore.Data;
@@ -20,20 +21,19 @@ namespace I2PCore.Tunnel
         public int TargetInboundTunnelCount = 2;
         public int TargetOutboundTunnelCount = 2;
 
-        List<OutboundTunnel> OutboundPending = new List<OutboundTunnel>();
-        List<InboundTunnel> InboundPending = new List<InboundTunnel>();
+        ConcurrentDictionary<OutboundTunnel, byte> OutboundPending = new ConcurrentDictionary<OutboundTunnel, byte>();
+        ConcurrentDictionary<InboundTunnel, byte> InboundPending = new ConcurrentDictionary<InboundTunnel, byte>();
 
-        List<OutboundTunnel> OutboundEstablishedPool = new List<OutboundTunnel>();
-        List<InboundTunnel> InboundEstablishedPool = new List<InboundTunnel>();
+        ConcurrentDictionary<OutboundTunnel, byte> OutboundEstablishedPool = new ConcurrentDictionary<OutboundTunnel, byte>();
+        ConcurrentDictionary<InboundTunnel, byte> InboundEstablishedPool = new ConcurrentDictionary<InboundTunnel, byte>();
 
         internal int InboundTunnelsNeeded 
         { 
             get 
             {
-                lock ( InboundEstablishedPool )
-                {
-                    return TargetInboundTunnelCount - InboundEstablishedPool.Count( t => !t.NeedsRecreation ) - InboundPending.Count;
-                }
+                return TargetInboundTunnelCount 
+                    - InboundEstablishedPool.Count( t => !t.Key.NeedsRecreation ) 
+                    - InboundPending.Count;
             }
         }
 
@@ -41,10 +41,9 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                lock ( OutboundEstablishedPool )
-                {
-                    return TargetOutboundTunnelCount - OutboundEstablishedPool.Count( t => !t.NeedsRecreation ) - OutboundPending.Count;
-                }
+                return TargetOutboundTunnelCount 
+                    - OutboundEstablishedPool.Count( t => !t.Key.NeedsRecreation ) 
+                    - OutboundPending.Count;
             }
         }
 
@@ -52,17 +51,8 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                lock ( InboundEstablishedPool )
-                {
-                    if ( InboundEstablishedPool.Count < TargetInboundTunnelCount ) return false;
-                }
-
-                lock ( OutboundEstablishedPool )
-                {
-                    if ( OutboundEstablishedPool.Count < TargetOutboundTunnelCount ) return false;
-                }
-                
-                return true;
+                return InboundEstablishedPool.Count >= TargetInboundTunnelCount
+                    && OutboundEstablishedPool.Count >= TargetOutboundTunnelCount;
             }
         }
 
@@ -104,13 +94,15 @@ namespace I2PCore.Tunnel
                 Logging.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
                     inf.TrackingId, inf.KeyType, inf.AckMessageId, header ) );
 
+                if ( OutboundEstablishedPool.Count == 0 ) throw new FailedToConnectException( "No outbound tunnels available" );
+                if ( ls == null || ls.Leases.Count == 0 ) throw new FailedToConnectException( "No leases is available" );
+
                 var outtunnel = OutboundEstablishedPool.Random();
-                if ( outtunnel == null || ls == null || ls.Leases.Count == 0 ) throw new FailedToConnectException( "No tunnels available" );
                 var lease = ls.Leases.Random();
 
-                outtunnel.Send(
+                outtunnel.Key.Send(
                     new TunnelMessageTunnel( header, lease.TunnelGw, lease.TunnelId ) );
-            }, () => InboundEstablishedPool.Random() );
+            }, () => InboundEstablishedPool.Random().Key );
 
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += new IdentResolver.IdentResolverResultLeaseSet( IdentHashLookup_LeaseSetReceived );
             NetDb.Inst.IdentHashLookup.LookupFailure += new IdentResolver.IdentResolverResultFail( IdentHashLookup_LookupFailure );
@@ -222,27 +214,25 @@ namespace I2PCore.Tunnel
                 Logging.LogDebug( string.Format( "ClientDestination: Execute: Sending data. TrackingId: {0} ({1}) ack {2}, msg {3}.",
                     inf.TrackingId, inf.KeyType, inf.AckMessageId, header ) );
 
-                var outtunnel = OutboundEstablishedPool.Random();
+                var outtunnel = OutboundEstablishedPool.Random().Key;
                 outtunnel.Send(
-                    new TunnelMessageTunnel( header, TestRemoteDest.InboundEstablishedPool.Random() ) );
+                    new TunnelMessageTunnel( header, TestRemoteDest.InboundEstablishedPool.Random().Key ) );
             },
-            () => InboundEstablishedPool.Random() );
+            () => InboundEstablishedPool.Random().Key );
         }
 
         internal void TunnelEstablished( Tunnel tunnel )
         {
             RemovePendingTunnel( tunnel );
 
-            if ( tunnel is OutboundTunnel )
+            if ( tunnel is OutboundTunnel ot )
             {
-                lock ( OutboundEstablishedPool ) OutboundEstablishedPool.Add( (OutboundTunnel)tunnel );
+                OutboundEstablishedPool[ot] = 0;
             }
 
-            if ( tunnel is InboundTunnel )
+            if ( tunnel is InboundTunnel it )
             {
-                var it = (InboundTunnel)tunnel;
-
-                lock ( InboundEstablishedPool ) InboundEstablishedPool.Add( it );
+                InboundEstablishedPool[it] = 0;
                 it.GarlicMessageReceived += new Action<I2PCore.Tunnel.I2NP.Messages.GarlicMessage>( InboundTunnel_GarlicMessageReceived );
                 AddTunnelToLeaseSet( it );
             }
@@ -356,12 +346,12 @@ namespace I2PCore.Tunnel
 
         internal void AddOutboundPending( OutboundTunnel tunnel )
         {
-            lock ( OutboundPending ) OutboundPending.Add( tunnel );
+            OutboundPending[tunnel] = 0;
         }
 
         internal void AddInboundPending( InboundTunnel tunnel )
         {
-            lock ( InboundPending ) InboundPending.Add( tunnel );
+            InboundPending[tunnel] = 0;
         }
 
         internal void RemoveTunnel( Tunnel tunnel )
@@ -372,59 +362,27 @@ namespace I2PCore.Tunnel
 
         void RemovePendingTunnel( Tunnel tunnel )
         {
-            if ( tunnel is OutboundTunnel )
+            if ( tunnel is OutboundTunnel ot )
             {
-                lock ( OutboundPending )
-                {
-                    var match = OutboundPending.IndexOf( (OutboundTunnel)tunnel );
-                    if ( match != -1 )
-                    {
-                        OutboundPending.RemoveAt( match );
-                    }
-                }
+                OutboundPending.TryRemove( ot, out _ );
             }
 
-            if ( tunnel is InboundTunnel )
+            if ( tunnel is InboundTunnel it )
             {
-                lock ( InboundPending )
-                {
-                    var match = InboundPending.IndexOf( (InboundTunnel)tunnel );
-                    if ( match != -1 )
-                    {
-                        InboundPending.RemoveAt( match );
-                    }
-                }
+                InboundPending.TryRemove( it, out _ );
             }
         }
 
         void RemovePoolTunnel( Tunnel tunnel )
         {
-            if ( tunnel is OutboundTunnel )
+            if ( tunnel is OutboundTunnel ot )
             {
-                lock ( OutboundEstablishedPool )
-                {
-                again:
-                    var match = OutboundEstablishedPool.IndexOf( (OutboundTunnel)tunnel );
-                    if ( match != -1 )
-                    {
-                        OutboundEstablishedPool.RemoveAt( match );
-                        goto again;
-                    }
-                }
+                OutboundEstablishedPool.TryRemove( ot, out _ );
             }
 
-            if ( tunnel is InboundTunnel )
+            if ( tunnel is InboundTunnel it )
             {
-                lock ( InboundEstablishedPool )
-                {
-                again:
-                    var match = InboundEstablishedPool.IndexOf( (InboundTunnel)tunnel );
-                    if ( match != -1 )
-                    {
-                        InboundEstablishedPool.RemoveAt( match );
-                        goto again;
-                    }
-                }
+                InboundEstablishedPool.TryRemove( it, out _ );
                 RemoveTunnelFromLeaseSet( (InboundTunnel)tunnel );
             }
         }
@@ -438,9 +396,7 @@ namespace I2PCore.Tunnel
         {
             lock ( UnresolvedDestinations )
             {
-                DestinationLookupResult cb;
-
-                if ( UnresolvedDestinations.TryGetValue( key, out cb ) )
+                if ( UnresolvedDestinations.TryGetValue( key, out var cb ) )
                 {
                     cb( key, null );
                     UnresolvedDestinations.Remove( key );
@@ -454,9 +410,7 @@ namespace I2PCore.Tunnel
 
             lock ( UnresolvedDestinations )
             {
-                DestinationLookupResult cb;
-
-                if ( UnresolvedDestinations.TryGetValue( key, out cb ) )
+                if ( UnresolvedDestinations.TryGetValue( key, out var cb ) )
                 {
                     cb( key, ls );
                     UnresolvedDestinations.Remove( key );
