@@ -50,7 +50,7 @@ namespace I2PCore.Transport.SSU
             Session.Host.RelayResponseReceived += new SSUHost.RelayResponseInfo( Host_RelayResponseReceived );
         }
 
-        PeriodicAction ResendRelayRequestAction = new PeriodicAction( TickSpan.Seconds( HandshakeStateTimeoutSeconds / 5 ), false );
+        PeriodicAction ResendRelayRequestAction = new PeriodicAction( HandshakeStateTimeout / 2, false );
 
         SSUState NextState = null;
 
@@ -62,7 +62,8 @@ namespace I2PCore.Transport.SSU
                 return NextState;
             }
 
-            if ( Timeout( HandshakeStateTimeoutSeconds ) )
+            // Extra time because of introduction negotiation delay
+            if ( Timeout( HandshakeStateTimeout * 2 ) )
             {
                 Session.Host.RelayResponseReceived -= Host_RelayResponseReceived; 
                 throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} Failed to connect. Timeout." );
@@ -89,7 +90,7 @@ namespace I2PCore.Transport.SSU
                 var introducer = one.Key;
                 var isession = one.Value;
 
-                Logging.LogTransport( $"SSU RelayRequestState: {Session.DebugId} Sending RelayRequest to {introducer.EndPoint}" );
+                Logging.LogTransport( $"SSU {this}: Sending RelayRequest to {introducer.EndPoint}" );
 
                 SendMessage(
                     isession.RemoteEP,
@@ -161,10 +162,6 @@ namespace I2PCore.Transport.SSU
 
         public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
         {
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( $"SSU RelayRequestState: {Session.DebugId} Received {header.MessageType}" );
-#endif
-
             if ( header.MessageType == SSUHeader.MessageTypes.RelayResponse )
             {
                 var response = new RelayResponse( reader );

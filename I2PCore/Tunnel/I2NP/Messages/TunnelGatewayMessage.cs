@@ -26,7 +26,7 @@ namespace I2PCore.Tunnel.I2NP.Messages
 
             TunnelId = outtunnel;
             GatewayMessageLength = (ushort)msg.Length;
-            // TODO: Removey mem copy
+            // TODO: Remove mem copy
             Payload.Poke( msg, 6 );
         }
 

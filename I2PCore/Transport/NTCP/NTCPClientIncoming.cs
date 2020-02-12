@@ -8,7 +8,7 @@ namespace I2PCore.Transport.NTCP
     {
         public override IPAddress RemoteAddress { get { return ( (IPEndPoint)MySocket.RemoteEndPoint ).Address; } }
 
-        public NTCPClientIncoming( Socket s ) : base() 
+        public NTCPClientIncoming( Socket s ) : base( false ) 
         {
             MySocket = s;
         }
@@ -25,7 +25,7 @@ namespace I2PCore.Transport.NTCP
 
         protected override void DHNegotiate()
         {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "X1X +" + TransportInstance.ToString() + "+" );
 #endif
 
@@ -33,20 +33,20 @@ namespace I2PCore.Transport.NTCP
             dhcontext.RunContext = NTCPContext;
 
             SessionRequest.Receive( dhcontext, BlockReceive( 288 ) );
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "X2X +" + TransportInstance.ToString() + "+" );
 #endif
 
             SendRaw( SessionCreated.Send( dhcontext ) );
 
             SessionConfirmA.Receive( dhcontext, BlockReceiveAtLeast( 448, 2048 ) );
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "X3X +" + TransportInstance.ToString() + "+" );
 #endif
 
             SendRaw( SessionConfirmB.Send( dhcontext ) );
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "X4X +" + TransportInstance.ToString() + "+" );
 #endif
             NetDb.Inst.Statistics.SuccessfulConnect( NTCPContext.RemoteRouterIdentity.IdentHash );

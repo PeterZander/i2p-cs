@@ -73,14 +73,14 @@ namespace I2PCore.Utils
 
         bool IEquatable<TickSpan>.Equals( TickSpan other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             if ( Object.ReferenceEquals( this, other ) ) return true;
             return Ticks == other.Ticks;
         }
 
         public override bool Equals( object obj )
         {
-            if ( Object.ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             if ( Object.ReferenceEquals( this, obj ) ) return true;
             var other = obj as TickSpan;
             if ( other == null ) return false;
@@ -94,16 +94,16 @@ namespace I2PCore.Utils
 
         public static bool operator ==( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) && Object.ReferenceEquals( right, null ) ) return true;
-            if ( Object.ReferenceEquals( left, null ) || Object.ReferenceEquals( right, null ) ) return false;
+            if ( left is null && right is null ) return true;
+            if ( left is null || right is null ) return false;
             if ( Object.ReferenceEquals( left, right ) ) return true;
             return left.Ticks == right.Ticks;
         }
 
         public static bool operator !=( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) && Object.ReferenceEquals( right, null ) ) return false;
-            if ( Object.ReferenceEquals( left, null ) || Object.ReferenceEquals( right, null ) ) return true;
+            if ( left is null && right is null ) return false;
+            if ( left is null || right is null ) return true;
             if ( Object.ReferenceEquals( left, right ) ) return false;
             return left.Ticks != right.Ticks;
         }
@@ -114,49 +114,49 @@ namespace I2PCore.Utils
 
         int IComparable<TickSpan>.CompareTo( TickSpan other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return 1;
+            if ( other is null ) return 1;
             if ( Object.ReferenceEquals( this, other ) ) return 0;
             return Ticks.CompareTo( other.Ticks );
         }
 
         public static bool operator >( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) && !Object.ReferenceEquals( right, null ) ) return false;
-            if ( !Object.ReferenceEquals( left, null ) && Object.ReferenceEquals( right, null ) ) return true;
+            if ( left is null && !( right is null ) ) return false;
+            if ( !( left is null ) && right is null ) return true;
             if ( Object.ReferenceEquals( left, right ) ) return false;
             return left.Ticks > right.Ticks;
         }
 
         public static bool operator <( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) && !Object.ReferenceEquals( right, null ) ) return true;
-            if ( !Object.ReferenceEquals( left, null ) && Object.ReferenceEquals( right, null ) ) return false;
+            if ( left is null && !( right is null ) ) return true;
+            if ( !( left is null ) && right is null ) return false;
             if ( Object.ReferenceEquals( left, right ) ) return false;
             return left.Ticks < right.Ticks;
         }
 
         public static TickSpan operator +( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) || Object.ReferenceEquals( right, null ) ) return null;
+            if ( left is null || right is null ) return null;
             return new TickSpan( left.Ticks + right.Ticks );
         }
 
         public static TickSpan operator -( TickSpan left, TickSpan right )
         {
-            if ( Object.ReferenceEquals( left, null ) || Object.ReferenceEquals( right, null ) ) return null;
+            if ( left is null || right is null ) return null;
             return new TickSpan( left.Ticks - right.Ticks );
         }
 
         public static TickSpan operator *( TickSpan left, int multi )
         {
-            if ( Object.ReferenceEquals( left, null ) ) return null;
+            if ( left is null ) return null;
             return new TickSpan( left.Ticks * multi );
         }
 
-        public static TickSpan operator /( TickSpan left, int multi )
+        public static TickSpan operator /( TickSpan left, int divi )
         {
-            if ( Object.ReferenceEquals( left, null ) ) return null;
-            return new TickSpan( left.Ticks / multi );
+            if ( left is null ) return null;
+            return new TickSpan( left.Ticks / divi );
         }
         #endregion
     }
@@ -271,7 +271,7 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            return "TickCounter: delta " + TickSpan.DebugText( DeltaToNow );
+            return $"delta {TickSpan.DebugText( DeltaToNow )}";
         }
     }
 }

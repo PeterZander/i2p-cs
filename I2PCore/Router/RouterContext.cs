@@ -343,7 +343,7 @@ namespace I2PCore.Router
                     var result = new I2PRouterInfo(
                         MyRouterIdentity,
                         new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ),
-                        IsFirewalled 
+                        IsFirewalled
                             ? new I2PRouterAddress[] { ssu }
                             : new I2PRouterAddress[] { ntcp, ssu },
                         caps,

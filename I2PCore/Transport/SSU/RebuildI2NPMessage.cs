@@ -32,8 +32,8 @@ namespace I2PCore.Transport.SSU
                 if ( Fragments.Count <= frag.FragmentNumber ) Fragments.AddRange( new DataFragment[frag.FragmentNumber - Fragments.Count + 1] );
                 Fragments[frag.FragmentNumber] = frag;
 
-#if LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU received fragment " + frag.FragmentNumber.ToString() + " of message " + frag.MessageId.ToString() +
+#if LOG_MUCH_TRANSPORT
+                Logging.LogDebugData( "SSU received fragment " + frag.FragmentNumber.ToString() + " of message " + frag.MessageId.ToString() +
                     ". IsLast: " + frag.IsLast.ToString() );
 #endif
 
@@ -89,7 +89,7 @@ namespace I2PCore.Transport.SSU
             return result;
         }
 
-#if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
+#if LOG_MUCH_TRANSPORT
         internal string CurrentlyACKedBitmapDebug()
         {
             StringBuilder bits = new StringBuilder();

@@ -26,9 +26,9 @@ namespace I2PCore.Transport.NTCP
                 RouterContext.Inst.MyRouterIdentity.IdentHash.Hash,
                 BufUtils.Flip32BL( context.TimestampA ),
                 BufUtils.Flip32BL( context.TimestampB ) );
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SessionConfirmB: " + context.RemoteRI.Certificate.SignatureType.ToString() + " signature check: " + ok.ToString() );
-#endif
+
+            Logging.LogTransport( $"SessionConfirmB: {context.RemoteRI.Certificate.SignatureType} signature check: {ok}" );
+
             if ( !ok ) throw new SignatureCheckFailureException( "NTCP SessionConfirmB recv sig check failure" );
         }
 

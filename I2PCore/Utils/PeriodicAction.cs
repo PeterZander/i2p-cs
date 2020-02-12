@@ -10,6 +10,7 @@ namespace I2PCore.Utils
         public delegate void PerformAction();
 
         TickSpan mFrequency;
+        TickSpan mOriginalFrequency = null;
 
         public TickSpan Frequency 
         { 
@@ -29,7 +30,13 @@ namespace I2PCore.Utils
             get => ( LastAction + mFrequency ).DeltaToNow;
             set
             {
-                LastAction = TickCounter.Now - mFrequency + value;
+                if ( mOriginalFrequency is null )
+                {
+                    mOriginalFrequency = mFrequency;
+                }
+
+                LastAction = TickCounter.Now;
+                mFrequency = value;
             }
         }
 
@@ -39,12 +46,12 @@ namespace I2PCore.Utils
         {
             mFrequency = freq;
             Autotrigger = hastimedout;
-            LastAction = new TickCounter();
+            LastAction = TickCounter.Now;
         }
 
         public void Reset()
         {
-            LastAction = new TickCounter();
+            LastAction = TickCounter.Now;
         }
 
         public void Start()
@@ -67,8 +74,14 @@ namespace I2PCore.Utils
             if ( Autotrigger || LastAction.DeltaToNow > mFrequency )
             {
                 LastAction.SetNow();
-                action();
                 Autotrigger = false;
+                if ( mOriginalFrequency != null )
+                {
+                    mFrequency = mOriginalFrequency;
+                    mOriginalFrequency = null;
+                }
+
+                action();
             }
         }
     }

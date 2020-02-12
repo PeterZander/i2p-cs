@@ -32,9 +32,7 @@ namespace I2PCore.Transport.SSU
 
                 key = remoteep;
 
-#if LOG_ALL_TRANSPORT
-                Logging.LogTransport( string.Format( "SSU AddSession: [{0}]:{1} - {2}", dest.IdentHash.Id32, key, addr ) );
-#endif
+                Logging.LogDebugData( $"SSU AddSession: [{dest.IdentHash.Id32}]:{key} - {addr}" );
 
                 lock ( Sessions )
                 {
@@ -174,7 +172,7 @@ namespace I2PCore.Transport.SSU
                                 SSUSession sess;
                                 while ( ( sess = PopFailedSession() ) != null )
                                 {
-                                    Logging.LogTransport( "SSUHost: Failed Session " + sess.DebugId + " removed." );
+                                    Logging.LogTransport( $"SSUHost: Failed Session {sess.DebugId} removed." );
 
                                     if ( sess.RemoteEP != null ) ReportEPProblem( sess.RemoteEP );
                                     RemoveSession( sess );

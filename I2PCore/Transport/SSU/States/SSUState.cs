@@ -1,20 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Utils;
+﻿using I2PCore.Utils;
 using System.Net;
 using I2PCore.Data;
-using I2PCore.Router;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 
 namespace I2PCore.Transport.SSU
 {
     public abstract class SSUState
     {
-        public const int HandshakeStateTimeoutSeconds = 10;
+        public static readonly TickSpan HandshakeStateTimeout = TickSpan.Milliseconds( 2000 );
         public const int HandshakeStateMaxRetries = 3;
 
         // UDPTransport.java
@@ -28,11 +22,11 @@ namespace I2PCore.Transport.SSU
 
         // From PurpleI2P SSUSession.h SSU_TERMINATION_TIMEOUT
         //public const int InactivityTimeoutSeconds = 330;  
-        public static int InactivityTimeoutSeconds
+        public static TickSpan InactivityTimeout
         {
             get
             {
-                return 12 * 60;
+                return TickSpan.Seconds( 12 * 60 );
             }
         }
 
@@ -45,14 +39,14 @@ namespace I2PCore.Transport.SSU
 
         protected SSUState( SSUSession sess ) { Session = sess; }
 
-        protected bool Timeout( int seconds ) 
+        protected bool Timeout( TickSpan timeout ) 
         { 
-            return LastSend.DeltaToNowSeconds > seconds
-                || LastReceive.DeltaToNowSeconds > seconds;
+            return LastSend.DeltaToNow > timeout
+                || LastReceive.DeltaToNow > timeout;
         }
 
-        protected void DataSent() { LastSend.SetNow(); }
-        protected void DataReceived() { LastReceive.SetNow(); }
+        private void DataSent() { LastSend.SetNow(); }
+        private void DataReceived() { LastReceive.SetNow(); }
 
         public abstract SSUState Run();
 
@@ -60,7 +54,7 @@ namespace I2PCore.Transport.SSU
         protected abstract BufLen CurrentMACKey { get; }
         protected abstract BufLen CurrentPayloadKey { get; }
 
-        protected enum MACHealth { Match, Missmatch, UseOurIntroKey, AbandonSession }
+        protected enum MACHealth { Match, Missmatch, AbandonSession }
 
         public virtual SSUState DatagramReceived( BufRefLen recv, IPEndPoint RemoteEP )
         {
@@ -71,34 +65,66 @@ namespace I2PCore.Transport.SSU
 
             var macstate = VerifyMAC( header, CurrentMACKey );
 
-            var usekey = CurrentPayloadKey;
-
             switch ( macstate )
             {
-                case MACHealth.AbandonSession: return null;
-                case MACHealth.Missmatch: return this;
-                case MACHealth.UseOurIntroKey:
-                    usekey = Session.MyRouterContext.IntroKey;
-                    break;
+                case MACHealth.AbandonSession:
+                    Logging.LogTransport( $"SSU {this}: Abandoning session. MAC check failed." );
+
+                    SendSessionDestroyed();
+                    Session.Host.ReportEPProblem( RemoteEP );
+                    return null;
+
+                case MACHealth.Missmatch: 
+                    return this;
             }
 
             // Decrypt
-            Cipher.Init( false, usekey.ToParametersWithIV( header.IV ) );
+            Cipher.Init( false, CurrentPayloadKey.ToParametersWithIV( header.IV ) );
             Cipher.ProcessBytes( recvencr );
 
             header.SkipExtendedHeaders( reader );
+
+            if ( header.MessageType == SSUHeader.MessageTypes.SessionDestroyed
+                && CurrentPayloadKey != Session.RemoteIntroKey
+                && CurrentPayloadKey != Session.MyRouterContext.IntroKey )
+            {
+                Logging.LogTransport( $"SSU {this}: Received SessionDestroyed." );
+                SendSessionDestroyed();
+                return null;
+            }
+
+            Logging.LogDebugData( $"SSU {this}: Received message: {header.MessageType}" +
+                $": {SSUHost.SSUDateTime( header.TimeStamp )}" );
 
             DataReceived();
 
             return HandleMessage( header, reader );
         }
 
+        protected void SendSessionDestroyed( 
+            BufLen mackey = null,
+            BufLen cryptokey = null )
+        {
+            if ( mackey is null ) mackey = CurrentMACKey;
+            if ( cryptokey is null ) cryptokey = CurrentPayloadKey;
+
+            Logging.LogTransport( $"SSU {this}: Sending SessionDestroyed." );
+
+            SendMessage(
+                SSUHeader.MessageTypes.SessionDestroyed,
+                mackey,
+                cryptokey,
+                ( start, writer ) => true );
+
+            Session.Host.EPStatisitcs.UpdateSessionLength( Session.RemoteEP, Session.StartTime.DeltaToNow );
+        }
+
         // MAC verified and packet dectrypted
         public abstract SSUState HandleMessage( SSUHeader header, BufRefLen reader );
 
-        int IntroMACsReceived = 0;
-
         readonly BufLen MACBuf = new BufLen( new byte[16] );
+
+        private int ConsecutiveMACCheckFailures = 0;
 
         protected MACHealth VerifyMAC( SSUHeader header, BufLen key )
         {
@@ -106,50 +132,65 @@ namespace I2PCore.Transport.SSU
                     header.MACDataBuf, 
                     header.IV, 
                     BufUtils.Flip16BL( (ushort)( (ushort)header.MACDataBuf.Length ^ I2PConstants.SSU_PROTOCOL_VERSION ) ) };
+
             var recvhash = I2PHMACMD5Digest.Generate( macdata, key, MACBuf );
             var ok = header.MAC.Equals( recvhash );
-            if ( ok )
+            var result = ok ? MACHealth.Match : MACHealth.Missmatch;
+
+            if ( !ok )
             {
-                IntroMACsReceived = 0;
+                if ( ++ConsecutiveMACCheckFailures > 3 )
+                {
+                    result = MACHealth.AbandonSession;
+                }
             }
             else
             {
-                Logging.LogTransport( string.Format( "SSU {0}: {1} Current MAC check fail. Payload {2} bytes. ",
-                    this, Session.DebugId, header.MACDataBuf.Length ) );
-
-                if ( (int)Logging.LogLevel <= (int)Logging.LogLevels.Transport )
-                {
-                    if ( Session.IntroKey != null )
-                    {
-                        var recvhashi = I2PHMACMD5Digest.Generate( macdata, new BufLen( Session.IntroKey ), MACBuf );
-                        var oki = header.MAC.Equals( recvhashi );
-                        Logging.LogTransport( "SSU " + this.ToString() + ": " + Session.DebugId + ". " +
-                            "Session Intro key match: " + oki.ToString() );
-                    }
-                }
-
-                var recvhash2 = I2PHMACMD5Digest.Generate( macdata, new BufLen( Session.MyRouterContext.IntroKey ), MACBuf );
-                var ok2 = header.MAC.Equals( recvhash2 );
-                Logging.LogTransport( string.Format( "SSU {0}: {1} My intro MAC key match: {3}. Payload {2} bytes. ",
-                    this, Session.DebugId, header.MACDataBuf.Length, ok2 ) );
-
-                if ( ok2 )
-                {
-                    if ( ++IntroMACsReceived > 5 )
-                    {
-                        var reason = string.Format( "SSU {0}: {1}. {2} intro key matches in a row. The other side seems to have started a new session.",
-                            this, Session.DebugId, IntroMACsReceived );
-
-                        Logging.LogTransport( reason );
-                        return MACHealth.AbandonSession;
-                    }
-
-                    return MACHealth.UseOurIntroKey;
-                }
+                ConsecutiveMACCheckFailures = 0;
             }
 
-            return ok ? MACHealth.Match : MACHealth.Missmatch;
+#if DEBUG
+            if ( result != MACHealth.Match )
+            {
+                Logging.LogTransport( $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}" );
+            }
+            else
+            {
+                Logging.LogDebugData( $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}" );
+            }
+#endif
+
+#if DEBUG && SSU_TRACK_OLD_MAC_KEYS
+            if ( result != MACHealth.Match )
+            {
+                result = CheckOldKeys( header, macdata, MACBuf, result );
+            }
+#endif
+            return result;
         }
+
+#if SSU_TRACK_OLD_MAC_KEYS
+        private MACHealth CheckOldKeys(
+            SSUHeader header, 
+            BufLen[] macdata, 
+            BufLen mACBuf, 
+            MACHealth result )
+        {
+            if ( !SSUSession.OldKeys.TryGetValue( Session.RemoteEP, out var oldkeys ) )
+                return result;
+
+            foreach ( var keyinfo in oldkeys.ToArray() )
+            {
+                var recvhashi = I2PHMACMD5Digest.Generate( macdata, keyinfo.Key, MACBuf );
+                var oki = header.MAC.Equals( recvhashi );
+
+                Logging.LogTransport( $"SSU {this}: " +
+                    $"Old key from {keyinfo.Created} {keyinfo.CreatedDelta, -20} {keyinfo.Type, -10} match: {oki, -6} {keyinfo.Key}" );
+            }
+
+            return result;
+        }
+#endif
 
         protected delegate bool SendMessageGenerator( BufLen start, BufRefLen writer );
         protected CbcBlockCipher SendMessageCipher = new CbcBlockCipher( new AesEngine() );
@@ -202,7 +243,7 @@ namespace I2PCore.Transport.SSU
                         BufUtils.Flip16BL( (ushort)( (ushort)hmac.Length ^ I2PConstants.SSU_PROTOCOL_VERSION ) )
                     }, mackey, header.MAC );
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( string.Format( "SSUState SendMessage {0}: encrlen {1} bytes [0x{1:X}] (padding {2} bytes [0x{2:X}]), " +
                 "hmac {3} bytes [0x{3:X}], sendlen {4} bytes [0x{4:X}]",
                 Session.DebugId,
@@ -249,6 +290,11 @@ namespace I2PCore.Transport.SSU
             SendMessageGenerator gen )
         {
             SendMessage( dest, message, mackey, cryptokey, gen, null );
+        }
+
+        public override string ToString()
+        {
+            return $"{GetType().Name} {Session.DebugId}";
         }
     }
 }

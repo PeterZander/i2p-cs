@@ -171,17 +171,27 @@ namespace I2PCore.Tunnel.I2NP
 
             foreach ( var create in tocreateinbound )
             {
-                for ( int i = 0; i < create.TunnelsNeeded * NewTunnelCreationFactor; ++i )
+                var needed = create.TunnelsNeeded * NewTunnelCreationFactor;
+                for ( int i = 0; i < needed; ++i )
                 {
+                    Logging.LogDebug( $"{this} building new inbound tunnel {i + 1}/{needed}" );
+
                     var t = CreateInboundTunnel( create.Destination, null );
+                    if ( t == null )
+                    {
+                        // No outbound tunnels available
+                        TunnelBuild.TimeToAction = TickSpan.Seconds( 10 );
+                    }
                 }
             }
 
             foreach ( var create in tocreateoutbound )
             {
+                var needed = create.TunnelsNeeded * NewTunnelCreationFactor;
                 for ( int i = 0; i < create.TunnelsNeeded * NewTunnelCreationFactor; ++i )
                 {
-                    var t = CreateOutboundTunnel( create.Destination, null );
+                    Logging.LogDebug( $"{this} building new outbound tunnel {i + 1}/{needed}" );
+                    CreateOutboundTunnel( create.Destination, null );
                 }
             }
 

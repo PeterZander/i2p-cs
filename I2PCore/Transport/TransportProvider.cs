@@ -60,7 +60,7 @@ namespace I2PCore.Transport
             Inst = new TransportProvider();
         }
 
-        PeriodicLogger ActiveConnectionLog = new PeriodicLogger( Logging.LogLevels.Information, 15 );
+        PeriodicAction ActiveConnectionLog = new PeriodicAction( TickSpan.Seconds( 15 ) );
         PeriodicAction DropOldExceptions = new PeriodicAction( TickSpan.Minutes( ExeptionHistoryLifetimeMinutes ) );
 
         bool Terminated = false;
@@ -74,8 +74,8 @@ namespace I2PCore.Transport
             {
                 var ntcphost = new NTCPHost();
 
-                ntcphost.ConnectionCreated += new Action<ITransport>( ntcphost_ConnectionCreated );
-                SsuHost.ConnectionCreated += new Action<ITransport>( SsuHost_ConnectionCreated );
+                ntcphost.ConnectionCreated += NTCPhost_ConnectionCreated;
+                SsuHost.ConnectionCreated += SSUHost_ConnectionCreated;
 
                 while ( !Terminated )
                 {
@@ -93,9 +93,22 @@ namespace I2PCore.Transport
                             }
                         }
 
-                        ActiveConnectionLog.Log( () => string.Format( "TransportProvider: Running: {0}. Established: {1}.",
-                            RunningTransports.Count,
-                            EstablishedTransports.Count ) );
+#if DEBUG
+                        ActiveConnectionLog.Do( () =>
+                        {
+                            var ntcprunning = RunningTransports.Where( t => t.Protocol == "NTCP" ).ToArray();
+                            var ssurunning = RunningTransports.Where( t => t.Protocol == "SSU" ).ToArray();
+                            var ntcpestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Protocol == "NTCP" ) ).ToArray();
+                            var ssuestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Protocol == "SSU" ) ).ToArray();
+
+                            Logging.LogDebug(
+                                $"TransportProvider: Established out/in " +
+                                $"({ssuestablished.Count( t => t.Outgoing )}/{ssurunning.Count( t => t.Outgoing )})/" +
+                                $"({ssuestablished.Count( t => !t.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
+                                $"({ntcpestablished.Count( t => t.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
+                                $"({ntcpestablished.Count( t => !t.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
+                        } );
+#endif
 
                         DropOldExceptions.Do( delegate
                         {
@@ -129,20 +142,27 @@ namespace I2PCore.Transport
 
             lock ( EstablishedTransports )
             {
-                var matches = EstablishedTransports.Where( t => object.ReferenceEquals( t.Value, instance ) ).Select( t => t.Key ).ToArray();
-                foreach ( var key in matches ) EstablishedTransports.Remove( key );
+                foreach( var one in EstablishedTransports.ToArray() )
+                {
+                    one.Value.Remove( instance );
+                    if ( !one.Value.Any() )
+                    {
+                        EstablishedTransports.Remove( one.Key );
+                    }
+                }
             }
             lock ( RunningTransports )
             {
-                var matches = RunningTransports.Where( t => object.ReferenceEquals( t.Value, instance ) ).Select( t => t.Key ).ToArray();
-                foreach ( var key in matches ) RunningTransports.Remove( key );
+                RunningTransports.Remove( instance );
             }
 
             instance.Terminate();
         }
 
-        Dictionary<I2PIdentHash, ITransport> RunningTransports = new Dictionary<I2PIdentHash, ITransport>();
-        Dictionary<I2PIdentHash, ITransport> EstablishedTransports = new Dictionary<I2PIdentHash, ITransport>();
+        List<ITransport> RunningTransports = new List<ITransport>();
+
+        Dictionary<I2PIdentHash, HashSet<ITransport>> EstablishedTransports = 
+            new Dictionary<I2PIdentHash, HashSet<ITransport>>();
 
         public void Disconnect( I2PIdentHash dest )
         {
@@ -166,19 +186,7 @@ namespace I2PCore.Transport
                         if ( result == null ) Logging.LogTransport(
                             string.Format( "TransportProvider: GetEstablishedTransport: WARNING! EstablishedTransports contains null ref for {0}!",
                             dest.Id32Short ) );
-                        return result;
-                    }
-                }
-
-                lock ( RunningTransports )
-                {
-                    if ( RunningTransports.ContainsKey( dest ) )
-                    {
-                        var result = RunningTransports[dest];
-                        if ( result == null ) Logging.LogTransport(
-                            string.Format( "TransportProvider: GetEstablishedTransport: WARNING! RunningTransports contains null ref for {0}!",
-                            dest.Id32Short ) );
-                        return result;
+                        return result.FirstOrDefault();
                     }
                 }
 
@@ -249,7 +257,7 @@ namespace I2PCore.Transport
                     string.Format( "TransportProvider: Creating new {0} transport {2} to {1}",
                     ra.TransportStyle, ri.Identity.IdentHash.Id32Short, transport.DebugId ) );
 
-                AddTransport( transport, ri.Identity.IdentHash );
+                AddTransport( transport );
                 transport.Connect();
 
                 var dstore = new DatabaseStoreMessage( RouterContext.Inst.MyRouterInfo );
@@ -257,7 +265,7 @@ namespace I2PCore.Transport
             }
             catch ( Exception ex )
             {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                 Logging.LogTransport( ex );
                 Logging.LogTransport( "TransportProvider: CreateTransport stack trace: " + System.Environment.StackTrace );
 #else
@@ -271,52 +279,62 @@ namespace I2PCore.Transport
             return transport;
         }
 
-        private void AddTransport( ITransport transport, I2PIdentHash ih )
+        private void AddTransport( ITransport transport )
         {
-            transport.ConnectionShutDown += new Action<ITransport>( transport_ConnectionShutDown );
-            transport.ConnectionEstablished += new Action<ITransport>( transport_ConnectionEstablished );
+            transport.ConnectionShutDown += transport_ConnectionShutDown;
+            transport.ConnectionEstablished += transport_ConnectionEstablished;
 
-            transport.DataBlockReceived += new Action<ITransport, II2NPHeader>( transport_DataBlockReceived );
-            transport.ConnectionException += new Action<ITransport, Exception>( transport_ConnectionException );
+            transport.DataBlockReceived += transport_DataBlockReceived;
+            transport.ConnectionException += transport_ConnectionException;
 
-            if ( ih != null ) lock ( RunningTransports )
+            AddToRunningTransports( transport );
+        }
+
+        private void AddToRunningTransports( ITransport transport )
+        {
+            lock ( RunningTransports )
             {
-                RunningTransports[ih] = transport;
+                RunningTransports.Add( transport );
+            }
+        }
+
+        private void AddToEstablishedTransports( I2PIdentHash ih, ITransport transport )
+        {
+            if ( ih != null )
+            {
+                lock ( EstablishedTransports )
+                {
+                    if ( EstablishedTransports.TryGetValue( ih, out var tr ) )
+                    {
+                        tr.Add( transport );
+                    }
+                    else
+                    {
+                        EstablishedTransports[ih] = new HashSet<ITransport>(
+                            new ITransport[] { transport } );
+                    }
+                }
             }
         }
 
         #region Provider events
 
-        void SsuHost_ConnectionCreated( ITransport transport )
+        void SSUHost_ConnectionCreated( ITransport transport )
         {
             Logging.LogTransport(
                 string.Format( "TransportProvider: SSU incoming transport {0} added.",
                 transport.DebugId ) );
 
-            if ( transport.RemoteRouterIdentity != null )
-            {
-                AddTransport( transport, transport.RemoteRouterIdentity.IdentHash );
-            }
-            else
-            {
-                AddTransport( transport, null );
-            }
+            AddTransport( transport );
         }
 
-        void ntcphost_ConnectionCreated( ITransport transport )
+        void NTCPhost_ConnectionCreated( ITransport transport )
         {
             Logging.LogTransport(
                 string.Format( "TransportProvider: NTCP incoming transport {0} added.",
                 transport.DebugId ) );
 
-            if ( transport.RemoteRouterIdentity != null )
-            {
-                AddTransport( transport, transport.RemoteRouterIdentity.IdentHash );
-            }
-            else
-            {
-                AddTransport( transport, null );
-            }
+            AddTransport( transport );
         }
 
         void transport_ConnectionException( ITransport instance, Exception exinfo )
@@ -354,17 +372,17 @@ namespace I2PCore.Transport
             }
         }
 
-        void transport_ConnectionEstablished( ITransport instance )
+        void transport_ConnectionEstablished( ITransport instance, I2PIdentHash hash )
         {
-            var hash = instance.RemoteRouterIdentity.IdentHash;
+            if ( hash is null )
+            {
+                throw new ArgumentException( "TransportProvider: ConnectionEstablished ID hash required!" );
+            }
 
             Logging.LogTransport(
                 string.Format( "TransportProvider: transport_ConnectionEstablished: {0} to {1}.", instance.DebugId, hash.Id32Short ) );
 
-            lock ( EstablishedTransports )
-            {
-                EstablishedTransports[hash] = instance;
-            }
+            AddToEstablishedTransports( hash, instance );
         }
 
         void transport_ConnectionShutDown( ITransport instance )
@@ -419,7 +437,7 @@ namespace I2PCore.Transport
                     if ( NetDb.Inst.Contains( dest ) )
                     {
                         transp = TransportProvider.Inst.GetTransport( dest );
-                        if ( transp == null ) throw new ArgumentException( "Unable to contact " + dest.ToString() );
+                        if ( transp == null ) throw new FailedToConnectException( $"Unable to contact {dest}" );
                         transp.Send( data );
                     }
                     else

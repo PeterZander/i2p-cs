@@ -282,21 +282,21 @@ namespace I2PCore.Utils
 
         bool IEquatable<BufBase>.Equals( BufBase other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public override bool Equals( object obj )
         {
-            if ( Object.ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             var other = obj as BufBase;
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public virtual bool Equals( byte[] other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
 
             var len = BaseArray.Length - BaseArrayOffset;
             if ( len != other.Length ) return false;
@@ -313,8 +313,8 @@ namespace I2PCore.Utils
 
         public static bool Equal( BufBase b1, BufBase b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return true;
-            if ( Object.ReferenceEquals( b1, null ) || Object.ReferenceEquals( b2, null ) ) return false;
+            if ( b1 is null && b2 is null ) return true;
+            if ( b1 is null || b2 is null ) return false;
             if ( Object.ReferenceEquals( b1, b2 ) ) return true;
 
             var b1len = b1.BaseArray.Length - b1.BaseArrayOffset;
@@ -328,9 +328,9 @@ namespace I2PCore.Utils
 
         public static int Compare( BufBase b1, BufBase b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return 0;
-            if ( Object.ReferenceEquals( b1, null ) ) return -1;
-            if ( Object.ReferenceEquals( b2, null ) ) return 1;
+            if ( b1 is null && b2 is null ) return 0;
+            if ( b1 is null ) return -1;
+            if ( b2 is null ) return 1;
             if ( Object.ReferenceEquals( b1, b2 ) ) return 0;
 
             var b1len = b1.BaseArray.Length - b1.BaseArrayOffset;
@@ -925,21 +925,21 @@ namespace I2PCore.Utils
 
         bool IEquatable<BufLen>.Equals( BufLen other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public override bool Equals( object obj )
         {
-            if ( Object.ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             var other = obj as BufLen;
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public override bool Equals( byte[] other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
 
             if ( Length != other.Length ) return false;
 
@@ -955,8 +955,8 @@ namespace I2PCore.Utils
 
         public static bool Equal( BufLen b1, BufLen b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return true;
-            if ( Object.ReferenceEquals( b1, null ) || Object.ReferenceEquals( b2, null ) ) return false;
+            if ( b1 is null && b2 is null ) return true;
+            if ( b1 is null || b2 is null ) return false;
             if ( Object.ReferenceEquals( b1, b2 ) ) return true;
             if ( b1.Length != b2.Length ) return false;
 
@@ -967,9 +967,9 @@ namespace I2PCore.Utils
 
         public static int Compare( BufLen b1, BufLen b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return 0;
-            if ( Object.ReferenceEquals( b1, null ) ) return -1;
-            if ( Object.ReferenceEquals( b2, null ) ) return 1;
+            if ( b1 is null && b2 is null ) return 0;
+            if ( b1 is null ) return -1;
+            if ( b2 is null ) return 1;
             if ( Object.ReferenceEquals( b1, b2 ) ) return 0;
 
             for ( int i = 0; i < b1.Length; ++i )
@@ -1171,21 +1171,21 @@ namespace I2PCore.Utils
 
         bool IEquatable<BufRefLen>.Equals( BufRefLen other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public override bool Equals( object obj )
         {
-            if ( Object.ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             var other = obj as BufRefLen;
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
             return Equal( this, other );
         }
 
         public override bool Equals( byte[] other )
         {
-            if ( Object.ReferenceEquals( other, null ) ) return false;
+            if ( other is null ) return false;
 
             if ( Length != other.Length ) return false;
 
@@ -1201,8 +1201,8 @@ namespace I2PCore.Utils
 
         public static bool Equal( BufRefLen b1, BufRefLen b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return true;
-            if ( Object.ReferenceEquals( b1, null ) || Object.ReferenceEquals( b2, null ) ) return false;
+            if ( b1 is null && b2 is null ) return true;
+            if ( b1 is null || b2 is null ) return false;
             if ( Object.ReferenceEquals( b1, b2 ) ) return true;
             if ( b1.Length != b2.Length ) return false;
 
@@ -1213,9 +1213,9 @@ namespace I2PCore.Utils
 
         public static int Compare( BufRefLen b1, BufRefLen b2 )
         {
-            if ( Object.ReferenceEquals( b1, null ) && Object.ReferenceEquals( b2, null ) ) return 0;
-            if ( Object.ReferenceEquals( b1, null ) ) return -1;
-            if ( Object.ReferenceEquals( b2, null ) ) return 1;
+            if ( b1 is null && b2 is null ) return 0;
+            if ( b1 is null ) return -1;
+            if ( b2 is null ) return 1;
             if ( Object.ReferenceEquals( b1, b2 ) ) return 0;
 
             for ( int i = 0; i < b1.Length; ++i )

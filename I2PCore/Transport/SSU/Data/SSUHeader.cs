@@ -118,9 +118,7 @@ namespace I2PCore.Transport.SSU
         {
             if ( (byte)( Flag & MessageFlags.RekeyFlag ) != 0 )
             {
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSUHeader: Rekey data skipped." );
-#endif
+                Logging.LogDebugData( "SSUHeader: Rekey data skipped." );
                 reader.Seek( REKEY_DATA_LENGTH );
             }
 
@@ -128,9 +126,7 @@ namespace I2PCore.Transport.SSU
 
             if ( (byte)( Flag & MessageFlags.ExtendedOptionsFlag ) != 0 )
             {
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSUHeader: Extended options data skipped. " + ExtendedOptions.Length.ToString() + " bytes." );
-#endif
+                Logging.LogDebugData( $"SSUHeader: Extended options data skipped. {ExtendedOptions.Length} bytes." );
                 reader.Seek( ExtendedOptions.Length + 1 );
             }
         }

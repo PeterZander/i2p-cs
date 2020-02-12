@@ -101,7 +101,7 @@ namespace I2PCore.Transport.NTCP
 
             BlockLength = -1;
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( string.Format( "NTCPReader +{1}+ block received: {0} bytes [0x{0:X}]", result.Length, Context.TransportInstance ) );
 #endif
             return result.Clone();

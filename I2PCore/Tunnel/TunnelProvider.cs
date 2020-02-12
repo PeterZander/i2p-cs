@@ -443,7 +443,13 @@ namespace I2PCore.Tunnel
             else
             {
                 var outtunnel = GetEstablishedOutboundTunnel( true );
-                if ( outtunnel == null ) return null;
+                if ( outtunnel == null )
+                {
+                    Logging.LogDebug( $"TunnelProvider: Inbound tunnel {config.Pool} " +
+                        $"({config.Info.Hops.Count}): No establised outbound tunnels available." );
+
+                    return null;
+                }
 
                 var tunnel = new InboundTunnel( config, outtunnel.Config.Info.Hops.Count );
 

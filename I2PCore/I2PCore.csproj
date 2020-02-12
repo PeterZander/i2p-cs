@@ -39,10 +39,11 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NO_LOG_ALL_TRANSPORT, NO_LOG_ALL_TUNNEL_TRANSFER, NO_LOG_MUCH_TRANSPORT,NO_LOG_ALL_IDENT_LOOKUPS</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NO_SSU_TRACK_OLD_MAC_KEYS;NO_LOG_ALL_TUNNEL_TRANSFER, NO_LOG_MUCH_TRANSPORT,NO_LOG_ALL_IDENT_LOOKUPS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <IntermediateOutputPath></IntermediateOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

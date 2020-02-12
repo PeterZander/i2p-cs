@@ -52,7 +52,7 @@ namespace I2PCore.Transport.SSU
 
         private IEnumerable<RefPair<SSUSession, EndpointStatistic>> SelectIntroducers()
         {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             var stats = EPStatisitcs.ToArray().OrderBy( s => s.Value.Score );
             foreach ( var one in stats )
             {

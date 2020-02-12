@@ -10,6 +10,7 @@ using I2PCore.Data;
 using I2PCore.Tunnel.I2NP.Data;
 using I2PCore.Router;
 using I2PCore.Transport.SSU.Data;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Transport.SSU
 {
@@ -17,21 +18,72 @@ namespace I2PCore.Transport.SSU
     {
 #if DEBUG
         public const int SendQueueLengthWarningLimit = 50;
+
+#if SSU_TRACK_OLD_MAC_KEYS
+        internal enum OldKeyTypes { Undefined, Intro, Shared, MAC }
+        internal class OldKeysForDebug
+        {
+            internal DateTime Created = DateTime.Now;
+            internal TickCounter CreatedDelta = TickCounter.Now;
+            internal BufLen Key;
+            internal OldKeyTypes Type;
+        }
+        internal static ConcurrentDictionary<EndPoint, List<OldKeysForDebug>> 
+            OldKeys = new ConcurrentDictionary<EndPoint, List<OldKeysForDebug>>();
+
+        internal static void AddOldMacKey( EndPoint ep, BufLen key, OldKeyTypes type )
+        {
+            var newitem = new OldKeysForDebug
+            {
+                Key = key,
+                Type = type
+            };
+
+            if ( OldKeys.TryGetValue( ep, out var list ) )
+            {
+                list.Add( newitem );
+            }
+            else
+            {
+                OldKeys[ep] = new List<OldKeysForDebug>( 
+                    new OldKeysForDebug[] { newitem } );
+            }
+        }
 #endif
+#endif
+
         public const int SendQueueLengthUpperLimit = 1000;
         public const int ReceiveQueueLengthUpperLimit = 1000;
 
-        public event Action<ITransport, Exception> ConnectionException;
+        public event Action<ITransport,Exception> ConnectionException;
         public event Action<ITransport> ConnectionShutDown;
-        public event Action<ITransport> ConnectionEstablished;
-        public event Action<ITransport, II2NPHeader> DataBlockReceived;
-        public event Action<ITransport, byte[]> TimeSyncReceived;
+        public event Action<ITransport,I2PIdentHash> ConnectionEstablished;
+        public event Action<ITransport,II2NPHeader> DataBlockReceived;
+        public event Action<ITransport,byte[]> TimeSyncReceived;
 
         internal SSUHost Host;
         internal IPEndPoint RemoteEP;
         internal I2PRouterAddress RemoteAddr;
         internal I2PKeysAndCert RemoteRouter;
-        internal BufLen IntroKey;
+
+        private BufLen IntroKeyField;
+        internal BufLen RemoteIntroKey
+        {
+            get => IntroKeyField;
+            set
+            {
+                IntroKeyField = value;
+#if DEBUG
+                Logging.LogTransport( $"SSUSession: {DebugId} {RemoteEP} IntroKey updated. {value}" );
+
+                if ( RemoteEP is null ) return;
+
+#if SSU_TRACK_OLD_MAC_KEYS
+                AddOldMacKey( RemoteEP, value, OldKeyTypes.Intro );
+#endif
+#endif
+            }
+        }
 
         // RelayTag from SessionCreated
         internal BufLen RelayTag = null;
@@ -47,8 +99,45 @@ namespace I2PCore.Transport.SSU
         // Network byte order
         internal uint SignOnTimeA;
         internal uint SignOnTimeB;
-        internal BufLen SharedKey;
-        internal BufLen MACKey;
+
+        private BufLen SharedKeyField;
+        internal BufLen SharedKey 
+        { 
+            get => SharedKeyField;
+            set
+            {
+                SharedKeyField = value;
+#if DEBUG
+                Logging.LogTransport( $"SSUSession: {DebugId} {RemoteEP} SharedKey updated. {value}" );
+
+                if ( RemoteEP is null ) return;
+
+#if SSU_TRACK_OLD_MAC_KEYS
+                AddOldMacKey( RemoteEP, value, OldKeyTypes.Shared );
+#endif
+#endif
+            }
+        }
+
+        private BufLen MACKeyField;
+        internal BufLen MACKey 
+        { 
+            get => MACKeyField;
+            set
+            {
+                MACKeyField = value;
+
+#if DEBUG
+                Logging.LogTransport( $"SSUSession: {DebugId} {RemoteEP} MACKey updated. {value}" );
+
+                if ( RemoteEP is null ) return;
+
+#if SSU_TRACK_OLD_MAC_KEYS
+                AddOldMacKey( RemoteEP, value, OldKeyTypes.MAC );
+#endif
+#endif
+            }
+        }
 
         internal int TransportInstance;
 
@@ -78,6 +167,7 @@ namespace I2PCore.Transport.SSU
                 IMTUProvider mtup, 
                 RouterContext rc )
         {
+            mOutgoing = true;
             Host = owner;
             RemoteEP = remoteep;
             RemoteAddr = remoteaddr;
@@ -86,13 +176,12 @@ namespace I2PCore.Transport.SSU
             MyRouterContext = rc;
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
-#if LOG_ALL_TRANSPORT
             Logging.LogTransport( $"SSUSession: {DebugId} Client instance created." );
-#endif
 
             if ( RemoteAddr == null ) throw new NullReferenceException( "SSUSession needs an address" );
 
-            IntroKey = new BufLen( FreenetBase64.Decode( RemoteAddr.Options["key"] ) );
+            RemoteIntroKey = new BufLen( FreenetBase64.Decode( RemoteAddr.Options["key"] ) );
+            MACKey = RouterContext.Inst.IntroKey; // TODO: Remove
 
             MTU = MTUProvider.GetMTU( remoteep );
         }
@@ -104,15 +193,14 @@ namespace I2PCore.Transport.SSU
                 IMTUProvider mtup, 
                 RouterContext rc )
         {
+            mOutgoing = false;
             Host = owner;
             RemoteEP = remoteep;
             MTUProvider = mtup;
             MyRouterContext = rc;
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter ) + 10000;
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSUSession: " + DebugId + " Host instance created." );
-#endif
+            Logging.LogTransport( $"SSUSession: {DebugId} Host instance created." );
 
             MTU = MTUProvider.GetMTU( remoteep );
 
@@ -124,16 +212,22 @@ namespace I2PCore.Transport.SSU
 
         bool ConnectCalled = false;
 
-        public string DebugId { get { return $"+{TransportInstance}+"; } }
+        public string DebugId { get => $"+{TransportInstance}+"; }
+        public string Protocol { get => "SSU"; }
+        public bool Outgoing { get => mOutgoing; }
+        private readonly bool mOutgoing;
 
         public void Connect()
         {
             // This instance was initiated as an incomming connection.
             // Do not change state as we might be in a handshake.
-            if ( IntroKey == null ) return;
+            if ( RemoteIntroKey == null ) return;
 
-            if ( ConnectCalled ) return;
-            ConnectCalled = true;
+            lock ( this )
+            {
+                if ( ConnectCalled ) return;
+                ConnectCalled = true;
+            }
 
             if ( RemoteAddr.Options.Any( o => o.Key.ToString().StartsWith( "ihost", StringComparison.Ordinal ) ) )
             {
@@ -165,9 +259,7 @@ namespace I2PCore.Transport.SSU
         {
             if ( !RemoteAddr.Options.Contains( "ihost0" ) || !RemoteAddr.Options.Contains( "iport0" ) || !RemoteAddr.Options.Contains( "ikey0" ) )
             {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: No introducers declared." );
-#endif
+                Logging.LogTransport( $"SSUSession: Connect {DebugId}: No introducers declared." );
                 throw new FailedToConnectException( "SSU Introducer required, but no introducer information available" );
             }
 
@@ -194,18 +286,15 @@ namespace I2PCore.Transport.SSU
                     RemoteAddr.Options[$"ikey{i}"],
                     RemoteAddr.Options[$"itag{i}"] );
 
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: " +
-                        $"Adding introducer '{intro.EndPoint}'." );
-#endif
+                Logging.LogTransport( $"SSUSession: Connect {DebugId}: " +
+                    $"Adding introducer '{intro.EndPoint}'." );
+
                 introducers.Add( intro );
             }
 
             if ( !introducers.Any() )
             {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( $"SSUSession: Connect {DebugId}: Ended up with no introducers." );
-#endif
+                Logging.LogTransport( $"SSUSession: Connect {DebugId}: Ended up with no introducers." );
                 throw new FailedToConnectException( "SSU Introducer required, but no valid introducer information available" );
             }
 
@@ -294,7 +383,21 @@ namespace I2PCore.Transport.SSU
             }
         }
 
-        SSUState CurrentState = null;
+        private SSUState CurrentStateField = null;
+        private SSUState CurrentState
+        {
+            get => CurrentStateField;
+            set
+            {
+                if ( CurrentStateField == value ) return;
+
+                Logging.LogTransport( $"SSUSession {this} changed state from " +
+                    $"{CurrentStateField?.GetType().Name ?? "<null>"} to {value?.GetType().Name ?? "<null>"}" );
+
+                CurrentStateField = value;
+            }
+        }
+
         internal bool Run()
         {
             while ( ReceiveQueue.Count > 0 )
@@ -326,6 +429,16 @@ namespace I2PCore.Transport.SSU
                 try
                 {
                     CurrentState = action( cs );
+
+                    if ( CurrentState == null )
+                    {
+                        return SessionTerminated();
+                    }
+                }
+                catch ( FailedToConnectException )
+                {
+                    Logging.LogTransport( $"SSUSession {DebugId}: RunCurrentState FailedToConnectException. Terminating." );
+                    return SessionTerminated();
                 }
                 catch ( Exception ex )
                 {
@@ -335,11 +448,6 @@ namespace I2PCore.Transport.SSU
             } while ( CurrentState != null
                     && CurrentState != cs
                     && maxstatechanges-- > 0 );
-
-            if ( CurrentState == null )
-            {
-                return SessionTerminated();
-            }
 
             return true;
         }
@@ -381,16 +489,9 @@ namespace I2PCore.Transport.SSU
         {
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( string.Format( "SSUSession {0}: Received {1} bytes [0x{1:X}].", DebugId, recvbuf.Length ) );
-#endif
+            Logging.LogDebugData( $"SSUSession {DebugId}: Received {recvbuf.Length} bytes [0x{recvbuf.Length:X}]." );
 
-            if ( !RunCurrentState( s => s.DatagramReceived( recvbuf, remoteep ), 1 ) )
-            {
-                return SessionTerminated();
-            }
-
-            return true;
+            return RunCurrentState( s => s.DatagramReceived( recvbuf, remoteep ), 1 );
         }
 
         internal void RaiseException( Exception ex )
@@ -414,7 +515,7 @@ namespace I2PCore.Transport.SSU
 #if DEBUG
             if ( ConnectionEstablished == null ) Logging.LogWarning( $"SSUSession: {DebugId} No observers for ConnectionEstablished!" );
 #endif
-            ConnectionEstablished?.Invoke( this );
+            ConnectionEstablished?.Invoke( this, RemoteRouter.IdentHash );
             Host.EPStatisitcs.UpdateConnectionTime( RemoteEP, StartTime.DeltaToNow );
             Host.EPStatisitcs.ConnectionSuccess( RemoteEP );
         }

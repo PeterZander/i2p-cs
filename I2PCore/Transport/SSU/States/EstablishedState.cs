@@ -31,11 +31,6 @@ namespace I2PCore.Transport.SSU
 
         public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
         {
-            DataSent();
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ received: " + 
-                header.MessageType.ToString() + ": " + SSUHost.SSUDateTime( header.TimeStamp ).ToString() );
-#endif
             switch ( header.MessageType )
             {
                 case SSUHeader.MessageTypes.Data:
@@ -50,9 +45,9 @@ namespace I2PCore.Transport.SSU
                             {
                                 var i2npmsg = I2NPMessage.ReadHeader5( (BufRefLen)msg.GetPayload() );
 
-#if LOG_ALL_TRANSPORT
-                            Logging.LogTransport( "SSU EstablishedState +" + Session.TransportInstance.ToString() + "+ complete message " + 
-                                msg.MessageId.ToString() + ": " + i2npmsg.Expiration.ToString() );
+#if LOG_MUCH_TRANSPORT
+                            Logging.LogDebugData( $"SSU {this} complete message " + 
+                                $"{msg.MessageId}: {i2npmsg.Expiration}" );
 #endif
 
                                 if ( i2npmsg.MessageType == I2PCore.Tunnel.I2NP.Messages.I2NPMessage.MessageTypes.DeliveryStatus )
@@ -69,11 +64,6 @@ namespace I2PCore.Transport.SSU
                         Logging.Log( "EstablishedState: SSUHost.SSUMessageTypes.Data", ex );
                     }
                     break;
-
-                case SSUHeader.MessageTypes.SessionDestroyed:
-                    Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: SessionDestroyed received from {Session.RemoteEP}." );
-                    SendSessionDestroyed();
-                    return null;
 
                 case SSUHeader.MessageTypes.PeerTest:
                     HandleIncomingPeerTestPackage( reader );
@@ -124,7 +114,7 @@ namespace I2PCore.Transport.SSU
         public override SSUState Run()
         {
             // Idle
-            if ( Timeout( InactivityTimeoutSeconds ) )
+            if ( Timeout( InactivityTimeout ) )
             {
                 Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: Inactivity timeout. Sending SessionDestroyed." );
                 SendSessionDestroyed();
@@ -165,7 +155,7 @@ namespace I2PCore.Transport.SSU
             {
                 dosend = true;
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                 Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}:" +
                     $"{(Session.IsIntroducerConnection ? " Introducer" : "")} keepalive." );
 #endif
@@ -196,22 +186,6 @@ namespace I2PCore.Transport.SSU
             return this;
         }
 
-        private void SendSessionDestroyed()
-        {
-            SendMessage(
-                SSUHeader.MessageTypes.SessionDestroyed,
-                Session.MACKey,
-                Session.SharedKey,
-                ( start, writer ) =>
-                {
-                    writer.Write8( 0 );
-
-                    return true;
-                } );
-
-            Session.Host.EPStatisitcs.UpdateSessionLength( Session.RemoteEP, Session.StartTime.DeltaToNow );
-        }
-
         private void ResendNotAcked( IEnumerable<DataFragment> fragments )
         {
             bool finished = false;
@@ -238,10 +212,9 @@ namespace I2PCore.Transport.SSU
 
                             ++fragmentcount;
                             current.Current.WriteTo( writer );
-#if LOG_ALL_TRANSPORT
-                            Logging.LogTransport( "SSU resending fragment " + current.Current.FragmentNumber.ToString() + 
-                                " of message " + current.Current.MessageId.ToString() +
-                                ". IsLast: " + current.Current.IsLast.ToString() );
+#if LOG_MUCH_TRANSPORT
+                            Logging.LogTransport( $"SSU resending fragment {current.Current.FragmentNumber} " +
+                                $"of message {current.Current.MessageId}. IsLast: {current.Current.IsLast}" );
 #endif
                             if ( current.Current.SendCount > FragmentedMessage.SendRetriesMTUDecrease ) Session.SendDroppedMessageDetected();
                         }
@@ -304,9 +277,7 @@ namespace I2PCore.Transport.SSU
 
             if ( !msg.IPAddressOk )
             {
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": HandleIncomingPeerTestPackage: IP Address not accepted. Ignorning. " + msg.ToString() );
-#endif
+                Logging.LogTransport( $"SSU {this}: HandleIncomingPeerTestPackage: IP Address not accepted. Ignorning. {msg}" );
                 return;
             }
 
@@ -325,9 +296,7 @@ namespace I2PCore.Transport.SSU
                                 msg.IntroKey,
                                 ( start, writer ) =>
                                 {
-#if NO_LOG_ALL_TRANSPORT
-                                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying response from Charlie to Alice " + msg.ToString() );
-#endif
+                                    Logging.LogTransport( $"SSU {this}: PeerTest. We are Bob, relaying response from Charlie to Alice {msg}" );
                                     msg.WriteTo( writer );
 
                                     return true;
@@ -344,9 +313,7 @@ namespace I2PCore.Transport.SSU
                                 Session.SharedKey,
                                 ( start, writer ) =>
                                 {
-#if NO_LOG_ALL_TRANSPORT
-                                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to the final message from Alice " + msg.ToString() );
-#endif
+                                    Logging.LogTransport( $"SSU {this}: PeerTest. We are Charlie, responding to the final message from Alice {msg}" );
                                     msg.WriteTo( writer );
 
                                     return true;
@@ -355,7 +322,7 @@ namespace I2PCore.Transport.SSU
                         return;
 
                     default:
-                        Logging.Log( "SSU PeerTest " + Session.DebugId + ": Unexpedted PeerTest received. " + msg.ToString() );
+                        Logging.Log( $"SSU {this}: PeerTest. Unexpedted PeerTest received. {msg}" );
                         break;
                 }
             }
@@ -371,9 +338,7 @@ namespace I2PCore.Transport.SSU
                     Session.SharedKey,
                     ( start, writer ) =>
                     {
-#if NO_LOG_ALL_TRANSPORT
-                        Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, responding to Bob. " + msg.ToString() );
-#endif
+                        Logging.LogTransport( "SSU {this}: PeerTest. We are Charlie, responding to Bob. {msg}" );
                         msg.WriteTo( writer );
 
                         return true;
@@ -388,9 +353,7 @@ namespace I2PCore.Transport.SSU
                     msg.IntroKey,
                     ( start, writer ) =>
                     {
-#if NO_LOG_ALL_TRANSPORT
-                        Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, sending first probe to Alice. " + toalice.ToString() );
-#endif
+                        Logging.LogTransport( $"SSU {this}: PeerTest. We are Charlie, sending first probe to Alice. {toalice}" );
                         toalice.WriteTo( writer );
 
                         return true;
@@ -403,10 +366,7 @@ namespace I2PCore.Transport.SSU
             // Nonce already in use for another test? Just ignore.
             if ( nonceinfo != null )
             {
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob getting a iniation from Alice, but will drop it due to nonce clash. " + 
-                    msg.ToString() );
-#endif
+                Logging.LogTransport( "SSU {this}: PeerTest. We are Bob getting a iniation from Alice, but will drop it due to nonce clash. {msg}" );
                 return;
             }
 
@@ -415,9 +375,8 @@ namespace I2PCore.Transport.SSU
             var pt = new PeerTest( msg.TestNonce,
                 Session.RemoteEP.Address, Session.RemoteEP.Port,
                 msg.IntroKey );
-#if NO_LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob and sending first relay to Charlie: " + pt.ToString() );
-#endif
+
+            Logging.LogTransport( $"SSU {this}: PeerTest. We are Bob and sending first relay to Charlie: {pt}" );
             Session.Host.SendFirstPeerTestToCharlie( pt );
             return;
         }
@@ -430,9 +389,7 @@ namespace I2PCore.Transport.SSU
                 Session.SharedKey,
                 ( start, writer ) =>
                 {
-#if NO_LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Bob, relaying first message to Charlie. " + msg.ToString() );
-#endif
+                    Logging.LogTransport( $"SSU {this}: PeerTest. We are Bob, relaying first message to Charlie. {msg}" );
                     msg.WriteTo( writer );
 
                     return true;

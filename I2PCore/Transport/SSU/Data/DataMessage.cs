@@ -29,7 +29,7 @@ namespace I2PCore.Transport.SSU
         public SSUDataMessage( BufRef reader, DataDefragmenter fragments )
         {
             var dataflags = (DataMessageFlags)reader.Read8();
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "SSU DataMessage rececived flag: " + dataflags.ToString() );
 #endif
             var explicitacks = ( dataflags & DataMessageFlags.ExplicitAcks ) != 0;

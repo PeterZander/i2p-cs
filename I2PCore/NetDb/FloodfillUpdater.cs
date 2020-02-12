@@ -194,7 +194,7 @@ namespace I2PCore
 
             var scores = p.Select( wr => wr.Score );
             var pmin = scores.Min();
-            var pabsd = scores.AbsDev();
+            var pabsd = Math.Max( 1, scores.AbsDev() );
 
             var result = new List<I2PIdentHash>();
 

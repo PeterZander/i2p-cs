@@ -58,17 +58,13 @@ namespace I2PCore.Transport.SSU
 
                 if ( size <= 37 )
                 {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1} (hole punch, ignored)", size, ep ) );
-#endif
+                    Logging.LogDebugData( $"SSU Recv: {size} bytes [0x{size:X}] from {ep} (hole punch, ignored)" );
                     return;
                 }
 
                 var sessionendpoint = (IPEndPoint)ep;
 
-#if LOG_ALL_TRANSPORT
-                Logging.LogTransport( string.Format( "SSU Recv: {0} bytes [0x{0:X}] from {1}", size, ep ) );
-#endif
+                Logging.LogDebugData( $"SSU Recv: {size} bytes [0x{size:X}] from {ep}" );
 
                 lock ( Sessions )
                 {
@@ -82,10 +78,15 @@ namespace I2PCore.Transport.SSU
 
                         ++IncommingConnectionAttempts;
 
+                        Logging.LogTransport( $"SSUHost: incoming connection " +
+                            $"from {sessionendpoint} created." );
+
                         session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
                         Sessions[sessionendpoint] = session;
+
                         Logging.LogTransport( $"SSUHost: incoming connection " +
                             $"{session.DebugId} from {sessionendpoint} created." );
+
                         NeedCpu( session );
                         ConnectionCreated?.Invoke( session );
                     }
@@ -128,7 +129,7 @@ namespace I2PCore.Transport.SSU
                 catch ( FailedToConnectException fcex )
                 {
                     AddFailedSession( session );
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( fcex );
 #endif
                     if ( session != null )
@@ -173,9 +174,7 @@ namespace I2PCore.Transport.SSU
                     new AsyncCallback( SendCallback ), 
                     data );
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( $"SSU Sent: {data.Length} bytes [0x{0:X}] to {ep}" );
-#endif
+            Logging.LogDebugData( $"SSU Sent: {data.Length} bytes [0x{data.Length:X}] to {ep}" );
         }
 
         private void SendCallback( IAsyncResult ar )
@@ -197,10 +196,10 @@ namespace I2PCore.Transport.SSU
         DecayingIPBlockFilter IPFilter = new DecayingIPBlockFilter();
         public int BlockedIPCount { get { return IPFilter.Count; } }
 
-        void ReportEPProblem( IPEndPoint ep )
+        internal void ReportEPProblem( IPEndPoint ep )
         {
+            if ( ep is null ) return;
             IPFilter.ReportProblem( ep.Address );
         }
-
     }
 }

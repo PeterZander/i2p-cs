@@ -40,14 +40,18 @@ namespace I2PCore.Transport.NTCP
         /// <summary>
         /// Diffie-Hellman negotiations completed.
         /// </summary>
-        public event Action<ITransport> ConnectionEstablished;
+        public event Action<ITransport,I2PIdentHash> ConnectionEstablished;
 
         public event Action<ITransport, II2NPHeader> DataBlockReceived;
 
         public string DebugId { get { return "+" + TransportInstance.ToString() + "+"; } }
+        public string Protocol { get => "NTCP"; }
+        public bool Outgoing { get => mOutgoing; }
+        private readonly bool mOutgoing;
 
-        public NTCPClient()
+        protected NTCPClient( bool outgoing )
         {
+            mOutgoing = outgoing;
             TransportInstance = Interlocked.Increment( ref TransportInstanceCounter );
         }
 
@@ -59,9 +63,11 @@ namespace I2PCore.Transport.NTCP
         {
             if ( WorkerRunning ) return;
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "NTCPClient";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "NTCPClient",
+                IsBackground = true
+            };
             Worker.Start();
 
             WorkerRunning = true;
@@ -174,7 +180,7 @@ namespace I2PCore.Transport.NTCP
             try
             {
                 var cd = MySocket.EndSend( ar );
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                 //Logging.LogTransport( string.Format( "NTCP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
 #endif
             }
@@ -253,7 +259,7 @@ namespace I2PCore.Transport.NTCP
 
             lock ( SendQueueRaw )
             {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                 Logging.LogTransport( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
 #endif
                 SendQueueRaw.AddLast( data );
@@ -277,7 +283,7 @@ namespace I2PCore.Transport.NTCP
                 }
                 else
                 {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                     Logging.LogTransport( string.Format( "NTCP {1} Recvatl ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
 #endif
                     pos += len;
@@ -302,7 +308,7 @@ namespace I2PCore.Transport.NTCP
                 }
                 else
                 {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                     Logging.LogTransport( string.Format( "NTCP {1} Blockr ({2}): {0} bytes [0x{0:X}]", len, DebugId, bytes ) );
 #endif
                     pos += len;
@@ -343,7 +349,7 @@ namespace I2PCore.Transport.NTCP
 
                         RemoteDescription = MySocket.RemoteEndPoint.ToString();
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
                         Logging.LogTransport( "My local endpoint IP#   : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Address.ToString() );
                         Logging.LogTransport( "My local endpoint Port  : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Port.ToString() );
 #endif
@@ -390,7 +396,8 @@ namespace I2PCore.Transport.NTCP
 #if DEBUG
                     if ( ConnectionEstablished == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionEstablished!" );
 #endif
-                    if ( ConnectionEstablished != null ) ConnectionEstablished( this );
+                    ConnectionEstablished?.Invoke( this, RemoteRouterIdentity.IdentHash );
+
                     NetDb.Inst.Statistics.SuccessfulConnect( NTCPContext.RemoteRouterIdentity.IdentHash );
 
                     var reader = new NTCPReader( MySocket, NTCPContext );

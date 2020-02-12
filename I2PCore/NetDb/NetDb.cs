@@ -202,14 +202,25 @@ namespace I2PCore
                         {
                             case StoreRecordId.StoreIdRouterInfo:
                                 var one = new I2PRouterInfo( reader, false );
-                                var known = RouterInfos.ContainsKey( one.Identity.IdentHash );
 
-                                if ( !ValidateRI( one ) && known )
+                                if ( !ValidateRI( one ) )
                                 {
-                                    s.Delete( RouterInfos[one.Identity.IdentHash].Value.StoreIx );
+                                    s.Delete( ix );
                                     RouterInfos.Remove( one.Identity.IdentHash );
                                     Statistics.DestinationInformationFaulty( one.Identity.IdentHash );
+
                                     continue;
+                                }
+
+                                if ( !RouterContext.Inst.UseIpV6 )
+                                {
+                                    if ( !one.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
+                                    {
+                                        Logging.LogDebug( $"NetDb: RouterInfo have no IP4 address: {one.Identity.IdentHash.Id32}" );
+                                        s.Delete( ix );
+
+                                        continue;
+                                    }
                                 }
 
                                 RouterInfos[one.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( 
@@ -566,9 +577,9 @@ namespace I2PCore
 
         }
 
-        public void AddRouterInfo( I2PRouterInfo info )
+        public bool AddRouterInfo( I2PRouterInfo info )
         {
-            if ( !ValidateRI( info ) ) return;
+            if ( !ValidateRI( info ) ) return false;
 
             lock ( RouterInfos )
             {
@@ -579,7 +590,7 @@ namespace I2PCore
                         if ( !info.VerifySignature() )
                         {
                             Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
-                            return;
+                            return false;
                         }
 
                         var meta = indb.Value;
@@ -590,15 +601,24 @@ namespace I2PCore
                     }
                     else
                     {
-                        return;
+                        return true;
                     }
                 }
                 else
                 {
                     if ( !info.VerifySignature() )
                     {
-                        Logging.LogDebug( "NetDb: RouterInfo failed signature check: " + info.Identity.IdentHash.Id32 );
-                        return;
+                        Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
+                        return false;
+                    }
+
+                    if ( !RouterContext.Inst.UseIpV6 )
+                    {
+                        if ( !info.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
+                        {
+                            Logging.LogDebug( $"NetDb: RouterInfo have no IP4 address: {info.Identity.IdentHash.Id32}" );
+                            return false;
+                        }
                     }
 
                     var meta = new RouterInfoMeta
@@ -618,6 +638,8 @@ namespace I2PCore
 
                 if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
             }
+
+            return true;
         }
 
         public void AddRouterInfo( string file )
@@ -680,8 +702,6 @@ namespace I2PCore
                 }
             }
         }
-
-        Random Rnd = new Random();
 
         private I2PIdentHash GetRandomRouter( 
             RouletteSelection<I2PRouterInfo, I2PIdentHash> r,

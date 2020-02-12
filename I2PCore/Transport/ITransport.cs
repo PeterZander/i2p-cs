@@ -18,7 +18,7 @@ namespace I2PCore.Transport
         /// <summary>
         /// Diffie-Hellman negotiations completed.
         /// </summary>
-        event Action<ITransport> ConnectionEstablished;
+        event Action<ITransport,I2PIdentHash> ConnectionEstablished;
 
         event Action<ITransport, II2NPHeader> DataBlockReceived;
 
@@ -36,5 +36,7 @@ namespace I2PCore.Transport
         long BytesReceived { get; }
 
         string DebugId { get; }
+        string Protocol { get; }
+        bool Outgoing { get; }
     }
 }

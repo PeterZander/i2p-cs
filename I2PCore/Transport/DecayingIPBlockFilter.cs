@@ -10,14 +10,14 @@ namespace I2PCore.Transport
 {
     internal class DecayingIPBlockFilter
     {
-        const int BlockTimeMinutes = 30;
-        const int IPFaultHistoryWindowMinutes = 20;
-        const int NumberOfFailuresToBlock = 150;
+        static readonly TickSpan BlockTime = TickSpan.Minutes( 30 );
+        static readonly TickSpan IPFaultHistoryWindow = TickSpan.Minutes( 20 );
+        const int NumberOfFailuresToBlock = 50;
 
         Dictionary<IPAddress, LinkedList<TickCounter>> MonitorIPWindow = new Dictionary<IPAddress, LinkedList<TickCounter>>();
         Dictionary<IPAddress, TickCounter> BlockedIPs = new Dictionary<IPAddress, TickCounter>();
 
-        PeriodicAction Decay = new PeriodicAction( TickSpan.Seconds( ( IPFaultHistoryWindowMinutes * 60 ) / NumberOfFailuresToBlock ) );
+        PeriodicAction Decay = new PeriodicAction( ( IPFaultHistoryWindow * 60 ) / NumberOfFailuresToBlock );
 
         internal int Count { get { return BlockedIPs.Count; } }
 
@@ -41,7 +41,7 @@ namespace I2PCore.Transport
 
             if ( list.Count == NumberOfFailuresToBlock )
             {
-                Logging.LogTransport( "DecayingIPBlockFilter: Blocking " + addr.ToString() );
+                Logging.LogTransport( $"DecayingIPBlockFilter: Blocking {addr}" );
 
                 lock ( BlockedIPs )
                 {
@@ -62,12 +62,13 @@ namespace I2PCore.Transport
                     {
                         var startcount = one.Value.Count;
 
-                        while ( one.Value.Count > 0 && one.Value.Last.Value.DeltaToNow.ToMinutes > IPFaultHistoryWindowMinutes )
-                            one.Value.RemoveLast();
+                        while ( one.Value.Count > 0 
+                            && one.Value.Last.Value.DeltaToNow > IPFaultHistoryWindow )
+                                one.Value.RemoveLast();
 
                         if ( startcount >= NumberOfFailuresToBlock && one.Value.Count < NumberOfFailuresToBlock )
                         {
-                            Logging.LogTransport( "DecayingIPBlockFilter: Window under blocking level " + one.Key.ToString() );
+                            Logging.LogTransport( $"DecayingIPBlockFilter: Window under blocking level {one.Key}" );
                             toremove.Add( one.Key );
                         }
                         else
@@ -86,13 +87,12 @@ namespace I2PCore.Transport
 
             lock ( BlockedIPs )
             {
-                TickCounter blocktime;
 
-                if ( BlockedIPs.TryGetValue( addr, out blocktime ) )
+                if ( BlockedIPs.TryGetValue( addr, out var blocktime ) )
                 {
-                    if ( blocktime.DeltaToNow.ToMinutes > BlockTimeMinutes )
+                    if ( blocktime.DeltaToNow > BlockTime )
                     {
-                        Logging.LogTransport( "DecayingIPBlockFilter: Unblocking " + addr.ToString() );
+                        Logging.LogTransport( $"DecayingIPBlockFilter: Unblocking {addr}" );
                         BlockedIPs.Remove( addr );
                         return false;
                     }

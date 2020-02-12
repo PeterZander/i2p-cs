@@ -35,10 +35,9 @@ namespace I2PCore.Transport.NTCP
 
             context.HXxorHI = new BufLen( I2PHashSHA256.GetHash( context.XBuf ) );
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( 
-                "SessionRequest: Remote cert: " + context.RemoteRI.Certificate.ToString() + ". XBuf len: " + context.XBuf.Length.ToString() );
-#endif
+            Logging.LogDebugData( 
+                $"SessionRequest: Remote cert: {context.RemoteRI.Certificate}. XBuf len: {context.XBuf.Length}" );
+
             var idenhash = context.RemoteRI.IdentHash;
             for ( int i = 0; i < context.HXxorHI.Length; ++i ) context.HXxorHI[i] ^= idenhash.Hash[i];
 

@@ -8,14 +8,13 @@ namespace I2PCore.Transport.NTCP
     public class NTCPClientOutgoing: NTCPClient
     {
         I2PRouterAddress Address;
-
-        IPAddress OutgoingAddress;
-        int OutgoingPort;
+        readonly IPAddress OutgoingAddress;
+        readonly int OutgoingPort;
 
         public override IPAddress RemoteAddress { get { return OutgoingAddress; } }
 
         public NTCPClientOutgoing( I2PRouterAddress addr, I2PKeysAndCert dest )
-            : base()
+            : base( true )
         {
             Address = addr;
             NTCPContext.RemoteRouterIdentity = dest;
@@ -52,7 +51,7 @@ namespace I2PCore.Transport.NTCP
 
         protected override void DHNegotiate()
         {
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "1 +" + TransportInstance.ToString() + "+" );
 #endif
 
@@ -62,14 +61,14 @@ namespace I2PCore.Transport.NTCP
 
             SendRaw( SessionRequest.Send( dhcontext ) );
             SessionCreated.Receive( dhcontext, BlockReceive( 304 ) );
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "2 +" + TransportInstance.ToString() + "+" );
 #endif
 
             SendRaw( SessionConfirmA.Send( dhcontext ) );
             SessionConfirmB.Receive( dhcontext, NTCPContext.RemoteRouterIdentity );
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( "3 +" + TransportInstance.ToString() + "+" );
 #endif
 

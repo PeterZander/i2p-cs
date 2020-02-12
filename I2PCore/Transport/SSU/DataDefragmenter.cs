@@ -31,15 +31,14 @@ namespace I2PCore.Transport.SSU
                 // Our acks where not received
                 lock ( AckQueue )
                 {
-                    if ( !AckQueue.Where( m => m.MessageId == frag.MessageId ).Any() )
+                    if ( !AckQueue.Any( m => m.MessageId == frag.MessageId ) )
                     {
                         AckQueue.AddFirst( new AckI2NPMessage( frag.MessageId ) );
                     }
                 }
 
-#if LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU DataDefragmenter got msgid dup. Dropped. Will ACK " + frag.MessageId.ToString() );
-#endif
+                Logging.LogDebugData( $"SSU DataDefragmenter got msgid dup. Dropped. Will ACK {frag.MessageId}" );
+
                 return null;
             }
 
@@ -87,10 +86,7 @@ namespace I2PCore.Transport.SSU
 
         public void SendAcks( BufRefLen writer, out bool explicitacks, out bool bitfieldsacks )
         {
-            RemoveOldMessages.Do( () =>
-            {
-                RemoveExpired();
-            } );
+            RemoveOldMessages.Do( RemoveExpired );
 
             List<RebuildI2NPMessage> expl = null;
             List<RebuildI2NPMessage> bitm = null;
@@ -157,9 +153,8 @@ namespace I2PCore.Transport.SSU
                 writer.Write8( (byte)expl.Count );
                 foreach ( var msg in expl )
                 {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSU DataDefragmenter sent expl ack: " + msg.MessageId.ToString() + " (" + msg.ExplicitAcksSent.ToString() + ")" );
-#endif
+                    Logging.LogDebugData( $"SSU DataDefragmenter sent expl ack: {msg.MessageId} ({msg.ExplicitAcksSent})" );
+
                     writer.Write32( msg.MessageId );
                     msg.AckSent.SetNow();
                     ++msg.ExplicitAcksSent;
@@ -171,9 +166,8 @@ namespace I2PCore.Transport.SSU
                 writer.Write8( (byte)bitm.Count );
                 foreach ( var msg in bitm )
                 {
-#if LOG_ALL_TRANSPORT
-                    Logging.LogTransport( "SSU DataDefragmenter sent bitmap ack: " + msg.MessageId.ToString() );
-#endif
+                    Logging.LogDebugData( $"SSU DataDefragmenter sent bitmap ack: {msg.MessageId}" );
+
                     writer.Write32( msg.MessageId );
                     writer.Write( msg.AckBitmap() );
                     msg.AckSent.SetNow();
@@ -194,10 +188,11 @@ namespace I2PCore.Transport.SSU
 
                 foreach ( var one in remove )
                 {
-#if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    Logging.LogTransport( string.Format(
-                        "SSU DataDefragmenter discarding incomplete message: {0} age {1}, Bitmap acks sent: {2}, expl acks: {3}. Bitmap: {4}.",
-                        one.Key, one.Value.Created, one.Value.BitmapAcksSent, one.Value.ExplicitAcksSent, one.Value.CurrentlyACKedBitmapDebug() ) );
+#if LOG_MUCH_TRANSPORT
+                    Logging.LogDebugData(
+                        $"SSU DataDefragmenter discarding incomplete message: {one.Key} " +
+                        $"age {one.Value.Created}, Bitmap acks sent: {one.Value.BitmapAcksSent}, " +
+                        $"expl acks: {one.Value.ExplicitAcksSent}. Bitmap: {one.Value.CurrentlyACKedBitmapDebug()}." );
 #endif
                     Messages.Remove( one.Key );
                 }
@@ -210,10 +205,11 @@ namespace I2PCore.Transport.SSU
 
                 foreach ( var one in remove )
                 {
-#if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
-                    Logging.LogTransport( string.Format(
-                        "SSU DataDefragmenter discarding incomplete message acks for: {0} age {1}, Bitmap acks sent: {2}, expl acks: {3}. Bitmap: {4}.",
-                        one.MessageId, one.Created, one.BitmapAcksSent, one.ExplicitAcksSent, one.CurrentlyACKedBitmapDebug() ) );
+#if LOG_MUCH_TRANSPORT
+                    Logging.LogDebugData(
+                        $"SSU DataDefragmenter discarding incomplete message acks for: {one.MessageId} " +
+                        $"age {one.Created}, Bitmap acks sent: {one.BitmapAcksSent}, " +
+                        $"expl acks: {one.ExplicitAcksSent}. Bitmap: {one.CurrentlyACKedBitmapDebug()}." );
 #endif
                     AckQueue.Remove( one );
                 }

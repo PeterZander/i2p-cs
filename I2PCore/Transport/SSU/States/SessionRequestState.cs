@@ -34,26 +34,26 @@ namespace I2PCore.Transport.SSU
             X = keys.PublicKey;
         }
 
-        protected override BufLen CurrentMACKey { get { return Session.IntroKey; } }
-        protected override BufLen CurrentPayloadKey { get { return Session.IntroKey; } }
+        protected override BufLen CurrentMACKey { get { return Session.RemoteIntroKey; } }
+        protected override BufLen CurrentPayloadKey { get { return Session.RemoteIntroKey; } }
 
-        PeriodicAction ResendSessionRequestAction = new PeriodicAction( TickSpan.Seconds( HandshakeStateTimeoutSeconds / 5 ), true );
+        PeriodicAction ResendSessionRequestAction = new PeriodicAction( HandshakeStateTimeout / 2, true );
 
         public override SSUState Run()
         {
-            if ( Timeout( HandshakeStateTimeoutSeconds ) )
+            if ( Timeout( HandshakeStateTimeout * 4 ) )
             {
                 Session.Host.EPStatisitcs.ConnectionTimeout( Session.RemoteEP );
                 if ( Session.RemoteRouterIdentity != null )
                     NetDb.Inst.Statistics.SlowHandshakeConnect( Session.RemoteRouterIdentity.IdentHash );
 
-                throw new FailedToConnectException( "SSU SessionRequestState " + Session.DebugId + " Failed to connect. Timeout." );
+                throw new FailedToConnectException( $"SSU {this}: Failed to connect. Timeout." );
             }
 
             ResendSessionRequestAction.Do( () =>
             {
                 if ( ++Retries > HandshakeStateMaxRetries )
-                    throw new FailedToConnectException( "SSU SessionRequestState " + Session.DebugId + " Failed to connect. Too many retries." );
+                    throw new FailedToConnectException( $"SSU {this}: Failed to connect. Too many retries." );
 
                 SendSessionRequest();
             } );
@@ -67,9 +67,7 @@ namespace I2PCore.Transport.SSU
 
             if ( header.MessageType != SSUHeader.MessageTypes.SessionCreated )
             {
-#if LOG_ALL_TRANSPORT
                 Logging.LogTransport( $"SSU SessionRequestState: Received unexpected message {tstime} : {header.Flag}" );
-#endif
                 return this;
             }
 
@@ -78,17 +76,18 @@ namespace I2PCore.Transport.SSU
             Session.RelayTag = SCMessage.RelayTag;
 
             Y = new I2PPublicKey( (BufRefLen)SCMessage.Y, Session.RemoteRouter.Certificate );
-            BufUtils.DHI2PToSessionAndMAC( out Session.SharedKey, out Session.MACKey,
+            BufUtils.DHI2PToSessionAndMAC( out var sessionkey, out var mackey,
                 Y.ToBigInteger().ModPow( PrivateKey.ToBigInteger(), I2PConstants.ElGamalP ) );
+
+            Session.SharedKey = sessionkey;
+            Session.MACKey = mackey;
 
             var ipaddr = new IPAddress( SCMessage.Address.ToByteArray() );
             ushort port = SCMessage.Port.PeekFlip16( 0 );
             Session.SignOnTimeB = SCMessage.SignOnTime.Peek32( 0 );
             var btime = SSUHost.SSUDateTime( BufUtils.Flip32( Session.SignOnTimeB ) );
 
-#if LOG_ALL_TRANSPORT
             Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId} : Received SessionCreated. {tstime.ToString()} : {btime}" );
-#endif
             Session.Host.ReportedAddress( ipaddr );
 
             if ( !I2PSignature.SupportedSignatureType( Session.RemoteRouter.Certificate.SignatureType ) )
@@ -110,9 +109,8 @@ namespace I2PCore.Transport.SSU
                 baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
                 SCMessage.RelayTag, SCMessage.SignOnTime );
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSU SessionRequestState: Signature check: " + sok.ToString() + ". " + Session.RemoteRouter.Certificate.SignatureType.ToString() );
-#endif
+            Logging.LogTransport( $"SSU SessionRequestState: Signature check: {sok}. {Session.RemoteRouter.Certificate.SignatureType}" );
+
             if ( !sok )
             {
                 throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId}: Received SessionCreated signature check failed." +
@@ -127,15 +125,17 @@ namespace I2PCore.Transport.SSU
                     Session.RemoteIntroducerInfo = new IntroducerInfo(
                             Session.RemoteEP.Address,
                             (ushort)Session.RemoteEP.Port,
-                            Session.IntroKey, relaytag );
+                            Session.RemoteIntroKey, relaytag );
 
                     Session.Host.IntroductionRelayOffered( Session.RemoteIntroducerInfo );
                 }
             }
 
-            Logging.LogTransport( $"SSU SessionRequestState: Session {Session.DebugId} " +
-            	$"to {Session.RemoteEP} created. Moving to SessionConfirmedState." );
+            Logging.LogTransport( $"SSU {this}: SessionCreated received " +
+            	$"from {Session.RemoteEP} created. Moving to SessionConfirmedState." );
+
             Session.ReportConnectionEstablished();
+
             return new SessionConfirmedState( Session, this );
         }
 
@@ -146,8 +146,8 @@ namespace I2PCore.Transport.SSU
 
             SendMessage(
                 SSUHeader.MessageTypes.SessionRequest,
-                Session.IntroKey,
-                Session.IntroKey,
+                Session.RemoteIntroKey,
+                Session.RemoteIntroKey,
                 ( start, writer ) =>
                 {
                     writer.Write( X.Key.ToByteArray() );

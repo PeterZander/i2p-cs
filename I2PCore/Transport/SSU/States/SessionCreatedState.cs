@@ -1,15 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Net;
 using I2PCore.Utils;
-using I2PCore.Router;
 using I2PCore.Data;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 
 namespace I2PCore.Transport.SSU
 {
@@ -31,21 +27,27 @@ namespace I2PCore.Transport.SSU
             var keys = I2PPrivateKey.GetNewKeyPair();
             PrivateKey = keys.PrivateKey;
             Y = keys.PublicKey;
+
+            Session.MACKey = Session.MyRouterContext.IntroKey;
+            Session.SharedKey = Session.MyRouterContext.IntroKey;
         }
 
-        protected override BufLen CurrentMACKey { get { return Request == null ? Session.MyRouterContext.IntroKey : Session.MACKey; } }
-        protected override BufLen CurrentPayloadKey { get { return Request == null ? Session.MyRouterContext.IntroKey : Session.SharedKey; } }
+        protected override BufLen CurrentMACKey { get { return Session.MACKey; } }
+        protected override BufLen CurrentPayloadKey { get { return Session.SharedKey; } }
 
         public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
         {
             switch ( header.MessageType )
             {
                 case SSUHeader.MessageTypes.SessionRequest:
-                    var req = new SessionRequest( reader, I2PPublicKey.DefaultAsymetricKeyCert );
-                    Logging.LogTransport( "SSU SessionCreatedState " + Session.DebugId + " : OK SessionRequest received." );
+                    var req = new SessionRequest( reader, I2PKeyType.DefaultAsymetricKeyCert );
+                    Logging.LogTransport( $"SSU SessionCreatedState {Session.DebugId}: OK SessionRequest received." );
 
-                    BufUtils.DHI2PToSessionAndMAC( out Session.SharedKey, out Session.MACKey,
+                    BufUtils.DHI2PToSessionAndMAC( out var sessionkey, out var mackey,
                         req.XKey.ModPow( PrivateKey.ToBigInteger(), I2PConstants.ElGamalP ) );
+
+                    Session.MACKey = mackey;
+                    Session.SharedKey = sessionkey;
 
                     Session.Host.ReportedAddress( new IPAddress( req.Address.ToByteArray() ) );
 
@@ -79,24 +81,27 @@ namespace I2PCore.Transport.SSU
                     break;
 
                 default:
-                    Logging.LogTransport( "SSU SessionCreatedState: Session " + Session.DebugId + " Unexpected Message: " + header.MessageType.ToString() );
+                    Logging.LogTransport( $"SSU SessionCreatedState: Session {Session.DebugId} Unexpected Message: {header.MessageType}" );
                     break;
             }
 
             return this;
         }
 
-        PeriodicAction ResendSessionCreatedAction = new PeriodicAction( TickSpan.Seconds( HandshakeStateTimeoutSeconds / 5 ), false );
+        PeriodicAction ResendSessionCreatedAction = new PeriodicAction( HandshakeStateTimeout / 3, false );
 
         public override SSUState Run()
         {
-            if ( Timeout( HandshakeStateTimeoutSeconds ) )
+            if ( Timeout( HandshakeStateTimeout * 2 ) )
             {
                 Session.Host.EPStatisitcs.ConnectionTimeout( Session.RemoteEP );
+
                 if ( Session.RemoteRouterIdentity != null )
                     NetDb.Inst.Statistics.SlowHandshakeConnect( Session.RemoteRouterIdentity.IdentHash );
 
-                throw new FailedToConnectException( "SSU " + Session.DebugId + " Failed to connect. Timeout." );
+                Session.Host.ReportEPProblem( Session.RemoteEP );
+
+                throw new FailedToConnectException( $"SSU {Session.DebugId} Failed to connect. Timeout." );
             }
 
             if ( Request == null ) return this;
@@ -104,9 +109,9 @@ namespace I2PCore.Transport.SSU
             ResendSessionCreatedAction.Do( () => 
                 {
                     if ( ++Retries > HandshakeStateMaxRetries ) 
-                        throw new FailedToConnectException( "SSU " + Session.DebugId + " Failed to connect. Too many retries." );
+                        throw new FailedToConnectException( $"SSU {Session.DebugId} Failed to connect. Too many retries." );
 
-                    Logging.LogTransport( "SSU SessionCreatedState " + Session.DebugId + " : Resending SessionCreated message." );
+                    Logging.LogTransport( $"SSU SessionCreatedState {Session.DebugId} : Resending SessionCreated message." );
                     SendSessionCreated();
                 });
 
@@ -150,27 +155,18 @@ namespace I2PCore.Transport.SSU
                 } );
         }
 
-        List<BufLen> Fragments = null;
+        BufLen[] Fragments = null;
 
         private SSUState ParseSessionConfirmed( SSUHeader header, BufRefLen reader )
         {
             var info = reader.Read8();
             var cursize = reader.ReadFlip16();
 
-            if ( Fragments != null ) return AssembleFragments( header, reader, info, cursize );
-
-            if ( ( info & 0x0f ) == 1 )
+            if ( Fragments is null )
             {
-                var cursizedata = reader.ReadBufRefLen( cursize );
-                Session.RemoteRouter = new I2PRouterIdentity( cursizedata );
-                ASignonTime = reader.Read32();
-                reader.Seek( reader.Length - Session.RemoteRouter.Certificate.SignatureLength );
-                ASign = new I2PSignature( reader, Session.RemoteRouter.Certificate );
-
-                return VerifyRemoteSignature();
+                Fragments = new BufLen[info & 0x0f];
             }
 
-            Fragments = new List<BufLen>( new BufLen[info & 0x0f] );
             return AssembleFragments( header, reader, info, cursize );
         }
 
@@ -179,17 +175,12 @@ namespace I2PCore.Transport.SSU
             var baaddr = new BufLen( AAddr );
             var bbport = BufUtils.Flip16BL( (ushort)Session.MyRouterContext.UDPPort );
 
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( string.Format( "SSU SessionCreatedState {0}: X for signature {1}.",
-                Session.DebugId, Request.X ) );
-            Logging.LogTransport( string.Format( "SSU SessionCreatedState {0}: Y for signature {1}.",
-                Session.DebugId, Y.Key ) );
-            Logging.LogTransport( string.Format( "SSU SessionCreatedState {0}: Alice address for signature {1}. Port {2}.",
-                Session.DebugId, baaddr, (BufLen)APort ) );
-            Logging.LogTransport( string.Format( "SSU SessionCreatedState {0}: Bob address for signature {1}. Port {2}.",
-                Session.DebugId, Request.Address, bbport ) );
-            Logging.LogTransport( string.Format( "SSU SessionCreatedState {0}: Relay tag {1}. Signon time {2}.",
-                Session.DebugId, (BufLen)RelayTag, (BufLen)ASignonTime ) );
+#if LOG_MUCH_TRANSPORT
+            Logging.LogTransport( $"SSU {this}: X for signature {Request.X}." );
+            Logging.LogTransport( $"SSU {this}: Y for signature {Y.Key}." );
+            Logging.LogTransport( $"SSU {this}: Alice address for signature {baaddr}. Port {(BufLen)APort}." );
+            Logging.LogTransport( $"SSU {this}: Bob address for signature {Request.Address}. Port {bbport}." );
+            Logging.LogTransport( $"SSU {this}: Relay tag {(BufLen)RelayTag}. Signon time {(BufLen)ASignonTime}." );
 #endif
 
             var signdata = new BufLen[] {
@@ -198,12 +189,13 @@ namespace I2PCore.Transport.SSU
                     Request.Address, bbport,
                     (BufLen)RelayTag, (BufLen)ASignonTime 
                 };
+
             var ok = I2PSignature.DoVerify( Session.RemoteRouter.SigningPublicKey, ASign, signdata );
-#if LOG_ALL_TRANSPORT
-            Logging.LogTransport( "SSU SessionCreatedState " + Session.DebugId + ": " + 
-                Session.RemoteRouter.Certificate.SignatureType.ToString() + 
-                " signature check: " + ok.ToString() );
-#endif
+
+            Logging.LogTransport( $"SSU SessionCreatedState {Session.DebugId}: " + 
+                $"{Session.RemoteRouter.Certificate.SignatureType} " + 
+                $"signature check: {ok}" );
+
             if ( !ok ) throw new SignatureCheckFailureException( "SSU SessionCreatedState recv sig check failure" );
 
             Logging.LogTransport( "SSU SessionCreatedState: Session " + Session.DebugId + " established. Moving to Established state." );
@@ -211,7 +203,7 @@ namespace I2PCore.Transport.SSU
 
             Session.ReportConnectionEstablished();
 
-            if ( NetDb.Inst != null ) NetDb.Inst.Statistics.SuccessfulConnect( Session.RemoteRouter.IdentHash );
+            NetDb.Inst.Statistics.SuccessfulConnect( Session.RemoteRouter.IdentHash );
             return next;
         }
 
@@ -219,20 +211,32 @@ namespace I2PCore.Transport.SSU
         {
             var fragnr = info >> 4;
             var fragcount = info & 0x0f;
-            if ( fragnr == fragcount - 1 )
-            {
-                ASignonTime = reader.Read32();
-                reader.Seek( reader.Length - Session.RemoteRouter.Certificate.SignatureLength );
-                ASign = new I2PSignature( reader, Session.RemoteRouter.Certificate );
-            }
-            else
+
+            Logging.LogTransport( $"AssembleFragments: frag {fragnr} / {fragcount}, len {cursize}." );
+
+            if ( fragnr != fragcount - 1 )
             {
                 Fragments[fragnr] = reader.ReadBufLen( cursize );
             }
+            else
+            {
+                ASignonTime = reader.Peek32( cursize );
+                Fragments[fragnr] = reader.ReadBufLen( reader.Length );
+            }
 
-            if ( Fragments.Any( f => f == null ) ) return this;
+            if ( Fragments.Any( f => f is null ) ) return this;
 
-            Session.RemoteRouter = new I2PRouterIdentity( new BufRefLen( Fragments.SelectMany( f => f.ToByteArray() ).ToArray() ) );
+            var buf = new BufLen( new byte[Fragments.Sum( f => f.Length )] );
+            var bufwriter = new BufRefLen( buf );
+            for ( int i = 0; i < Fragments.Length; ++i )
+            {
+                bufwriter.Write( Fragments[i] );
+            }
+            Session.RemoteRouter = new I2PRouterIdentity( (BufRefLen)buf );
+
+            var signbuf = new BufRefLen( buf,
+                buf.Length - Session.RemoteRouter.Certificate.SignatureLength );
+            ASign = new I2PSignature( signbuf, Session.RemoteRouter.Certificate );
 
             return VerifyRemoteSignature();
         }
@@ -246,9 +250,7 @@ namespace I2PCore.Transport.SSU
             if ( Session.Host.PeerTestInstance.OurTestNonce( msg.TestNonce ) )
             {
                 // We are alice running a test
-#if NO_LOG_ALL_TRANSPORT
-                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Alice, and are getting a direct probe from Charlie. " + msg.ToString() );
-#endif
+                Logging.LogTransport( $"SSU {this}: PeerTest. We are Alice, and are getting a direct probe from Charlie. {msg}" );
                 Session.Host.PeerTestInstance.CharlieDirectResponseReceived( msg );
                 return;
             }
@@ -256,7 +258,7 @@ namespace I2PCore.Transport.SSU
             var nonceinfo = Session.Host.GetNonceInfo( msg.TestNonce.Peek32( 0 ) );
             if ( nonceinfo == null )
             {
-                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + " Created state: HandleIncomingPeerTestPackage received an unknown nonce. Dropped." );
+                Logging.LogTransport( $"SSU {this}: PeerTest. Created state: HandleIncomingPeerTestPackage received an unknown nonce. Dropped." );
                 return;
             }
 
@@ -271,9 +273,7 @@ namespace I2PCore.Transport.SSU
                     ( start, writer ) =>
                     {
                         var toalice = new PeerTest( msg.TestNonce, msg.AliceIPAddr, msg.AlicePort, Session.MyRouterContext.IntroKey );
-#if NO_LOG_ALL_TRANSPORT
-                        Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": We are Charlie, and are getting a direct probe from Alice. " + toalice.ToString() );
-#endif
+                        Logging.LogTransport( $"SSU {this}: PeerTest. We are Charlie, and are getting a direct probe from Alice. {msg}" );
                         toalice.WriteTo( writer );
 
                         return true;
@@ -281,7 +281,7 @@ namespace I2PCore.Transport.SSU
             }
             else
             {
-                Logging.LogTransport( "SSU PeerTest " + Session.DebugId + ": Unexpected PeerTest received: " + msg.ToString() );
+                Logging.LogTransport( "SSU {this}: PeerTest. Unexpected PeerTest received: {msg}" );
             }
         }
     }

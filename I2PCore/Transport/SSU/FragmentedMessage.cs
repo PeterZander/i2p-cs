@@ -62,7 +62,7 @@ namespace I2PCore.Transport.SSU
                 Fragments.Add( fragment );
             }
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             Logging.LogTransport( () => string.Format( 
                 "SSU sending {0} fragment {1}, {2} bytes. IsLast: {3}",
                 MessageId, fragment.FragmentNumber, fragment.Data.Length, fragment.IsLast ) );
@@ -113,7 +113,7 @@ namespace I2PCore.Transport.SSU
                 AllFragmentsAcked |= Fragments.All( f => f.Ack );
             }
 
-#if LOG_ALL_TRANSPORT
+#if LOG_MUCH_TRANSPORT
             StringBuilder bits = new StringBuilder();
             foreach ( var one in fragments ) bits.AppendFormat( "{0}0X{1:X2}", ( bits.Length != 0 ? ", " : "" ), one );
             int notacked;
@@ -123,7 +123,7 @@ namespace I2PCore.Transport.SSU
 #endif
         }
 
-#if LOG_ALL_TRANSPORT || LOG_MUCH_TRANSPORT
+#if LOG_MUCH_TRANSPORT
         internal string BitmapACKStatusDebug()
         {
             StringBuilder bits = new StringBuilder();
