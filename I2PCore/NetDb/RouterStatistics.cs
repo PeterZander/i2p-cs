@@ -53,7 +53,7 @@ namespace I2PCore
         }
 
         const float MaxScore = 30f;
-        const float MedTargetPeriods = 3f;
+        const float MedTargetPeriods = 30f;
 
         float DiminishingReturns( float val )
         {

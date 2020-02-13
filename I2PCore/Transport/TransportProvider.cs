@@ -230,7 +230,11 @@ namespace I2PCore.Transport
                                 || a.Options.ValueContains( "host", "." )
                                 || a.Options.ValueContains( "ihost0", "." ) ) );
 
-                I2PRouterAddress ra = ssuaddr.Random() ?? ntcpaddr.Random();
+                I2PRouterAddress ra = ssuaddr
+                    .Where( a => a.Options.Contains( "host" ) )
+                    .Random() 
+                        ?? ntcpaddr.Random() 
+                        ?? ssuaddr.Random();
 
                 if ( ra == null )
                 {

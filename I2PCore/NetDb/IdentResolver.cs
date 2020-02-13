@@ -32,7 +32,7 @@ namespace I2PCore
 
         class IdentUpdateRequestInfo
         {
-            public readonly TickCounter Start = new TickCounter();
+            public readonly TickCounter Start = TickCounter.Now;
             public readonly I2PIdentHash IdentKey;
             public readonly DatabaseLookupMessage.LookupTypes LookupType;
 
@@ -191,7 +191,7 @@ namespace I2PCore
                 info.AlreadyQueried, 
                 false );
 
-            if ( ( ff?.Count() ?? 0 ) == 0 )
+            if ( !ff.Any() )
             {
                 Logging.Log( $"IdentResolver: failed to find a floodfill router to lookup ({ident}): " );
                 return;
@@ -211,7 +211,7 @@ namespace I2PCore
 
                     TransportProvider.Send( oneff, msg );
 #if LOG_ALL_IDENT_LOOKUPS
-                    Logging.Log( "IdentResolver: RouterInfo query " + msg.Key.Id32Short + " sent to " + oneff.Id32Short );
+                    Logging.Log( $"IdentResolver: RouterInfo query {msg.Key.Id32Short} sent to {oneff.Id32Short}" );
 #endif
                 }
                 catch ( Exception ex )
@@ -256,7 +256,7 @@ namespace I2PCore
             var st2 = foundrouterskeys.ToString();
 #endif
 
-            if ( ( ff?.Count() ?? 0 ) == 0 )
+            if ( !ff.Any() )
             {
                 Logging.Log( $"IdentResolver failed to find a floodfill router to lookup ({ident}): " );
                 return;
@@ -359,11 +359,18 @@ namespace I2PCore
 
             lock ( OutstandingQueries )
             {
-                timeout = OutstandingQueries.Where( i => i.Value.Start.DeltaToNow > DatabaseLookupWaitTime &&
-                    i.Value.Retries >= DatabaseLookupRetries ).Select( i => i.Value ).ToArray();
+                timeout = OutstandingQueries.Where( i => 
+                        i.Value.Start.DeltaToNow > DatabaseLookupWaitTime 
+                        && i.Value.Retries >= DatabaseLookupRetries )
+                    .Select( i => i.Value )
+                    .ToArray();
+
                 foreach ( var item in timeout ) OutstandingQueries.Remove( item.IdentKey );
 
-                retry = OutstandingQueries.Where( i => i.Value.Start.DeltaToNow > DatabaseLookupWaitTime ).Select( i => i.Value ).ToArray();
+                retry = OutstandingQueries.Where( i => 
+                        i.Value.Start.DeltaToNow > DatabaseLookupWaitTime )
+                    .Select( i => i.Value )
+                    .ToArray();
             }
 
             foreach ( var one in timeout )

@@ -22,11 +22,8 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 2.0;
-        private const double MinAbsDevs = 2.0;
-
-        // For 0 offset
-        private const double TopQuarterIshFactor = 0.3;
+        private const double Elitism = 1.009;
+        private const int IncludeTop = 2000;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
         readonly double TotalSpaceSum;
@@ -43,7 +40,6 @@ namespace I2PCore.Utils
             Func<T,K> selkey, 
             Func<K,float> selfit )
         {
-            MinFit = float.MaxValue;
             TotalSpaceSum = 0;
 
             var newwheel = new List<RouletteSpace<K>>();
@@ -55,7 +51,6 @@ namespace I2PCore.Utils
                 };
                 space.Fit = selfit( space.Id );
 
-                if ( space.Fit < MinFit ) MinFit = space.Fit;
                 newwheel.Add( space );
             }
 
@@ -70,30 +65,31 @@ namespace I2PCore.Utils
             }
 
             var fits = Wheel.Select( sp => sp.Fit );
+            MinFit = fits.Min();
             MaxFit = fits.Max();
             AverageFit = fits.Average();
             AbsDevFit = fits.AbsDev();
             StdDevFit = fits.StdDev();
 
-            if ( AbsDevFit > 5.0 )
-            {
-                var limit = AverageFit - MinAbsDevs * AbsDevFit;
-                Wheel = Wheel.Where( sp => sp.Fit > limit );
+            var i = 0.01;
 
-                fits = Wheel.Select( sp => sp.Fit );
-                MinFit = fits.Min();
-                MaxFit = fits.Max();
-                AverageFit = fits.Average();
-                AbsDevFit = fits.AbsDev();
-                StdDevFit = fits.StdDev();
+            var selection = Wheel
+                .OrderBy( sp => sp.Fit )
+                .Select( sp => sp );
+
+            var selcount = selection.Count();
+
+            if ( selcount > IncludeTop )
+            {
+                selection = selection
+                    .Skip( selcount - IncludeTop )
+                    .Take( IncludeTop );
             }
 
-            // Make positive, and offset bottom from 0
-            var baseoffset = Math.Max( 0.01, AbsDevFit * TopQuarterIshFactor );
-            var offset = -MinFit + baseoffset;
-            foreach ( var one in Wheel )
+            foreach ( var one in selection )
             {
-                one.Space = Math.Pow( one.Fit + offset, Elitism );
+                one.Space = i;
+                i *= Elitism;
                 TotalSpaceSum += one.Space;
             }
         }

@@ -1,0 +1,326 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using I2PCore.Data;
+using System.IO;
+using I2PCore.Utils;
+using System.Diagnostics;
+using I2PCore.Router;
+
+namespace I2PCore
+{
+    public partial class NetDb
+    {
+        class RouterInfoMeta
+        {
+            public int StoreIx;
+            public bool Updated;
+            public bool Deleted;
+
+            public RouterInfoMeta()
+            {
+                StoreIx = -1;
+            }
+
+            public RouterInfoMeta( int storeix )
+            {
+                StoreIx = storeix;
+            }
+        }
+
+        public string NetDbPath
+        {
+            get
+            {
+                return Path.GetFullPath( Path.Combine( StreamUtils.AppPath, "NetDb" ) );
+            }
+        }
+
+        public string GetFullPath( string filename )
+        {
+            return Path.Combine( NetDbPath, filename );
+        }
+
+        public string GetFullPath( I2PRouterInfo ri )
+        {
+            var hash = ri.Identity.IdentHash.Id64;
+            return GetFullPath( Path.Combine( $"r{hash[0]}", $"routerInfo-{hash}.dat" ) );
+        }
+
+        List<string> GetNetDbFiles()
+        {
+            var result = new List<string>();
+
+            foreach ( var item in Directory.GetDirectories( NetDbPath ) )
+            {
+                foreach ( var file in Directory.GetFileSystemEntries( item, "routerInfo-*.dat" ) )
+                {
+                    result.Add( file );
+                }
+            }
+            return result;
+        }
+
+        private Store GetStore()
+        {
+            for ( int i = 0; i < 5; ++i )
+            {
+                try
+                {
+                    return new Store( GetFullPath( "routerinfo.sto" ), DefaultStoreChunkSize );
+                }
+                catch ( Exception ex )
+                {
+                    Logging.Log( "GetStore", ex );
+                    System.Threading.Thread.Sleep( 500 );
+                }
+            }
+            return null;
+        }
+
+        void Load()
+        {
+            using ( var s = GetStore() )
+            {
+                var sw2 = new Stopwatch();
+                sw2.Start();
+                var ix = 0;
+                while ( s != null && ( ix = s.Next( ix ) ) > 0 )
+                {
+                    var reader = new BufRefLen( s.Read( ix ) );
+                    var recordtype = (StoreRecordId)reader.Read32();
+
+                    try
+                    {
+                        switch ( recordtype )
+                        {
+                            case StoreRecordId.StoreIdRouterInfo:
+                                var one = new I2PRouterInfo( reader, false );
+
+                                if ( !ValidateRI( one ) )
+                                {
+                                    s.Delete( ix );
+                                    RouterInfos.Remove( one.Identity.IdentHash );
+                                    Statistics.DestinationInformationFaulty( one.Identity.IdentHash );
+
+                                    continue;
+                                }
+
+                                if ( !RouterContext.Inst.UseIpV6 )
+                                {
+                                    if ( !one.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
+                                    {
+                                        Logging.LogDebug( $"NetDb: RouterInfo have no IP4 address: {one.Identity.IdentHash.Id32}" );
+                                        s.Delete( ix );
+
+                                        continue;
+                                    }
+                                }
+
+                                RouterInfos[one.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>(
+                                    one,
+                                    new RouterInfoMeta( ix ) );
+                                break;
+
+                            case StoreRecordId.StoreIdConfig:
+                                AccessConfig( delegate ( Dictionary<I2PString, I2PString> settings )
+                                {
+                                    var key = new I2PString( reader );
+                                    settings[key] = new I2PString( reader );
+                                } );
+                                break;
+
+                            default:
+                                s.Delete( ix );
+                                break;
+                        }
+
+                    }
+                    catch ( Exception ex )
+                    {
+                        Logging.LogDebug( $"NetDb: Load: Store exception, ix [{ix}] removed. {ex}" );
+                        s.Delete( ix );
+                    }
+                }
+                sw2.Stop();
+                Logging.Log( $"Store: {sw2.Elapsed}" );
+            }
+
+            ImportNetDbFiles();
+
+            lock ( RouterInfos )
+            {
+                if ( !RouterInfos.Any() )
+                {
+                    Logging.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
+                    Bootstrap();
+                }
+            }
+
+            Statistics.Load();
+            IsFirewalledUpdate();
+
+#if DEBUG
+            ShowDebugDatabaseInfo();
+#endif
+
+            UpdateSelectionProbabilities();
+
+            Save( true );
+        }
+
+        void Save( bool onlyupdated )
+        {
+            var created = 0;
+            var updated = 0;
+            var deleted = 0;
+
+            var sw = new Stopwatch();
+            sw.Start();
+
+            RemoveOldRouterInfos();
+
+            using ( var s = GetStore() )
+            {
+                lock ( RouterInfos )
+                {
+                    foreach ( var one in RouterInfos.ToArray() )
+                    {
+                        try
+                        {
+                            if ( one.Value.Value.Deleted )
+                            {
+                                if ( one.Value.Value.StoreIx > 0 ) s.Delete( one.Value.Value.StoreIx );
+                                RouterInfos.Remove( one.Key );
+                                ++deleted;
+                                continue;
+                            }
+
+                            if ( !onlyupdated || ( onlyupdated && one.Value.Value.Updated ) )
+                            {
+                                var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdRouterInfo, new BufLen( one.Value.Key.ToByteArray() ) };
+                                if ( one.Value.Value.StoreIx > 0 )
+                                {
+                                    s.Write( rec, one.Value.Value.StoreIx );
+                                    ++updated;
+                                }
+                                else
+                                {
+                                    one.Value.Value.StoreIx = s.Write( rec );
+                                    ++created;
+                                }
+                                one.Value.Value.Updated = false;
+                            }
+                        }
+                        catch ( Exception ex )
+                        {
+                            Logging.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
+                            one.Value.Value.StoreIx = -1;
+                        }
+                    }
+                }
+
+                SaveConfig( s );
+            }
+
+            Logging.Log( $"NetDb.Save( {( onlyupdated ? "updated" : "all" )} ): " +
+                $"{created} created, {updated} updated, {deleted} deleted." );
+
+            Statistics.RemoveOldStatistics();
+            UpdateSelectionProbabilities();
+
+            sw.Stop();
+            Logging.Log( $"NetDB: Save: {sw.Elapsed}" );
+        }
+
+        private void SaveConfig( Store s )
+        {
+            var lookup = s.GetMatching( e => (StoreRecordId)e[0] == StoreRecordId.StoreIdConfig, 1 );
+            Dictionary<I2PString, int> str2ix = new Dictionary<I2PString, int>();
+            foreach ( var one in lookup )
+            {
+                var reader = new BufRefLen( one.Value );
+                reader.Read32();
+                var key = new I2PString( reader );
+                str2ix[key] = one.Key;
+            }
+
+            AccessConfig( delegate ( Dictionary<I2PString, I2PString> settings )
+            {
+                foreach ( var one in settings )
+                {
+                    var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdConfig,
+                            new BufLen( one.Key.ToByteArray() ), new BufLen( one.Value.ToByteArray() )
+                        };
+
+                    if ( str2ix.ContainsKey( one.Key ) )
+                    {
+                        s.Write( rec, str2ix[one.Key] );
+                    }
+                    else
+                    {
+                        s.Write( rec );
+                    }
+                }
+            } );
+        }
+
+        private void RemoveOldRouterInfos()
+        {
+            var inactive = Statistics.GetInactive();
+            lock ( RouterInfos )
+            {
+                var old = RouterInfos.Where( ri =>
+                    ( DateTime.Now - (DateTime)ri.Value.Key.PublishedDate ).TotalDays > 1 )
+                        .Select( p => p.Key );
+
+                inactive.UnionWith( old );
+            }
+
+            if ( RouterInfos.Count - inactive.Count < 400 )
+            {
+                inactive = new HashSet<I2PIdentHash>(
+                    inactive
+                        .OrderBy( k => (DateTime)RouterInfos[k].Key.PublishedDate )
+                        .Take( RouterInfos.Count - 400 ) );
+            }
+
+            RemoveRouterInfo( inactive );
+        }
+
+        private void ImportNetDbFiles()
+        {
+            var importfiles = GetNetDbFiles();
+            foreach ( var file in importfiles )
+            {
+                AddRouterInfo( file );
+            }
+
+            foreach ( var file in importfiles )
+            {
+                File.Delete( file );
+            }
+        }
+
+        private void IsFirewalledUpdate()
+        {
+            lock ( RouterInfos )
+            {
+                var fw = RouterInfos.Where( ri =>
+                    ri.Value.Key.Adresses.Any( a =>
+                        a.Options.Any( o =>
+                            o.Key.ToString() == "ihost0" ) ) );
+
+                foreach ( var ri in fw )
+                {
+                    Statistics.IsFirewalledUpdate( ri.Key, true );
+                }
+            }
+        }
+
+        private void Bootstrap()
+        {
+            // TODO: Implement
+        }
+    }
+}

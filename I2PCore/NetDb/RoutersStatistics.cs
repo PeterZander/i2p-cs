@@ -248,6 +248,8 @@ namespace I2PCore
 
         bool NodeInactive( RouterStatistics d )
         {
+            if ( d.InformationFaulty > 0 ) return true;
+
             var result =
                 ( d.FailedTunnelTest > 8 && d.FailedTunnelTest > 3 * d.SuccessfulTunnelTest ) ||
                 ( d.FailedConnects > 5 && d.FailedConnects > 3 * d.SuccessfulConnects );
@@ -255,33 +257,33 @@ namespace I2PCore
             return result;
         }
 
-        IEnumerable<I2PIdentHash> GetInactive( 
+        HashSet<I2PIdentHash> GetInactive( 
             IEnumerable<KeyValuePair<I2PIdentHash,RouterStatistics>> p ) 
         {
-            if ( !p.Any() ) return Enumerable.Empty<I2PIdentHash>();
+            if ( !p.Any() ) return new HashSet<I2PIdentHash>();
 
-            return p.Where( d => NodeInactive( d.Value ) )
-                .Select( d => d.Key );
+            return new HashSet<I2PIdentHash>( 
+                p.Where( d => NodeInactive( d.Value ) )
+                    .Select( d => d.Key ) );
         }
 
-        internal IEnumerable<I2PIdentHash> GetInactive()
+        internal HashSet<I2PIdentHash> GetInactive()
         {
             lock ( Routers )
             {
-                if ( !Routers.Any() ) return Enumerable.Empty<I2PIdentHash>();
+                if ( !Routers.Any() ) return new HashSet<I2PIdentHash>();
                 return GetInactive( Routers );
             }
         }
 
         internal void RemoveOldStatistics()
         {
-            const ulong oneweek = 1000 * 60 * 60 * 24 * 7;
-            var now = (float)(ulong)I2PDate.Now;
+            var now = DateTime.Now;
 
             lock ( Routers )
             {
                 var toremove = Routers.Where( one =>
-                    Math.Abs( now - (float)(ulong)one.Value.Created ) > oneweek )
+                    Math.Abs( ( now - (DateTime)one.Value.Created ).TotalDays ) > 7 )
                     .ToArray();
 
                 foreach( var one in toremove )

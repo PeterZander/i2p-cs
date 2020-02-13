@@ -249,6 +249,9 @@
     <Compile Include="Transport\SSU\SSUHost.Utilities.cs" />
     <Compile Include="Transport\SSU\SSUHost.Introducers.cs" />
     <Compile Include="Transport\SSU\SSUHost.PeerTest.cs" />
+    <Compile Include="NetDb\NetDb.Store.cs" />
+    <Compile Include="NetDb\NetDb.Query.cs" />
+    <Compile Include="NetDb\NetDb.Reports.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
