@@ -217,7 +217,7 @@ namespace I2PCore
                     {
                         if ( !info.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
                         {
-                            Logging.LogDebug( $"NetDb: RouterInfo have no IP4 address: {info.Identity.IdentHash.Id32}" );
+                            Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {info.Identity.IdentHash.Id32}" );
                             return false;
                         }
                     }
@@ -243,15 +243,20 @@ namespace I2PCore
             return true;
         }
 
-        public void AddRouterInfo( string file )
+        public bool AddRouterInfo( string file )
         {
             using ( var s = new FileStream( file, FileMode.Open, FileAccess.Read ) )
             {
-                var buf = StreamUtils.Read( s );
-                var ri = new I2PRouterInfo( new BufRef( buf ), false );
-
-                AddRouterInfo( ri );
+                return AddRouterInfo( s );
             }
+        }
+
+        public bool AddRouterInfo( Stream s )
+        {
+            var buf = StreamUtils.Read( s );
+            var ri = new I2PRouterInfo( new BufRef( buf ), false );
+
+            return AddRouterInfo( ri );
         }
 
         public bool Contains( I2PIdentHash key )

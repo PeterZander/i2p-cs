@@ -6,6 +6,7 @@ using System.IO;
 using I2PCore.Utils;
 using System.Diagnostics;
 using I2PCore.Router;
+using CM = System.Configuration.ConfigurationManager;
 
 namespace I2PCore
 {
@@ -110,7 +111,7 @@ namespace I2PCore
                                 {
                                     if ( !one.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
                                     {
-                                        Logging.LogDebug( $"NetDb: RouterInfo have no IP4 address: {one.Identity.IdentHash.Id32}" );
+                                        Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {one.Identity.IdentHash.Id32}" );
                                         s.Delete( ix );
 
                                         continue;
@@ -148,13 +149,12 @@ namespace I2PCore
 
             ImportNetDbFiles();
 
-            lock ( RouterInfos )
+            if ( RouterInfos.Count < 20 )
             {
-                if ( !RouterInfos.Any() )
-                {
-                    Logging.LogWarning( $"WARNING: NetDB database contains no routers. Add router files to {NetDbPath}." );
-                    Bootstrap();
-                }
+                Logging.LogWarning( $"WARNING: NetDB database contains " +
+                    $"{RouterInfos.Count} routers. Add router files to {NetDbPath}." );
+
+                DoBootstrap();
             }
 
             Statistics.Load();
@@ -236,7 +236,7 @@ namespace I2PCore
         private void SaveConfig( Store s )
         {
             var lookup = s.GetMatching( e => (StoreRecordId)e[0] == StoreRecordId.StoreIdConfig, 1 );
-            Dictionary<I2PString, int> str2ix = new Dictionary<I2PString, int>();
+            var str2ix = new Dictionary<I2PString, int>();
             foreach ( var one in lookup )
             {
                 var reader = new BufRefLen( one.Value );
@@ -318,9 +318,22 @@ namespace I2PCore
             }
         }
 
-        private void Bootstrap()
+        private void DoBootstrap()
         {
-            // TODO: Implement
+            var imported = 0;
+
+            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["ReseedFile"] ) )
+            {
+                var filename = CM.AppSettings["ReseedFile"];
+                imported += Bootstrap.FileBootstrap( filename );
+            }
+
+            if ( imported == 0 )
+            {
+                var t = Bootstrap.NetworkBootstrap();
+                t.ConfigureAwait( false );
+                imported += t.Result;
+            }
         }
     }
 }

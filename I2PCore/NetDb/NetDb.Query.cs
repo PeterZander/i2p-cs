@@ -40,7 +40,7 @@ namespace I2PCore
             bool tryagain;
             do
             {
-                result = r.GetWeightedRandom( excludeset );
+                result = r.GetWeightedRandom( r.Wheel.Count() < 300 ? null : excludeset );
                 tryagain = result == me;
             } while ( tryagain && ++retries < 20 );
 
@@ -67,6 +67,8 @@ namespace I2PCore
             I2PIdentHash result;
 
             result = GetRandomRouter( Roulette, RecentlyUsedForTunnel, exploratory );
+            if ( result is null ) return null;
+
             RecentlyUsedForTunnel.Update( result );
 
             return result;

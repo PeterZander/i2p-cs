@@ -421,6 +421,8 @@ namespace I2PCore.Tunnel
 
         public Tunnel CreateTunnel( TunnelConfig config )
         {
+            if ( config.Info.Hops.Count == 0 ) return null;
+
             if ( config.Direction == TunnelConfig.TunnelDirection.Outbound )
             {
                 var replytunnel = GetInboundTunnel( true );

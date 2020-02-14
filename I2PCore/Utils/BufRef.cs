@@ -751,6 +751,14 @@ namespace I2PCore.Utils
             return new BufLen( copy ); 
         }
 
+        public string ToEncoding( Encoding enc )
+        {
+            return enc.GetString(
+                BaseArray,
+                BaseArrayOffset,
+                Length );
+        }
+
 #if DEBUG
         protected override void PreReadCheck( int length )
         {

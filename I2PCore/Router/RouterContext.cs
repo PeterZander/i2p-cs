@@ -12,7 +12,6 @@ using I2PCore.Transport.SSU.Data;
 using System.Net.NetworkInformation;
 
 // Todo list for all of I2PCore
-// TODO: Add bootstrapping of NetDb
 // TODO: SSU PeerTest with automatic firewall detection
 // TODO: Add IPV6
 // TODO: Add leases

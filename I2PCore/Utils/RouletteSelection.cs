@@ -99,7 +99,14 @@ namespace I2PCore.Utils
             lock ( Wheel )
             {
                 var pos = 0.0;
-                var subset = Wheel.Where( one => !exclude.Contains( one.Id ) );
+
+                var subset = Wheel;
+
+                if ( exclude != null && exclude.Any() )
+                {
+                    subset = Wheel.Where( one => !exclude.Contains( one.Id ) );
+                }
+
                 var subsetsum = subset.Sum( one => one.Space );
                 var target = BufUtils.RandomDouble( subsetsum );
 
@@ -113,7 +120,12 @@ namespace I2PCore.Utils
                     }
                 }
 
-                return subset.Random().Id;
+                if ( subset.Any() )
+                {
+                    return subset.Random().Id;
+                }
+
+                return Wheel.Random().Id;
             }
         }
     }
