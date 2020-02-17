@@ -21,7 +21,6 @@ namespace I2PCore.Tunnel
         internal I2PTunnelId GatewayTunnelId;
 
         internal bool Fake0HopTunnel;
-        internal TunnelInfo TunnelSetup;
 
         public readonly uint TunnelBuildReplyMessageId = BufUtils.RandomUint();
         public readonly int OutTunnelHops;
@@ -32,85 +31,66 @@ namespace I2PCore.Tunnel
         readonly object GarlicMessageReceivedLock = new object();
         public event Action<GarlicMessage> GarlicMessageReceived;
 
-        public InboundTunnel( TunnelConfig config, int outtunnelhops ): base( config )
+        public override TickSpan Lifetime => Fake0HopTunnel     
+                    ? TickSpan.Seconds( 20 ) 
+                    : base.Lifetime;
+
+        public InboundTunnel( ITunnelOwner owner, TunnelConfig config, int outtunnelhops )
+            : base( owner, config )
         {
-            if ( config != null )
-            {
-                Fake0HopTunnel = false;
-                TunnelSetup = config.Info;
-                OutTunnelHops = outtunnelhops;
+            Fake0HopTunnel = false;
+            OutTunnelHops = outtunnelhops;
 
-                var gw = TunnelSetup.Hops[0];
-                RemoteGateway = gw.Peer.IdentHash;
-                GatewayTunnelId = gw.TunnelId;
+            var gw = config.Info.Hops[0];
+            RemoteGateway = gw.Peer.IdentHash;
+            GatewayTunnelId = gw.TunnelId;
 
-                ReceiveTunnelId = TunnelSetup.Hops.Last().TunnelId;
+            ReceiveTunnelId = config.Info.Hops.Last().TunnelId;
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( $"InboundTunnel: Tunnel {Destination.Id32Short} created." );
+            Logging.LogDebug( $"InboundTunnel: Tunnel {Destination?.Id32Short} created." );
 #endif
-            }
-            else
-            {
-                Fake0HopTunnel = true;
+        }
 
-                var hops = new List<HopInfo>
-                {
-                    new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() )
-                };
-                TunnelSetup = new TunnelInfo( hops );
+        // Fake 0-hop
+        public InboundTunnel( ITunnelOwner owner, TunnelConfig config )
+            : base( owner, config )
+        {
+            Fake0HopTunnel = true;
+            Established = true;
 
-                Config = new TunnelConfig(
-                    TunnelConfig.TunnelDirection.Inbound,
-                    TunnelConfig.TunnelPool.Exploratory,
-                    TunnelSetup );
+            ReceiveTunnelId = config.Info.Hops.Last().TunnelId;
+            RemoteGateway = RouterContext.Inst.MyRouterIdentity.IdentHash;
+            GatewayTunnelId = ReceiveTunnelId;
 
-                ReceiveTunnelId = TunnelSetup.Hops.Last().TunnelId;
-                RemoteGateway = RouterContext.Inst.MyRouterIdentity.IdentHash;
-                GatewayTunnelId = ReceiveTunnelId;
-
-#if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: 0-hop tunnel {Destination.Id32Short} created." );
-#endif
-            }
+            Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: 0-hop tunnel {Destination?.Id32Short} created." );
         }
 
         public override IEnumerable<I2PRouterIdentity> TunnelMembers 
         {
             get
             {
-                if ( TunnelSetup == null ) return null; 
-                return TunnelSetup.Hops.Select( h => (I2PRouterIdentity)h.Peer );
+                if ( Config?.Info is null ) return null; 
+                return Config.Info.Hops.Select( h => (I2PRouterIdentity)h.Peer );
             }
         }
 
-        public override int TunnelEstablishmentTimeoutSeconds 
+        public override TickSpan TunnelEstablishmentTimeout 
         { 
             get 
             {
-                if ( Fake0HopTunnel ) return 100;
+                if ( Fake0HopTunnel ) return TickSpan.Seconds( 100 );
 
-                return OutTunnelHops + TunnelMemberHops *
-                    ( Config.Pool == TunnelConfig.TunnelPool.Exploratory
-                        ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
-                        : MeassuredTunnelBuildTimePerHopSeconds );
+                var hops = OutTunnelHops + TunnelMemberHops;
+                var timeperhop = Config.Pool == TunnelConfig.TunnelPool.Exploratory
+                        ? ( MeassuredTunnelBuildTimePerHop * 2 ) / 3
+                        : MeassuredTunnelBuildTimePerHop;
+
+                return timeperhop * hops;
             }
-        }
-
-        public override int LifetimeSeconds 
-        { 
-            get 
-            {
-                return TunnelLifetimeSeconds; 
-            } 
         }
 
         public override void Send( TunnelMessage msg )
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void SendRaw( I2NPMessage msg )
         {
             throw new NotImplementedException();
         }
@@ -119,7 +99,10 @@ namespace I2PCore.Tunnel
 
         public override bool Exectue()
         {
-            if ( Terminated || RemoteGateway == null ) return false;
+            if ( Terminated || RemoteGateway == null )
+            {
+                return false;
+            }
 
             FragBufferReport.Do( delegate()
             {
@@ -133,32 +116,33 @@ namespace I2PCore.Tunnel
 
         private bool HandleReceiveQueue()
         {
-            II2NPHeader msg = null;
             List<TunnelDataMessage> tdmsgs = null;
 
-            lock ( ReceiveQueue )
+            while ( !ReceiveQueue.IsEmpty )
             {
-                if ( ReceiveQueue.Count == 0 ) return true;
+                if ( !ReceiveQueue.TryDequeue( out var msg ) ) continue;
 
-                if ( ReceiveQueue.Any( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData ) )
+                if ( msg.MessageType != I2NPMessage.MessageTypes.TunnelData )
                 {
-                    var removelist = ReceiveQueue.Where( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData );
-                    tdmsgs = removelist.Select( mq => (TunnelDataMessage)mq.Message ).ToList();
-                    foreach ( var one in removelist.ToArray() ) ReceiveQueue.Remove( one );
+                    HandleTunnelMessage( msg );
                 }
                 else
                 {
-                    msg = ReceiveQueue.Last.Value;
-                    ReceiveQueue.RemoveLast();
+                    if ( tdmsgs is null ) tdmsgs = new List<TunnelDataMessage>();
+                    tdmsgs.Add( (TunnelDataMessage)msg.Message );
                 }
             }
 
             if ( tdmsgs != null )
             {
                 HandleTunnelData( tdmsgs );
-                return true;
             }
 
+            return true;
+        }
+
+        private bool HandleTunnelMessage( II2NPHeader msg )
+        {
 #if LOG_ALL_TUNNEL_TRANSFER
             Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace} HandleReceiveQueue: {msg.MessageType}" );
 #endif
@@ -166,7 +150,7 @@ namespace I2PCore.Tunnel
             switch ( msg.MessageType )
             {
                 case I2NPMessage.MessageTypes.TunnelData:
-                    throw new NotImplementedException( "Should not happen " + TunnelDebugTrace );
+                    throw new NotImplementedException( $"Should not happen {TunnelDebugTrace}" );
 
                 case I2NPMessage.MessageTypes.TunnelBuildReply:
                 case I2NPMessage.MessageTypes.VariableTunnelBuildReply:
@@ -180,8 +164,9 @@ namespace I2PCore.Tunnel
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.LogDebug( $"InboundTunnel {TunnelDebugTrace}: DeliveryStatus: {msg.Message}" );
 #endif
-                    
-                    ThreadPool.QueueUserWorkItem( cb => {
+
+                    ThreadPool.QueueUserWorkItem( cb =>
+                    {
                         lock ( DeliveryStatusReceivedLock )
                         {
                             DeliveryStatusReceived?.Invoke( (DeliveryStatusMessage)msg.Message );
@@ -228,7 +213,9 @@ namespace I2PCore.Tunnel
             var newmsgs = Reassembler.Process( msgs );
             foreach( var one in newmsgs ) 
             {
-                if ( one.GetType() == typeof( TunnelMessageLocal ) )
+                var onetype = one.GetType();
+
+                if ( onetype == typeof( TunnelMessageLocal ) )
                 {
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.Log( $"InboundTunnel {TunnelDebugTrace} TunnelData distributed Local :\r\n{one.Header}" );
@@ -236,7 +223,7 @@ namespace I2PCore.Tunnel
                     MessageReceived( ( (TunnelMessageLocal)one ).Header );
                 }
                 else
-                if ( one.GetType() == typeof( TunnelMessageRouter ) )
+                if ( onetype == typeof( TunnelMessageRouter ) )
                 {
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.Log( $"InboundTunnel {TunnelDebugTrace} TunnelData distributed Router :\r\n{one.Header}" );
@@ -244,7 +231,7 @@ namespace I2PCore.Tunnel
                     TransportProvider.Send( ( (TunnelMessageRouter)one ).Destination, one.Header.Message );
                 }
                 else
-                if ( one.GetType() == typeof( TunnelMessageTunnel ) )
+                if ( onetype == typeof( TunnelMessageTunnel ) )
                 {
                     var tone = (TunnelMessageTunnel)one;
 #if LOG_ALL_TUNNEL_TRANSFER
@@ -269,9 +256,9 @@ namespace I2PCore.Tunnel
             {
                 try
                 {
-                    for ( int i = TunnelSetup.Hops.Count - 2; i >= 0; --i )
+                    for ( int i = Config.Info.Hops.Count - 2; i >= 0; --i )
                     {
-                        var hop = TunnelSetup.Hops[i];
+                        var hop = Config.Info.Hops[i];
 
                         msg.IV.AesEcbDecrypt( hop.IVKey.Key.ToByteArray() );
                         cipher.Decrypt( hop.LayerKey.Key, msg.IV, msg.EncryptedWindow );
@@ -299,10 +286,6 @@ namespace I2PCore.Tunnel
 
         private bool HandleSendQueue()
         {
-            lock ( SendQueue )
-            {
-                if ( SendQueue.Count == 0 ) return true;
-            }
             return true;
         }
 
@@ -310,7 +293,7 @@ namespace I2PCore.Tunnel
         {
             //TunnelSetup.Hops.Insert( 0, new HopInfo( RouterContext.Inst.MyRouterIdentity ) );
 
-            var vtb = VariableTunnelBuildMessage.BuildInboundTunnel( TunnelSetup );
+            var vtb = VariableTunnelBuildMessage.BuildInboundTunnel( Config.Info );
 
             //Logging.Log( vtb.ToString() );
 

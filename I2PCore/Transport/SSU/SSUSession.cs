@@ -153,6 +153,7 @@ namespace I2PCore.Transport.SSU
         internal readonly DataDefragmenter Defragmenter = new DataDefragmenter();
         internal readonly DataFragmenter Fragmenter = new DataFragmenter();
 
+        // TODO: Make concurrent
         internal LinkedList<II2NPHeader5> SendQueue = new LinkedList<II2NPHeader5>();
         internal LinkedList<BufRefLen> ReceiveQueue = new LinkedList<BufRefLen>();
 

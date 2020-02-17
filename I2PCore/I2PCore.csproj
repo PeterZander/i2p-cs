@@ -211,8 +211,8 @@
     <Compile Include="Tunnel\I2NP\Messages\VariableTunnelBuildReplyMessage.cs" />
     <Compile Include="Tunnel\InboundTunnel.cs" />
     <Compile Include="Tunnel\OutboundTunnel.cs" />
-    <Compile Include="Tunnel\PassthroughTunnelProvider.cs" />
-    <Compile Include="Tunnel\PassthroughTunnel.cs" />
+    <Compile Include="Tunnel\TransitTunnelProvider.cs" />
+    <Compile Include="Tunnel\TransitTunnel.cs" />
     <Compile Include="Tunnel\TunnelConfig.cs" />
     <Compile Include="Tunnel\Tunnel.cs" />
     <Compile Include="Tunnel\TunnelDataFragmentReassembly.cs" />
@@ -258,6 +258,9 @@
     <Compile Include="Data\I2PSU3Header.cs" />
     <Compile Include="NetDb\Bootstrap.cs" />
     <Compile Include="NetDb\CertificatesDb.cs" />
+    <Compile Include="Tunnel\ITunnelOwner.cs" />
+    <Compile Include="Tunnel\TunnelIdSubsriptions.cs" />
+    <Compile Include="Tunnel\TunnelBuildRequestDecrypt.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />

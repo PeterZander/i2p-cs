@@ -14,6 +14,11 @@ namespace I2PCore.Utils
             Ticks = ticks;
         }
 
+        public TickSpan( double ticks )
+        {
+            Ticks = (int)ticks;
+        }
+
         public int ToMilliseconds { get { return Ticks; } }
         public float ToSeconds { get { return Ticks / 1000f; } }
         public float ToMinutes { get { return Ticks / ( 60f * 1000f ); } }
@@ -153,7 +158,19 @@ namespace I2PCore.Utils
             return new TickSpan( left.Ticks * multi );
         }
 
+        public static TickSpan operator *( TickSpan left, double multi )
+        {
+            if ( left is null ) return null;
+            return new TickSpan( left.Ticks * multi );
+        }
+
         public static TickSpan operator /( TickSpan left, int divi )
+        {
+            if ( left is null ) return null;
+            return new TickSpan( left.Ticks / divi );
+        }
+
+        public static TickSpan operator /( TickSpan left, double divi )
         {
             if ( left is null ) return null;
             return new TickSpan( left.Ticks / divi );

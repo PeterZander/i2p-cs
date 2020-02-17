@@ -2,23 +2,23 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace I2PCore.Utils
 {
     public class Bandwidth
     {
-        const int AggregationWindowMilliseconds = 20 * 1000;
+        static readonly TickSpan AggregationWindow = TickSpan.Seconds( 20 );
         TickCounter AggregationWindowStart = new TickCounter();
-        long AggregationWindowDataBytes;
+        private long AggregationWindowDataBytes;
         float AggregatedBitrate = 0f;
 
         readonly static float EMAAlphaMax = 0.6f;
         float EMAAlpha;
         float EMAAlphaRes;
 
-        Bandwidth Pool;
-
-        public long DataBytes { get; private set; }
+        private long DataBytesField;
+        public long DataBytes { get => DataBytesField; }
 
         /// <summary>
         /// Bitrate in bit / second
@@ -40,27 +40,32 @@ namespace I2PCore.Utils
             UpdateAlpha( 0.2f );
         }
 
-        public Bandwidth( Bandwidth pool )
-        {
-            Pool = pool;
-            UpdateAlpha( 0.2f );
-        }
-
         private void UpdateAlpha( float v )
         {
             EMAAlpha = v;
             EMAAlphaRes = 1f - v;
         }
 
-        public void Measure( int size )
-        {
-            DataBytes += (long)size;
-            AggregationWindowDataBytes += (long)size;
-            if ( Pool != null ) Pool.Measure( size );
+        private readonly SemaphoreSlim UpdateGate = new SemaphoreSlim( 1, 1 );
 
-            if ( AggregationWindowStart.DeltaToNowMilliseconds > AggregationWindowMilliseconds )
+        public void Measure( long size )
+        {
+            Interlocked.Add( ref DataBytesField, size );
+            Interlocked.Add( ref AggregationWindowDataBytes, size );
+
+            if ( UpdateGate.Wait( 0 ) )
             {
-                UpdateAggregatedBitrate();
+                try
+                {
+                    if ( AggregationWindowStart.DeltaToNow > AggregationWindow )
+                    {
+                        UpdateAggregatedBitrate();
+                    }
+                }
+                finally
+                {
+                    UpdateGate.Release();
+                }
             }
         }
 
@@ -70,7 +75,7 @@ namespace I2PCore.Utils
             AggregatedBitrate = ( AggregatedBitrate * EMAAlpha ) + windowbitrate * EMAAlphaRes;
 
             AggregationWindowDataBytes /= 2;
-            AggregationWindowStart = TickCounter.Now - AggregationWindowMilliseconds / 2;
+            AggregationWindowStart = TickCounter.Now - AggregationWindow / 2;
 
             if ( EMAAlpha < EMAAlphaMax )
             {
@@ -87,8 +92,8 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            return string.Format( "Bitrate {0:###,###,##0.0}kBps ({1:#0.0}), a/w {2:###,###,##0.0} / {3:###,###,##0.0}.",
-                Bitrate / 8192f, BitrateMax / 8192f, AggregatedBitrate / 8192f, AggregationWindowBitrate() / 8192f );
+            return $"{Bitrate:###,###,##0.0}Bps ({BitrateMax:#0.0}), a/w " +
+                $"{AggregatedBitrate:###,###,##0.0} / {AggregationWindowBitrate():###,###,##0.0}.";
         }
     }
 }

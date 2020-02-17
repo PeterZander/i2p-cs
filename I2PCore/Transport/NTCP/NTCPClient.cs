@@ -19,7 +19,8 @@ namespace I2PCore.Transport.NTCP
 #endif
         public const int SendQueueLengthUpperLimit = 200;
 
-        public const int InactivityTimeoutSeconds = I2PCore.Tunnel.Tunnel.TunnelLifetimeSeconds;
+        public readonly int InactivityTimeoutSeconds = 
+            (int)I2PCore.Tunnel.Tunnel.TunnelLifetime.ToSeconds;
         
         protected Socket MySocket;
 

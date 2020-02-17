@@ -17,6 +17,6 @@ namespace I2PCore.Tunnel
 
         internal const float EndpointTunnelBitrateLimit = 500f * 1024f;
         internal const float GatewayTunnelBitrateLimit = 500f * 1024f;
-        internal const float PassthroughTunnelBitrateLimit = 500f * 1024f;
+        internal const float TransitTunnelBitrateLimit = 500f * 1024f;
     }
 }

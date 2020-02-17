@@ -22,7 +22,22 @@ namespace I2PCore.Tunnel.I2NP.Messages
                 Records.Add( r );
             }
             SetBuffer( start, reader );
-        }   
+        }
+
+        // Clones records
+        public TunnelBuildMessage( IEnumerable<AesEGBuildRequestRecord> records )
+        {
+            var hops = (byte)records.Count();
+            if ( hops > 8 ) throw new ArgumentException( "TunnelBuildMessage can only contain 8 records" );
+
+            AllocateBuffer( 1 + 8 * AesEGBuildRequestRecord.Length );
+            var writer = new BufRefLen( Payload );
+            foreach ( var rec in records )
+            {
+                Records.Add( rec );
+                writer.Write( rec.Data );
+            }
+        }
 
         private TunnelBuildMessage()
         {

@@ -13,13 +13,13 @@ using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Tunnel
 {
     public class OutboundTunnel: Tunnel
     {
-        TunnelInfo TunnelSetup;
-        readonly I2PIdentHash NextHop;
+        protected I2PIdentHash NextHop;
         public override I2PIdentHash Destination { get { return NextHop; } }
 
         internal I2PTunnelId SendTunnelId;
@@ -27,40 +27,33 @@ namespace I2PCore.Tunnel
         public readonly uint TunnelBuildReplyMessageId = BufUtils.RandomUint();
         public readonly int ReplyTunnelHops;
 
-        public OutboundTunnel( TunnelConfig config, int replytunnelhops ): base( config )
+        public OutboundTunnel( ITunnelOwner owner, TunnelConfig config, int replytunnelhops )
+            : base( owner, config )
         {
-            TunnelSetup = config.Info;
-
-            var outtunnel = TunnelSetup.Hops[0];
+            var outtunnel = config.Info.Hops[0];
             NextHop = outtunnel.Peer.IdentHash;
             SendTunnelId = outtunnel.TunnelId;
             ReplyTunnelHops = replytunnelhops;
         }
 
-        public override int TunnelEstablishmentTimeoutSeconds 
+        public override TickSpan TunnelEstablishmentTimeout 
         { 
             get 
             {
-                return ReplyTunnelHops + TunnelMemberHops *
-                    ( Config.Pool == TunnelConfig.TunnelPool.Exploratory 
-                        ? ( MeassuredTunnelBuildTimePerHopSeconds * 2 ) / 3
-                        : MeassuredTunnelBuildTimePerHopSeconds ); 
-            } 
-        }
+                var hops = ReplyTunnelHops + TunnelMemberHops;
+                var timeperhop = Config.Pool == TunnelConfig.TunnelPool.Exploratory
+                        ? ( MeassuredTunnelBuildTimePerHop * 2 ) / 3
+                        : MeassuredTunnelBuildTimePerHop;
 
-        public override int LifetimeSeconds
-        {
-            get
-            {
-                return TunnelLifetimeSeconds;
-            }
+                return timeperhop * hops;
+            } 
         }
 
         public override IEnumerable<I2PRouterIdentity> TunnelMembers
         {
             get
             {
-                return TunnelSetup.Hops.Select( h => (I2PRouterIdentity)h.Peer );
+                return Config.Info.Hops.Select( h => (I2PRouterIdentity)h.Peer );
             }
         }
 
@@ -79,16 +72,11 @@ namespace I2PCore.Tunnel
 
         private bool HandleReceiveQueue()
         {
-            II2NPHeader msg;
-
             while ( true )
             {
-                lock ( ReceiveQueue )
-                {
-                    if ( ReceiveQueue.Count == 0 ) return true;
-                    msg = ReceiveQueue.Last.Value;
-                    ReceiveQueue.RemoveLast();
-                }
+                if ( ReceiveQueue.IsEmpty ) return true;
+
+                if ( !ReceiveQueue.TryDequeue( out var msg ) ) continue;
 
                 switch ( msg.MessageType )
                 {
@@ -112,23 +100,25 @@ namespace I2PCore.Tunnel
         {
             var cipher = new CbcBlockCipher( new AesEngine() );
 
-            for ( int i = TunnelSetup.Hops.Count - 1; i >= 0; --i )
+            var hops = Config.Info.Hops;
+
+            for ( int i = hops.Count - 1; i >= 0; --i )
             {
-                var proc = TunnelSetup.Hops[i].ReplyProcessing;
+                var proc = hops[i].ReplyProcessing;
                 cipher.Init( false, proc.ReplyKey.Key.ToParametersWithIV( proc.ReplyIV ) );
 
                 for ( int j = 0; j <= i; ++j )
                 {
                     cipher.Reset();
-                    var pl = msg.ResponseRecords[TunnelSetup.Hops[j].ReplyProcessing.BuildRequestIndex].Payload;
+                    var pl = msg.ResponseRecords[hops[j].ReplyProcessing.BuildRequestIndex].Payload;
                     cipher.ProcessBytes( pl );
                 }
             }
 
             bool ok = true;
-            for ( int i = 0; i < TunnelSetup.Hops.Count; ++i )
+            for ( int i = 0; i < hops.Count; ++i )
             {
-                var hop = TunnelSetup.Hops[i];
+                var hop = hops[i];
 
                 var ix = hop.ReplyProcessing.BuildRequestIndex;
                 var onerecord = msg.ResponseRecords[ix];
@@ -152,14 +142,14 @@ namespace I2PCore.Tunnel
 
                 ok &= accept && okhash;
                 Logging.LogDebug( $"HandleReceivedTunnelBuild: {this}: [{ix}] " +
-                    $"from {hop.Peer.IdentHash.Id32Short}. {TunnelSetup.Hops.Count} hops, " +
+                    $"from {hop.Peer.IdentHash.Id32Short}. {hops.Count} hops, " +
                     $"Reply: {onerecord.Reply}" );
             }
 
             if ( ok )
             {
                 TunnelProvider.Inst.OutboundTunnelEstablished( this );
-                foreach ( var one in TunnelSetup.Hops )
+                foreach ( var one in hops )
                 {
                     NetDb.Inst.Statistics.SuccessfulTunnelMember( one.Peer.IdentHash );
                     one.ReplyProcessing = null; // We dont need this anymore
@@ -167,7 +157,7 @@ namespace I2PCore.Tunnel
             }
             else
             {
-                foreach ( var one in TunnelSetup.Hops )
+                foreach ( var one in hops )
                 {
                     NetDb.Inst.Statistics.DeclinedTunnelMember( one.Peer.IdentHash );
                     one.ReplyProcessing = null; // We dont need this anymore
@@ -180,34 +170,12 @@ namespace I2PCore.Tunnel
 
         private bool HandleSendQueue()
         {
-            I2NPMessage[] rawdata;
-
-            lock ( SendRawQueue )
-            {
-                rawdata = SendRawQueue.ToArray();
-                SendRawQueue.Clear();
-            }
-            foreach ( var msg in rawdata )
-            {
-#if LOG_ALL_TUNNEL_TRANSFER
-                if ( FilterMessageTypes.Update( new HashedItemGroup( (int)msg.MessageType, 0x1701 ) ) )
-                {
-                    Logging.LogDebug( $"OutboundTunnel: Send raw {NextHop.Id32Short} : {msg}" );
-                }
-#endif
-                Bandwidth.DataSent( msg.Payload.Length );
-                TransportProvider.Send( NextHop, msg );
-            }
-
-            if ( SendQueue.Count == 0 ) return true;
+            if ( SendQueue.IsEmpty ) return true;
 
             IEnumerable<TunnelMessage> messages;
 
-            lock ( SendQueue )
-            {
-                messages = SendQueue.ToArray();
-                SendQueue.Clear();
-            }
+            messages = SendQueue.ToArray();
+            SendQueue = new ConcurrentQueue<TunnelMessage>();
 
             return CreateTunnelMessageFragments( messages );
         }
@@ -237,9 +205,11 @@ namespace I2PCore.Tunnel
             var buf = new List<I2NPMessage>();
             var cipher = new CbcBlockCipher( new AesEngine() );
 
+            var hopsreverse = Config.Info.Hops.Reverse<HopInfo>();
+
             foreach ( var one in data )
             {
-                foreach ( var hop in TunnelSetup.Hops.Reverse<HopInfo>() )
+                foreach ( var hop in hopsreverse )
                 {
                     one.IV.AesEcbDecrypt( hop.IVKey.Key );
                     cipher.Decrypt( hop.LayerKey.Key, one.IV, one.EncryptedWindow );
@@ -263,7 +233,7 @@ namespace I2PCore.Tunnel
 
         public I2NPMessage CreateBuildRequest( InboundTunnel replytunnel )
         {
-            var vtb = VariableTunnelBuildMessage.BuildOutboundTunnel( TunnelSetup,
+            var vtb = VariableTunnelBuildMessage.BuildOutboundTunnel( Config.Info,
                 replytunnel.Destination, replytunnel.GatewayTunnelId,
                 TunnelBuildReplyMessageId );
 

@@ -28,7 +28,7 @@ namespace I2PCore.Utils
         public bool DropMessage()
         {
             var br = BandwidthMeasurement.Bitrate;
-            if ( MaxKbPS == 0f || br < StartDiscardingLimit ) return false;
+            if ( MaxKbPS <= 0f || br < StartDiscardingLimit ) return false;
 
             var probability = ( br - StartDiscardingLimit ) / ProbabilityWindow;
             return Rnd.NextDouble() < probability;

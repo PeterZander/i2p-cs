@@ -7,16 +7,24 @@ using I2PCore.Tunnel.I2NP.Data;
 using I2PCore.Data;
 using I2PCore.Router;
 using I2PCore.Tunnel.I2NP.Messages;
+using System.Collections.Concurrent;
 
-namespace I2PCore.Tunnel.I2NP
+namespace I2PCore.Tunnel
 {
-    public class ClientTunnelProvider
+    public class ClientTunnelProvider: ITunnelOwner
     {
         const int NewTunnelCreationFactor = 2;
 
         List<ClientDestination> Clients = new List<ClientDestination>();
-        Dictionary<Tunnel, ClientDestination> Destinations = new Dictionary<Tunnel, ClientDestination>();
-        Dictionary<Tunnel, TunnelUnderReplacement> RunningReplacements = new Dictionary<Tunnel, TunnelUnderReplacement>();
+
+        ConcurrentDictionary<Tunnel, ClientDestination> PendingTunnels =
+            new ConcurrentDictionary<Tunnel, ClientDestination>();
+
+        ConcurrentDictionary<Tunnel, ClientDestination> Destinations = 
+            new ConcurrentDictionary<Tunnel, ClientDestination>();
+
+        ConcurrentDictionary<Tunnel, TunnelUnderReplacement> RunningReplacements = 
+            new ConcurrentDictionary<Tunnel, TunnelUnderReplacement>();
 
         internal TunnelProvider TunnelMgr;
 
@@ -84,12 +92,12 @@ namespace I2PCore.Tunnel.I2NP
                 TunnelConfig.TunnelPool.Client,
                 prototype ?? CreateOutgoingTunnelChain( dest ) );
 
-            var tunnel = (OutboundTunnel)TunnelMgr.CreateTunnel( config );
+            var tunnel = (OutboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
             {
                 TunnelMgr.AddTunnel( tunnel );
                 dest.AddOutboundPending( tunnel );
-                lock ( Destinations ) Destinations[tunnel] = dest;
+                PendingTunnels[tunnel] = dest;
             }
             return tunnel;
         }
@@ -101,21 +109,23 @@ namespace I2PCore.Tunnel.I2NP
                 TunnelConfig.TunnelPool.Client,
                 prototype ?? CreateIncommingTunnelChain( dest ) );
 
-            var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( config );
+            var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
             {
                 tunnel.GarlicMessageReceived += new Action<GarlicMessage>( GarlicMessageReceived );
                 TunnelMgr.AddTunnel( tunnel );
                 dest.AddInboundPending( tunnel );
-                lock ( Destinations ) Destinations[tunnel] = dest;
+                PendingTunnels[tunnel] = dest;
             }
             return tunnel;
         }
 
         PeriodicAction TunnelBuild = new PeriodicAction( TickSpan.Seconds( 1 ) );
         PeriodicAction DestinationExecute = new PeriodicAction( TickSpan.Seconds( 1 ) );
+        PeriodicAction ReplaceTunnels = new PeriodicAction( TickSpan.Seconds( 5 ) );
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 10 ) );
 
-        internal void Execute()
+        public void Execute()
         {
             TunnelBuild.Do( () => 
             {
@@ -133,10 +143,7 @@ namespace I2PCore.Tunnel.I2NP
             {
                 ClientDestination[] dests;
 
-                lock ( Destinations )
-                {
-                    dests = Destinations.Select( d => d.Value ).ToArray();
-                }
+                dests = Destinations.Select( d => d.Value ).ToArray();
 
                 foreach ( var onedest in dests )
                 {
@@ -149,7 +156,22 @@ namespace I2PCore.Tunnel.I2NP
                         Logging.Log( "ClientTunnelProvider Execute DestExecute", ex );
                     }
                 }
+
+                ReplaceTunnels.Do( CheckForTunnelReplacementTimeout );
+
+                LogStatus.Do( LogStatusReport );
             } );
+        }
+
+        private void LogStatusReport()
+        {
+            var ei = Destinations.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
+            var pi = PendingTunnels.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
+            var eo = Destinations.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
+            var po = PendingTunnels.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
+
+            Logging.LogInformation(
+                $"Established client tunnels in : {ei,2} ( {pi,2} ), out: {eo,2} ( {po,2} )" );
         }
 
         class TunnelsNeededInfo
@@ -199,51 +221,40 @@ namespace I2PCore.Tunnel.I2NP
                 }
             }
 
-            ClientTunnelsStatusOk = Clients.All( ct => ct.ClientTunnelsStatusOk );
+            TunnelMgr.ClientTunnelsStatusOk = Clients.All( ct => ct.ClientTunnelsStatusOk );
         }
 
-        internal bool ClientTunnelsStatusOk { get; private set; }
-
         #region TunnelEvents
-        internal void TunnelEstablished( Tunnel tunnel )
+        public void TunnelEstablished( Tunnel tunnel )
         {
             TunnelUnderReplacement replace = null;
 
-            ClientDestination client = FindClient( tunnel );
-            if ( client == null ) return;
+            PendingTunnels.TryRemove( tunnel, out var client );
+            Destinations[tunnel] = client;
 
             client.TunnelEstablished( tunnel );
 
-            lock ( RunningReplacements )
-            {
-                replace = RunningReplacements.Where( p => p.Value.NewTunnels.Any( t => t.Equals( tunnel ) ) ).
-                    Select( p => p.Value ).SingleOrDefault();
-                if ( replace != null ) RunningReplacements.Remove( replace.OldTunnel );
-            }
+            replace = RunningReplacements.Where( p => 
+                p.Value.NewTunnels.Any( 
+                    t => t.Equals( tunnel ) ) )
+                .Select( p => p.Value )
+                .FirstOrDefault();
+
+            if ( replace != null ) RunningReplacements.TryRemove( replace.OldTunnel, out _ );
 
             if ( replace != null )
             {
                 Logging.LogDebug( $"ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel {replace.OldTunnel} with new tunnel {tunnel}" );
 
-                RemoveTunnelUnderReplacement( replace.OldTunnel );
-                //client.RemoveTunnel( replace.OldTunnel );
-                //TunnelMgr.RemoveTunnel( replace.OldTunnel );
-                //replace.OldTunnel.Shutdown();
+                RunningReplacements.TryRemove( replace.OldTunnel, out _ );
                 return;
             }
         }
 
-        internal void TunnelBuildTimeout( Tunnel tunnel )
+        public void TunnelBuildTimeout( Tunnel tunnel )
         {
-            ClientDestination client = FindClient( tunnel );
-            if ( client == null ) return;
-
+            if ( !PendingTunnels.TryRemove( tunnel, out var client ) ) return;
             client.RemoveTunnel( tunnel );
-
-            lock ( Destinations )
-            {
-                Destinations.Remove( tunnel );
-            }
 
             var replace = FindReplaceRecord( tunnel );
 
@@ -272,41 +283,36 @@ namespace I2PCore.Tunnel.I2NP
             }
         }
 
-        internal void TunnelReplacementNeeded( Tunnel tunnel )
+        protected void TunnelReplacementNeeded( Tunnel tunnel )
         {
-            ClientDestination client = FindClient( tunnel );
-            if ( client == null ) return;
+            if ( !Destinations.TryGetValue( tunnel, out var client ) ) return;
 
-            TunnelUnderReplacement replace;
+            if ( !RunningReplacements.TryGetValue( tunnel, out var replace ) ) return; // Already being replaced
 
-            lock ( RunningReplacements )
+            // Too many tunnels already?
+            if ( tunnel is InboundTunnel )
             {
-                if ( !RunningReplacements.TryGetValue( tunnel, out replace ) ) return; // Already being replaced
-
-                // Too many tunnels already?
-                if ( tunnel is InboundTunnel )
-                {
-                    if ( client.InboundTunnelsNeeded < 0 ) return;
-                }
-                else
-                {
-                    if ( client.OutboundTunnelsNeeded < 0 ) return;
-                }
-
-                replace = new TunnelUnderReplacement( tunnel, client );
-                lock ( RunningReplacements )
-                {
-                    RunningReplacements[tunnel] = replace;
-                }
+                if ( client.InboundTunnelsNeeded < 0 ) return;
             }
+            else
+            {
+                if ( client.OutboundTunnelsNeeded < 0 ) return;
+            }
+
+            replace = new TunnelUnderReplacement( tunnel, client );
+            RunningReplacements[tunnel] = replace;
 
             ReplaceTunnel( tunnel, client, replace );
         }
 
-        internal void TunnelTimeout( Tunnel tunnel )
+        public void TunnelFailed( Tunnel tunnel )
         {
-            ClientDestination client = FindClient( tunnel );
-            if ( client == null ) return;
+            TunnelExpired( tunnel );
+        }
+
+        public void TunnelExpired( Tunnel tunnel )
+        {
+            if ( !PendingTunnels.TryGetValue( tunnel, out var client ) ) return;
 
             var replace = FindReplaceRecord( tunnel );
 
@@ -363,40 +369,15 @@ namespace I2PCore.Tunnel.I2NP
 
         #region Queue mgmt
 
-        private ClientDestination FindClient( Tunnel tunnel )
-        {
-            ClientDestination client;
-
-            lock ( Destinations )
-            {
-                if ( !Destinations.TryGetValue( tunnel, out client ) )
-                {
-                    Logging.LogDebug( $"ClientTunnelProvider: TunnelEstablished: " +
-                        $"Unable to find a matching Destination for {tunnel}" );
-                    return null;
-                }
-            }
-
-            return client;
-        }
-
         private TunnelUnderReplacement FindReplaceRecord( Tunnel newtunnel )
         {
-            TunnelUnderReplacement replace;
-            lock ( RunningReplacements )
-            {
-                replace = RunningReplacements.Where( p => p.Value.NewTunnels.Any( t => t.Equals( newtunnel ) ) ).
-                    Select( p => p.Value ).SingleOrDefault();
-            }
-            return replace;
-        }
+            var replace = RunningReplacements
+                    .Where( p => 
+                        p.Value.NewTunnels.Any( t => t.Equals( newtunnel ) ) )
+                    .Select( p => p.Value )
+                    .FirstOrDefault();
 
-        private void RemoveTunnelUnderReplacement( Tunnel tunnel )
-        {
-            lock ( RunningReplacements )
-            {
-                RunningReplacements.Remove( tunnel );
-            }
+            return replace;
         }
 
         #endregion
@@ -408,5 +389,25 @@ namespace I2PCore.Tunnel.I2NP
         }
 
         #endregion
+
+        private void CheckForTunnelReplacementTimeout()
+        {
+            IEnumerable<Tunnel> timeoutlist;
+
+            timeoutlist = Destinations
+                .Where( t => t.Key.NeedsRecreation )
+                .Select( t => t.Key )
+                .ToArray();
+
+            foreach ( var one in timeoutlist )
+            {
+                /*
+                Logging.LogDebug( "TunnelProvider: CheckForTunnelReplacementTimeout: " + one.Pool.ToString() + 
+                    " tunnel " + one.TunnelDebugTrace + " needs to be replaced." );
+                 */
+                TunnelReplacementNeeded( one );
+            }
+        }
+
     }
 }

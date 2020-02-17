@@ -78,7 +78,7 @@ namespace I2PCore.Tunnel.I2NP.Data
 
         public override string ToString()
         {
-            return this.GetType().Name + " " + MessageType.ToString();
+            return $"{GetType().Name} {MessageType}";
         }
     }
 }

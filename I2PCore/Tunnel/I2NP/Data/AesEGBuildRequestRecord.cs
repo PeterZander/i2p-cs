@@ -33,6 +33,11 @@ namespace I2PCore.Tunnel.I2NP.Data
             Data = new BufLen( cipher.ProcessBytes( src.Data.BaseArray, src.Data.BaseArrayOffset, src.Data.Length ) );
         }
 
+        public AesEGBuildRequestRecord Clone()
+        {
+            return new AesEGBuildRequestRecord( (BufRefLen)Data.Clone() );
+        }
+
         public void Process( BufferedBlockCipher cipher )
         {
             cipher.ProcessBytes( Data );

@@ -39,6 +39,20 @@ namespace I2PCore.Tunnel.I2NP.Messages
             for ( int i = 0; i < hops; ++i ) Records.Add( new AesEGBuildRequestRecord( writer ) );
         }
 
+        // Clones records
+        public VariableTunnelBuildMessage( IEnumerable<AesEGBuildRequestRecord> records )
+        {
+            var hops = (byte)records.Count();
+            AllocateBuffer( 1 + hops * AesEGBuildRequestRecord.Length );
+            var writer = new BufRefLen( Payload );
+            writer.Write8( hops );
+            foreach ( var rec in records )
+            {
+                Records.Add( rec );
+                writer.Write( rec.Data );
+            }
+        }
+
         public override string ToString()
         {
             var result = new StringBuilder();

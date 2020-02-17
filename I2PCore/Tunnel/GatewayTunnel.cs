@@ -14,28 +14,24 @@ using I2PCore.Router;
 
 namespace I2PCore.Tunnel
 {
-    public class GatewayTunnel: Tunnel
+    public class GatewayTunnel: InboundTunnel
     {
-        I2PIdentHash NextHop;
+        protected readonly I2PIdentHash NextHop;
         public override I2PIdentHash Destination { get { return NextHop; } }
 
-        internal I2PTunnelId SendTunnelId;
+        public override bool Established { get => true; set => base.Established = value; }
 
-        BufLen IVKey;
-        BufLen LayerKey;
+        internal I2PTunnelId SendTunnelId;
+        readonly BufLen IVKey;
+        readonly BufLen LayerKey;
 
         internal BandwidthLimiter Limiter;
 
-        PeriodicAction PreTunnelDataBatching = new PeriodicAction( TickSpan.Milliseconds( 3000 ) );
+        PeriodicAction PreTunnelDataBatching = new PeriodicAction( TickSpan.Milliseconds( 500 ) );
 
-        public GatewayTunnel( BuildRequestRecord brrec )
-            : base( null )
+        public GatewayTunnel( ITunnelOwner owner, TunnelConfig config, BuildRequestRecord brrec )
+            : base( owner, config, 1 )
         {
-            Config = new TunnelConfig(
-                TunnelConfig.TunnelDirection.Outbound,
-                TunnelConfig.TunnelPool.External,
-                null );
-
             Limiter = new BandwidthLimiter( Bandwidth.SendBandwidth, TunnelSettings.GatewayTunnelBitrateLimit );
 
             ReceiveTunnelId = new I2PTunnelId( brrec.ReceiveTunnel );
@@ -46,13 +42,11 @@ namespace I2PCore.Tunnel
             LayerKey = brrec.LayerKey.Clone();
         }
 
-        public override int TunnelEstablishmentTimeoutSeconds { get { return 20; } }
-
         public override IEnumerable<I2PRouterIdentity> TunnelMembers
         {
             get
             {
-                return null;
+                return Enumerable.Empty<I2PRouterIdentity>();
             }
         }
 
@@ -78,51 +72,51 @@ namespace I2PCore.Tunnel
         {
             II2NPHeader16[] messages = null;
 
-            lock ( ReceiveQueue )
+            if ( ReceiveQueue.IsEmpty ) return true;
+
+            var msgs = new List<II2NPHeader16>();
+            int dropped = 0;
+            while ( ReceiveQueue.TryDequeue( out var msg ) )
             {
-                if ( ReceiveQueue.Count == 0 ) return true;
-
-                var msgs = new List<II2NPHeader16>();
-                int dropped = 0;
-                foreach ( var msg in ReceiveQueue )
+                if ( Limiter.DropMessage() )
                 {
-                    if ( Limiter.DropMessage() )
-                    {
-                        ++dropped;
-                        continue;
-                    }
-
-                    msgs.Add( (II2NPHeader16)msg );
+                    ++dropped;
+                    continue;
                 }
-                messages = msgs.ToArray();
+
+                msgs.Add( (II2NPHeader16)msg );
+            }
+            messages = msgs.ToArray();
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                if ( dropped > 0 )
+            if ( dropped > 0 )
+            {
+                if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x63e9 ) ) )
                 {
-                    if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x63e9 ) ) )
-                    {
-                        Logging.LogDebug( () => string.Format( "{0} bandwidth limit. {1} dropped messages. {2}", this, dropped, Bandwidth ) );
-                    }
+                    Logging.LogDebug( $"{this} bandwidth limit. {dropped} dropped messages. {Bandwidth}" );
                 }
-#endif
             }
+#endif
 
             if ( messages == null || messages.Length == 0 ) return true;
 
-            var tdata = TunnelDataMessage.MakeFragments( messages.Select( msg => (TunnelMessage)( new TunnelMessageLocal( msg ) ) ), SendTunnelId );
+            var tdata = TunnelDataMessage.MakeFragments( 
+                messages.Select( msg => new TunnelMessageLocal( msg ) )
+                , SendTunnelId );
 
             EncryptTunnelMessages( tdata );
 
 #if LOG_ALL_TUNNEL_TRANSFER
             if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x17f3 ) ) )
             {
-                Logging.Log( "GatewayTunnel " + Destination.Id32Short + ": TunnelData sent." );
+                Logging.Log( $"GatewayTunnel {Destination.Id32Short}: TunnelData sent." );
             }
 #endif
             foreach ( var tdmsg in tdata )
             {
-                Bandwidth.DataSent( tdmsg.Payload.Length ); 
                 TransportProvider.Send( Destination, tdmsg );
+                Bandwidth.DataSent( tdmsg.Payload.Length );
+                //Logging.LogDebug( $"{this} {Destination.Id32Short}: TDM len {tdmsg.Payload.Length}." );
             }
             return true;
         }

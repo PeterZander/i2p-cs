@@ -11,13 +11,16 @@ using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Router;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Tunnel
 {
-    public class EndpointTunnel: Tunnel
+    public class EndpointTunnel: InboundTunnel
     {
-        I2PIdentHash NextHop;
+        protected I2PIdentHash NextHop;
         public override I2PIdentHash Destination { get { return NextHop; } }
+
+        public override bool Established { get => true; set => base.Established = value; }
 
         internal I2PTunnelId ResponseTunnelId;
         internal uint ResponseMessageId;
@@ -27,14 +30,9 @@ namespace I2PCore.Tunnel
 
         internal BandwidthLimiter Limiter;
 
-        public EndpointTunnel( BuildRequestRecord brrec )
-            : base( null )
+        public EndpointTunnel( ITunnelOwner owner, TunnelConfig config, BuildRequestRecord brrec )
+            : base( owner, config, 1 )
         {
-            Config = new TunnelConfig(
-                TunnelConfig.TunnelDirection.Inbound,
-                TunnelConfig.TunnelPool.External,
-                null );
-
             Limiter = new BandwidthLimiter( Bandwidth.SendBandwidth, TunnelSettings.EndpointTunnelBitrateLimit );
 
             ReceiveTunnelId = new I2PTunnelId( brrec.ReceiveTunnel );
@@ -46,13 +44,11 @@ namespace I2PCore.Tunnel
             LayerKey = brrec.LayerKey.Clone();
         }
 
-        public override int TunnelEstablishmentTimeoutSeconds { get { return 20; } }
-
         public override IEnumerable<I2PRouterIdentity> TunnelMembers
         {
             get
             {
-                return null;
+                return Enumerable.Empty<I2PRouterIdentity>();
             }
         }
 
@@ -78,18 +74,16 @@ namespace I2PCore.Tunnel
         {
             TunnelDataMessage[] tdmsgs = null;
 
-            lock ( ReceiveQueue )
+            if ( ReceiveQueue.IsEmpty ) return true;
+
+            if ( ReceiveQueue.Any( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData ) )
             {
-                if ( ReceiveQueue.Count == 0 ) return true;
-
-                if ( ReceiveQueue.Any( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData ) )
-                {
-                    var removelist = ReceiveQueue.Where( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData );
-                    tdmsgs = removelist.Select( mq => (TunnelDataMessage)mq.Message ).ToArray();
-                }
-
-                ReceiveQueue.Clear(); // Just drop the non-TunnelData
+                var removelist = ReceiveQueue.Where( mq => mq.MessageType == I2NPMessage.MessageTypes.TunnelData );
+                tdmsgs = removelist.Select( mq => (TunnelDataMessage)mq.Message ).ToArray();
             }
+
+            // Just drop the non-TunnelData
+            ReceiveQueue = new ConcurrentQueue<II2NPHeader>();
 
             if ( tdmsgs != null )
             {
