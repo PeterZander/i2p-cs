@@ -81,7 +81,7 @@ namespace I2PCore.Transport.SSU
 
                     var data = new BufLen( new byte[12] );
                     data.Randomize();
-                    Session.Host.Send( intro.AliceEndpoint, data );
+                    Send( intro.AliceEndpoint, data );
 
                     ++Session.Host.EPStatisitcs[Session.RemoteEP].RelayIntrosReceived;
                     ++Session.RelayIntroductionsReceived;

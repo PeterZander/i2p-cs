@@ -44,7 +44,15 @@ namespace I2PCore.Transport.SSU
                 }
             }
 
-            var newsess = new SSUSession( this, remoteep, addr, dest, MTUProvider, MyRouterContext );
+            var newsess = new SSUSession( 
+                    this, 
+                    Send, 
+                    remoteep, 
+                    addr, 
+                    dest, 
+                    MTUProvider, 
+                    MyRouterContext );
+
             if ( key != null )
             {
                 lock ( Sessions )

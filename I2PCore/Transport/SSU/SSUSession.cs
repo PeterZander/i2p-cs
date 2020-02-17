@@ -66,6 +66,8 @@ namespace I2PCore.Transport.SSU
         internal I2PRouterAddress RemoteAddr;
         internal I2PKeysAndCert RemoteRouter;
 
+        protected readonly Action<IPEndPoint, BufLen> Sendmethod;
+
         private BufLen IntroKeyField;
         internal BufLen RemoteIntroKey
         {
@@ -143,8 +145,10 @@ namespace I2PCore.Transport.SSU
 
         bool IsTerminated = false;
 
-        public long BytesSent { get; protected set; }
-        public long BytesReceived { get; protected set; }
+        public long BytesSent { get => BWStat.SendBandwidth.DataBytes; }
+        public long BytesReceived { get => BWStat.ReceiveBandwidth.DataBytes; }
+
+        private readonly BandwidthStatistics BWStat = new BandwidthStatistics();
 
         internal RouterContext MyRouterContext;
         IMTUProvider MTUProvider;
@@ -153,15 +157,15 @@ namespace I2PCore.Transport.SSU
         internal readonly DataDefragmenter Defragmenter = new DataDefragmenter();
         internal readonly DataFragmenter Fragmenter = new DataFragmenter();
 
-        // TODO: Make concurrent
-        internal LinkedList<II2NPHeader5> SendQueue = new LinkedList<II2NPHeader5>();
-        internal LinkedList<BufRefLen> ReceiveQueue = new LinkedList<BufRefLen>();
+        internal ConcurrentQueue<II2NPHeader5> SendQueue = new ConcurrentQueue<II2NPHeader5>();
+        internal ConcurrentQueue<BufRefLen> ReceiveQueue = new ConcurrentQueue<BufRefLen>();
 
         internal TickCounter StartTime = TickCounter.Now;
 
         // We are client
         public SSUSession( 
-                SSUHost owner, 
+                SSUHost owner,
+                Action<IPEndPoint, BufLen> sendmethod,
                 IPEndPoint remoteep, 
                 I2PRouterAddress remoteaddr, 
                 I2PKeysAndCert rri, 
@@ -170,6 +174,7 @@ namespace I2PCore.Transport.SSU
         {
             mOutgoing = true;
             Host = owner;
+            Sendmethod = sendmethod;
             RemoteEP = remoteep;
             RemoteAddr = remoteaddr;
             RemoteRouter = rri;
@@ -189,13 +194,15 @@ namespace I2PCore.Transport.SSU
 
         // We are host
         public SSUSession( 
-                SSUHost owner, 
+                SSUHost owner,
+                Action<IPEndPoint, BufLen> sendmethod,
                 IPEndPoint remoteep, 
                 IMTUProvider mtup, 
                 RouterContext rc )
         {
             mOutgoing = false;
             Host = owner;
+            Sendmethod = sendmethod;
             RemoteEP = remoteep;
             MTUProvider = mtup;
             MyRouterContext = rc;
@@ -205,8 +212,8 @@ namespace I2PCore.Transport.SSU
 
             MTU = MTUProvider.GetMTU( remoteep );
 
-            SendQueue.AddLast( ( new DeliveryStatusMessage( (ulong)I2PConstants.I2P_NETWORK_ID ) ).Header5 );
-            SendQueue.AddLast( ( new DatabaseStoreMessage( MyRouterContext.MyRouterInfo ) ).Header5 );
+            SendQueue.Enqueue( ( new DeliveryStatusMessage( (ulong)I2PConstants.I2P_NETWORK_ID ) ).Header5 );
+            SendQueue.Enqueue( ( new DatabaseStoreMessage( MyRouterContext.MyRouterInfo ) ).Header5 );
 
             CurrentState = new SessionCreatedState( this );
         }
@@ -310,50 +317,50 @@ namespace I2PCore.Transport.SSU
         {
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
-            lock ( SendQueue )
+            var len = SendQueue.Count;
+
+            if ( len < SendQueueLengthUpperLimit )
             {
-                var len = SendQueue.Count;
-
-                if ( len < SendQueueLengthUpperLimit )
-                {
-                    SendQueue.AddLast( msg.Header5 );
-                }
-#if DEBUG
-                else
-                {
-                    Logging.LogWarning(
-                        $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
-                        $"Dropping new message. Max queue: {SessionMaxSendQueueLength} " +
-                        $"({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
-                }
-
-                SessionMaxSendQueueLength = Math.Max( SessionMaxSendQueueLength, len );
-
-                if ( ( len > SendQueueLengthWarningLimit ) && ( MinTimeBetweenSendQueueLogs.DeltaToNowMilliseconds > 4000 ) ) 
-                {
-                    Logging.LogWarning(
-                        $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
-                        $"Max queue: {SessionMaxSendQueueLength} ({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
-                    MinTimeBetweenSendQueueLogs.SetNow();
-                }
-#endif
+                SendQueue.Enqueue( msg.Header5 );
             }
+#if DEBUG
+            else
+            {
+                Logging.LogWarning(
+                    $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
+                    $"Dropping new message. Max queue: {SessionMaxSendQueueLength} " +
+                    $"({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
+            }
+
+            SessionMaxSendQueueLength = Math.Max( SessionMaxSendQueueLength, len );
+
+            if ( ( len > SendQueueLengthWarningLimit ) && ( MinTimeBetweenSendQueueLogs.DeltaToNowMilliseconds > 4000 ) ) 
+            {
+                Logging.LogWarning(
+                    $"SSUSession {DebugId}: SendQueue is {len} messages long! " +
+                    $"Max queue: {SessionMaxSendQueueLength} ({MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds:###0}s)" );
+                MinTimeBetweenSendQueueLogs.SetNow();
+            }
+#endif
+        }
+
+        internal void Send( IPEndPoint ep, BufLen data )
+        {
+            BWStat.DataSent( data.Length );
+            Sendmethod( ep, data );
         }
 
         public void Receive( BufRefLen recvbuf )
         {
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
-            int len;
-            lock ( ReceiveQueue )
-            {
-                len = ReceiveQueue.Count;
+            BWStat.DataReceived( recvbuf.Length );
 
-                if ( len < ReceiveQueueLengthUpperLimit )
-                {
-                    ReceiveQueue.AddLast( recvbuf );
-                    return;
-                }
+            var len = ReceiveQueue.Count;
+            if ( len < ReceiveQueueLengthUpperLimit )
+            {
+                ReceiveQueue.Enqueue( recvbuf );
+                return;
             }
 #if DEBUG
             Logging.LogWarning(
@@ -401,15 +408,13 @@ namespace I2PCore.Transport.SSU
 
         internal bool Run()
         {
-            while ( ReceiveQueue.Count > 0 )
+            while ( !ReceiveQueue.IsEmpty )
             {
-                BufRefLen data;
-
-                lock ( ReceiveQueue )
+                if ( !ReceiveQueue.TryDequeue( out var data ) )
                 {
-                    data = ReceiveQueue.First.Value;
-                    ReceiveQueue.RemoveFirst();
+                    continue;
                 }
+
                 if ( !DatagramReceived( data, null ) ) return false;
             }
 

@@ -81,7 +81,13 @@ namespace I2PCore.Transport.SSU
                         Logging.LogTransport( $"SSUHost: incoming connection " +
                             $"from {sessionendpoint} created." );
 
-                        session = new SSUSession( this, (IPEndPoint)ep, MTUProvider, MyRouterContext );
+                        session = new SSUSession( 
+                                this, 
+                                Send,
+                                (IPEndPoint)ep, 
+                                MTUProvider, 
+                                MyRouterContext );
+
                         Sessions[sessionendpoint] = session;
 
                         Logging.LogTransport( $"SSUHost: incoming connection " +
@@ -166,7 +172,7 @@ namespace I2PCore.Transport.SSU
             }
         }
 
-        internal void Send( IPEndPoint ep, BufLen data )
+        protected void Send( IPEndPoint ep, BufLen data )
         {
             MySocket.BeginSendTo( 
                     data.BaseArray, data.BaseArrayOffset, data.Length, 

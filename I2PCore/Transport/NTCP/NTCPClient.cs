@@ -9,6 +9,7 @@ using System.Net;
 using I2PCore.Router;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Tunnel.I2NP.Data;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Transport.NTCP
 {
@@ -35,8 +36,10 @@ namespace I2PCore.Transport.NTCP
         public event Action<ITransport> ConnectionShutDown;
         public event Action<ITransport, Exception> ConnectionException;
 
-        public long BytesSent { get; protected set; }
-        public long BytesReceived { get; protected set; }
+        public long BytesSent { get => BWStat.SendBandwidth.DataBytes; }
+        public long BytesReceived { get => BWStat.ReceiveBandwidth.DataBytes; }
+
+        private readonly BandwidthStatistics BWStat = new BandwidthStatistics();
 
         /// <summary>
         /// Diffie-Hellman negotiations completed.
@@ -84,8 +87,8 @@ namespace I2PCore.Transport.NTCP
             }
         }
 
-        LinkedList<I2NPMessage> SendQueue = new LinkedList<I2NPMessage>();
-        LinkedList<BufLen> SendQueueRaw = new LinkedList<BufLen>();
+        ConcurrentQueue<I2NPMessage> SendQueue = new ConcurrentQueue<I2NPMessage>();
+        ConcurrentQueue<BufLen> SendQueueRaw = new ConcurrentQueue<BufLen>();
 #if DEBUG
         TickCounter MinTimeBetweenSendQueueLogs = new TickCounter();
         int SessionMaxSendQueueLength = 0;
@@ -108,18 +111,15 @@ namespace I2PCore.Transport.NTCP
             }
 #endif
 
-            lock ( SendQueue )
-            {
-                if ( sendqlen < SendQueueLengthUpperLimit ) SendQueue.AddLast( msg );
+            if ( sendqlen < SendQueueLengthUpperLimit ) SendQueue.Enqueue( msg );
 #if DEBUG
-                else
-                {
-                    Logging.LogWarning(
-                        string.Format( "NTCPClient {0}: SendQueue is {1} messages long! Dropping new message. Max queue: {2} ({3:###0}s)",
-                        DebugId, sendqlen, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
-                }
-#endif
+            else
+            {
+                Logging.LogWarning(
+                    string.Format( "NTCPClient {0}: SendQueue is {1} messages long! Dropping new message. Max queue: {2} ({3:###0}s)",
+                    DebugId, sendqlen, SessionMaxSendQueueLength, MinTimeBetweenSendQueueLogs.DeltaToNow.ToSeconds ) );
             }
+#endif
 
             try
             {
@@ -143,25 +143,16 @@ namespace I2PCore.Transport.NTCP
 
             if ( SendQueueRaw.Count > 0 )
             {
-                lock ( SendQueueRaw )
-                {
-                    data = SendQueueRaw.First.Value;
-                    SendQueueRaw.RemoveFirst();
-                }
+                SendQueueRaw.TryDequeue( out data );
             }
             else if ( DHSucceeded )
             {
-                I2NPMessage msg;
-                lock ( SendQueue )
+                if ( SendQueue.IsEmpty )
                 {
-                    if ( SendQueue.Count == 0 )
-                    {
-                        SendSocketFree.Set();
-                        return;
-                    }
-                    msg = SendQueue.First.Value;
-                    SendQueue.RemoveFirst();
+                    SendSocketFree.Set();
+                    return;
                 }
+                SendQueue.TryDequeue( out var msg );
 
                 Watchdog.Inst.Ping( Thread.CurrentThread );
 
@@ -173,7 +164,14 @@ namespace I2PCore.Transport.NTCP
                 return;
             }
 
-            MySocket.BeginSend( data.BaseArray, data.BaseArrayOffset, data.Length, SocketFlags.None, new AsyncCallback( SendCompleted ), null );
+            BWStat.DataSent( data.Length );
+            MySocket.BeginSend( 
+                    data.BaseArray, 
+                    data.BaseArrayOffset, 
+                    data.Length, 
+                    SocketFlags.None, 
+                    new AsyncCallback( SendCompleted ), 
+                    null );
         }
 
         void SendCompleted( IAsyncResult ar )
@@ -258,13 +256,10 @@ namespace I2PCore.Transport.NTCP
         {
             if ( Terminated ) throw new EndOfStreamEncounteredException();
 
-            lock ( SendQueueRaw )
-            {
 #if LOG_MUCH_TRANSPORT
-                Logging.LogTransport( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
+            Logging.LogTransport( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
 #endif
-                SendQueueRaw.AddLast( data );
-            }
+            SendQueueRaw.Enqueue( data );
 
             TryInitiateSend();
         }
@@ -406,6 +401,7 @@ namespace I2PCore.Transport.NTCP
                     while ( !Terminated )
                     {
                         var data = reader.Read();
+                        BWStat.DataReceived( data.Length );
                         //Logging.LogTransport( "Read: " + data.Length );
 
                         Watchdog.Inst.Ping( Thread.CurrentThread );

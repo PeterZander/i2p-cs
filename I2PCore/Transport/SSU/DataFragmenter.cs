@@ -5,6 +5,7 @@ using System.Text;
 using I2PCore.Utils;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Tunnel.I2NP.Data;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Transport.SSU
 {
@@ -21,7 +22,7 @@ namespace I2PCore.Transport.SSU
         {
         }
 
-        public int Send( BufRefLen writer, LinkedList<II2NPHeader5> sendqueue )
+        public int Send( BufRefLen writer, ConcurrentQueue<II2NPHeader5> sendqueue )
         {
             var result = 0;
 
@@ -34,8 +35,14 @@ namespace I2PCore.Transport.SSU
                     lock ( sendqueue )
                     {
                         if ( sendqueue.Count == 0 ) return result;
-                        CurrentMessage = new FragmentedMessage( sendqueue.First.Value );
-                        sendqueue.RemoveFirst();
+                        if ( sendqueue.TryDequeue( out var msg ) )
+                        {
+                            CurrentMessage = new FragmentedMessage( msg );
+                        }
+                        else
+                        {
+                            return result;
+                        }
                     }
 
                     if ( CurrentMessage != null ) lock ( Messages )

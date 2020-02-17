@@ -13,6 +13,7 @@ using System.Net;
 using I2PCore.Router;
 using I2PCore.Transport.SSU;
 using System.Net.Sockets;
+using static I2PCore.Utils.BufUtils;
 
 namespace I2PCore.Transport
 {
@@ -88,7 +89,7 @@ namespace I2PCore.Transport
                         {
                             foreach ( var msg in found.Messages )
                             {
-                                Logging.LogTransport( "TransportProvider: Destination " + found.Destination.Id32Short + " found. Sending data." );
+                                Logging.LogTransport( $"TransportProvider: Destination {found.Destination.Id32Short} found. Sending data." );
                                 TransportProvider.Send( found.Destination, msg );
                             }
                         }
@@ -107,6 +108,16 @@ namespace I2PCore.Transport
                                 $"({ssuestablished.Count( t => !t.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
                                 $"({ntcpestablished.Count( t => t.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
                                 $"({ntcpestablished.Count( t => !t.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
+
+                            var ntcpsent = ntcprunning.Sum( t => t.BytesSent );
+                            var ntcprecv = ntcprunning.Sum( t => t.BytesReceived );
+                            var ssusent = ssurunning.Sum( t => t.BytesSent );
+                            var ssurecv = ssurunning.Sum( t => t.BytesReceived );
+
+                            Logging.LogDebug(
+                                $"TransportProvider: send / recv  " +
+                                $"SSU: {BytesToReadable( ssusent ),12} / {BytesToReadable( ssurecv ),12}    " +
+                                $"NTCP: {BytesToReadable( ntcpsent ),12} / {BytesToReadable( ntcprecv ),12}" );
                         } );
 #endif
 
@@ -183,9 +194,12 @@ namespace I2PCore.Transport
                     if ( EstablishedTransports.ContainsKey( dest ) )
                     {
                         var result = EstablishedTransports[dest];
-                        if ( result == null ) Logging.LogTransport(
-                            string.Format( "TransportProvider: GetEstablishedTransport: WARNING! EstablishedTransports contains null ref for {0}!",
-                            dest.Id32Short ) );
+                        if ( result == null )
+                        {
+                            Logging.LogTransport(
+                                $"TransportProvider: GetEstablishedTransport: WARNING! " +
+                                $"EstablishedTransports contains null ref for {dest.Id32Short}!" );
+                        }
                         return result.FirstOrDefault();
                     }
                 }
@@ -239,7 +253,7 @@ namespace I2PCore.Transport
                 if ( ra == null )
                 {
                     Logging.LogTransport(
-                        string.Format( "TransportProvider: CreateTransport: No usable address found for {0}!", ri.Identity.IdentHash.Id32Short ) );
+                        $"TransportProvider: CreateTransport: No usable address found for {ri.Identity.IdentHash.Id32Short}!" );
                     return null;
                 }
 
@@ -273,8 +287,8 @@ namespace I2PCore.Transport
                 Logging.LogTransport( ex );
                 Logging.LogTransport( "TransportProvider: CreateTransport stack trace: " + System.Environment.StackTrace );
 #else
-                Logging.LogTransport( "TransportProvider: Exception [" + ex.GetType().ToString() + "] '" + ex.Message + "' to " +
-                    ri.Identity.IdentHash.Id32Short + "." );
+                Logging.LogTransport( $"TransportProvider: Exception [{ex.GetType()}] " +
+                    $"'{ex.Message}' to {ri.Identity.IdentHash.Id32Short}." );
 #endif
                 if ( transport != null ) Remove( transport );
                 throw;
@@ -326,8 +340,7 @@ namespace I2PCore.Transport
         void SSUHost_ConnectionCreated( ITransport transport )
         {
             Logging.LogTransport(
-                string.Format( "TransportProvider: SSU incoming transport {0} added.",
-                transport.DebugId ) );
+                $"TransportProvider: SSU incoming transport {transport.DebugId} added." );
 
             AddTransport( transport );
         }
@@ -335,8 +348,7 @@ namespace I2PCore.Transport
         void NTCPhost_ConnectionCreated( ITransport transport )
         {
             Logging.LogTransport(
-                string.Format( "TransportProvider: NTCP incoming transport {0} added.",
-                transport.DebugId ) );
+                $"TransportProvider: NTCP incoming transport {transport.DebugId} added." );
 
             AddTransport( transport );
         }
@@ -384,7 +396,7 @@ namespace I2PCore.Transport
             }
 
             Logging.LogTransport(
-                string.Format( "TransportProvider: transport_ConnectionEstablished: {0} to {1}.", instance.DebugId, hash.Id32Short ) );
+                $"TransportProvider: transport_ConnectionEstablished: {instance.DebugId} to {hash.Id32Short}." );
 
             AddToEstablishedTransports( hash, instance );
         }
@@ -392,7 +404,7 @@ namespace I2PCore.Transport
         void transport_ConnectionShutDown( ITransport instance )
         {
             Logging.LogTransport(
-                string.Format( "TransportProvider: transport_ConnectionShutDown: {0}", instance.DebugId ) );
+                $"TransportProvider: transport_ConnectionShutDown: {instance.DebugId}" );
 
             Remove( instance );
         }
@@ -418,7 +430,7 @@ namespace I2PCore.Transport
             {
                 if ( dest == RouterContext.Inst.MyRouterIdentity.IdentHash )
                 {
-                    Logging.LogTransport( "TransportProvider: Loopback " + data.ToString() );
+                    Logging.LogTransport( $"TransportProvider: Loopback {data}" );
                     TransportProvider.Inst.DistributeIncomingMessage( null, data.Header16 );
                     return true;
                 }
@@ -441,12 +453,18 @@ namespace I2PCore.Transport
                     if ( NetDb.Inst.Contains( dest ) )
                     {
                         transp = TransportProvider.Inst.GetTransport( dest );
-                        if ( transp == null ) throw new FailedToConnectException( $"Unable to contact {dest}" );
+                        if ( transp == null )
+                        {
+                            throw new FailedToConnectException( $"Unable to contact {dest}" );
+                        }
                         transp.Send( data );
                     }
                     else
                     {
-                        if ( TransportProvider.Inst.CurrentlyUnresolvableRouters.Contains( dest ) ) throw new ArgumentException( "Unable to resolve " + dest.ToString() );
+                        if ( TransportProvider.Inst.CurrentlyUnresolvableRouters.Contains( dest ) )
+                        {
+                            throw new ArgumentException( $"Unable to resolve {dest}" );
+                        }
 
                         TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
                     }
@@ -457,8 +475,8 @@ namespace I2PCore.Transport
                 if ( transp != null ) TransportProvider.Inst.Remove( transp );
 
                 if ( dest != null && NetDb.Inst != null ) NetDb.Inst.Statistics.FailedToConnect( dest );
-                Logging.LogTransport( "TransportProvider.Send: " + ( transp == null ? "<>" : transp.DebugId ) +
-                    " Exception " + ex.GetType().ToString() + ", " + ex.Message );
+                Logging.LogTransport( $"TransportProvider.Send: {( transp == null ? "<>" : transp.DebugId )}" +
+                    $" Exception {ex.GetType()}" );
 
                 throw;
             }
@@ -466,12 +484,12 @@ namespace I2PCore.Transport
             {
                 TransportProvider.Inst.Remove( transp );
 
-                Logging.LogTransport( "TransportProvider.Send: Connection " + ( transp == null ? "<>" : transp.DebugId ) +
-                    " closed exception: " + ex.GetType().ToString() + ", " + ex.Message );
+                Logging.LogTransport( $"TransportProvider.Send: Connection {( transp == null ? "<>" : transp.DebugId )}" +
+                    $" closed exception: {ex.GetType()}" );
 
                 if ( reclvl > 1 || !Send( dest, data, reclvl + 1 ) )
                 {
-                    Logging.LogTransport( "TransportProvider.Send: Recconnection failed to " + dest.Id32Short + ", reclvl: " + reclvl.ToString() + "." );
+                    Logging.LogTransport( $"TransportProvider.Send: Recconnection failed to {dest.Id32Short}, reclvl: {reclvl}." );
                     throw;
                 }
             }
@@ -487,7 +505,7 @@ namespace I2PCore.Transport
                 if ( transp != null ) TransportProvider.Inst.Remove( transp );
 
                 if ( dest != null ) NetDb.Inst.Statistics.DestinationInformationFaulty( dest );
-                Logging.LogTransport( "TransportProvider.Send: Exception " + ex.GetType().ToString() + ", " + ex.Message );
+                Logging.LogTransport( $"TransportProvider.Send: Exception {ex.GetType()}, {ex.Message}" );
 
                 throw;
             }

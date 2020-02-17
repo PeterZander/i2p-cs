@@ -14,6 +14,7 @@ using I2PCore.Router;
 using I2PCore.Transport;
 using I2PCore;
 using System.Net.Sockets;
+using System.Collections.Concurrent;
 
 namespace I2PTests
 {
@@ -145,10 +146,10 @@ namespace I2PTests
             var start = new BufLen( dest );
             var writer = new BufRefLen( dest );
 
-            var tosend = new LinkedList<II2NPHeader5>();
-            tosend.AddLast( smalldatamessage.Header5 );
-            tosend.AddLast( datamessage.Header5 );
-            tosend.AddLast( datamessage2.Header5 );
+            var tosend = new ConcurrentQueue<II2NPHeader5>();
+            tosend.Enqueue( smalldatamessage.Header5 );
+            tosend.Enqueue( datamessage.Header5 );
+            tosend.Enqueue( datamessage2.Header5 );
 
             var sent = new LinkedList<II2NPHeader5>();
             foreach ( var one in tosend ) sent.AddLast( one );
@@ -234,7 +235,7 @@ namespace I2PTests
             tosend.AddLast( datamessage2.Header5 );
 
             var tosendshuffle = tosend.Shuffle();
-            var tosendshuffled = new LinkedList<II2NPHeader5>( tosendshuffle );
+            var tosendshuffled = new ConcurrentQueue<II2NPHeader5>( tosendshuffle );
 
             var sent = new LinkedList<II2NPHeader5>();
             foreach ( var one in tosend ) sent.AddLast( one );

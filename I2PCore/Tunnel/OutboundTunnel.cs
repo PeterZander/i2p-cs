@@ -222,15 +222,6 @@ namespace I2PCore.Tunnel
             return buf;
         }
 
-        /*
-        public void SendTunnelGateway( I2NPMessage msg )
-        {
-            lock ( SendQueue )
-            {
-                SendRawQueue.AddFirst( new TunnelGateway( new I2NPHeader16( msg ), SendTunnelId ) );
-            }
-        }*/
-
         public I2NPMessage CreateBuildRequest( InboundTunnel replytunnel )
         {
             var vtb = VariableTunnelBuildMessage.BuildOutboundTunnel( Config.Info,

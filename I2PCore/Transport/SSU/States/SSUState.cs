@@ -254,13 +254,18 @@ namespace I2PCore.Transport.SSU
 #endif
 
             DataSent();
-            Session.Host.Send( dest, data );
+            Send( dest, data );
         }
 
         bool RandomExtraPadding( BufLen start, BufRefLen writer )
         {
             writer.Write( BufUtils.Random( BufUtils.RandomInt( 16 ) ) );
             return true;
+        }
+
+        protected void Send( IPEndPoint ep, BufLen data )
+        {
+            Session.Send( ep, data );
         }
 
         protected void SendMessage(
