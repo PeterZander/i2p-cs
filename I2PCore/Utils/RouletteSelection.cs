@@ -23,7 +23,7 @@ namespace I2PCore.Utils
         }
 
         private const double Elitism = 1.009;
-        private const int IncludeTop = 2000;
+        internal const int IncludeTop = 2000;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
         readonly double TotalSpaceSum;

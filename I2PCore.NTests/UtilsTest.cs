@@ -1,69 +1,19 @@
 ﻿using System;
 using System.Text;
-using System.Collections.Generic;
 using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using I2PCore.Data;
-using I2PCore.Tunnel.I2NP.Messages;
+using NUnit.Framework;
 using I2PCore.Utils;
-using I2PCore.Tunnel.I2NP.Data;
-using Org.BouncyCastle.Math;
-using System.Net;
-using I2PCore;
 
 namespace I2PTests
 {
-    /// <summary>
-    /// Summary description for GarlicTest
-    /// </summary>
-    [TestClass]
+    [TestFixture]
     public class UtilsTest
     {
         public UtilsTest()
         {
         }
 
-        private TestContext testContextInstance;
-
-        /// <summary>
-        ///Gets or sets the test context which provides
-        ///information about and functionality for the current test run.
-        ///</summary>
-        public TestContext TestContext
-        {
-            get
-            {
-                return testContextInstance;
-            }
-            set
-            {
-                testContextInstance = value;
-            }
-        }
-
-        #region Additional test attributes
-        //
-        // You can use the following additional attributes as you write your tests:
-        //
-        // Use ClassInitialize to run code before running the first test in the class
-        // [ClassInitialize()]
-        // public static void MyClassInitialize(TestContext testContext) { }
-        //
-        // Use ClassCleanup to run code after all tests in a class have run
-        // [ClassCleanup()]
-        // public static void MyClassCleanup() { }
-        //
-        // Use TestInitialize to run code before running each test 
-        // [TestInitialize()]
-        // public void MyTestInitialize() { }
-        //
-        // Use TestCleanup to run code after each test has run
-        // [TestCleanup()]
-        // public void MyTestCleanup() { }
-        //
-        #endregion
-
-        [TestMethod]
+        [Test]
         public void TestTickCounter()
         {
             var start = new TickCounter();
@@ -92,7 +42,7 @@ namespace I2PTests
             Assert.IsTrue( ( ( now1 - start ).ToMilliseconds ) / 100 == startdelta / 100 );
         }
 
-        [TestMethod]
+        [Test]
         public void TestGZip()
         {
             var smalldata = BufUtils.Random( 200 );
@@ -131,66 +81,59 @@ namespace I2PTests
             Assert.IsTrue( b2 == new BufLen( bigdata ) );
         }
 
-        [TestMethod]
+        [Test]
         public void TestRoulette()
         {
             var l = BufUtils.Random( 10000 ).AsEnumerable();
-            var r = new I2PCore.Utils.RouletteSelection<byte,byte>( l, v => v, k => k == 42 ? 30f : 1f, float.MaxValue );
+            var r = new I2PCore.Utils.RouletteSelection<byte,byte>( l, v => v, k => k == 42 ? 30f : 1f );
 
             int is42 = 0;
             int samples = 10000;
             for ( int i = 0; i < samples; ++i )
             {
-                if ( r.GetWeightedRandom() == 42 ) ++is42;
+                if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
             }
 
             Assert.IsTrue( is42 > ( 20 * samples ) / 256 );
         }
 
-        [TestMethod]
+        [Test]
         public void TestRoulette2()
         {
             var l = BufUtils.Random( 10000 ).AsEnumerable();
             l = l.Concat( BufUtils.Populate<byte>( 42, 10000 ) );
-            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f, float.MaxValue );
+            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f );
 
             int is42 = 0;
             int samples = 10000;
             for ( int i = 0; i < samples; ++i )
             {
-                if ( r.GetWeightedRandom() == 42 ) ++is42;
+                if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
             }
 
             Assert.IsTrue( is42 > samples / 2 - samples / 30 );
         }
 
-        [TestMethod]
+        [Test]
         public void TestRoulette3()
         {
-            var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), 10000 );
-            var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k, 2f );
+            var populationcount = RouletteSelection<float,float>.IncludeTop;
+            var samplecount = 10000;
+
+            var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), populationcount );
+            var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k );
 
             int iszero = 0;
-            for ( int i = 0; i < 10000; ++i )
+            for ( int i = 0; i < samplecount; ++i )
             {
-                if ( r.GetWeightedRandom() == 0f ) ++iszero;
+                if ( r.GetWeightedRandom( null ) < float.Epsilon ) ++iszero;
             }
 
-            Assert.IsTrue( iszero > 10000 / 5 );
-            Assert.IsTrue( iszero < 10000 / 2 );
-
-            r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k, float.MaxValue );
-
-            iszero = 0;
-            for ( int i = 0; i < 10000; ++i )
-            {
-                if ( r.GetWeightedRandom() == 0f ) ++iszero;
-            }
-
-            Assert.IsTrue( iszero < 4 );
+            Assert.IsTrue( iszero > 0 );
+            Assert.IsTrue( iszero < samplecount / 2 );
         }
 
-        [TestMethod]
+        [Test]
         public void TestBase32()
         {
             /* Test vectors from RFC 4648 */

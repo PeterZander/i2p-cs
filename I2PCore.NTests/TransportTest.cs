@@ -2,7 +2,7 @@
 using System.Text;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 using I2PCore.Data;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Utils;
@@ -17,55 +17,12 @@ using System.Net.Sockets;
 
 namespace I2PTests
 {
-    /// <summary>
-    /// Summary description for TransportTest
-    /// </summary>
-    [TestClass]
+    [TestFixture]
     public class TransportTest
     {
         public TransportTest()
         {
         }
-
-        private TestContext testContextInstance;
-
-        /// <summary>
-        ///Gets or sets the test context which provides
-        ///information about and functionality for the current test run.
-        ///</summary>
-        public TestContext TestContext
-        {
-            get
-            {
-                return testContextInstance;
-            }
-            set
-            {
-                testContextInstance = value;
-            }
-        }
-
-        #region Additional test attributes
-        //
-        // You can use the following additional attributes as you write your tests:
-        //
-        // Use ClassInitialize to run code before running the first test in the class
-        // [ClassInitialize()]
-        // public static void MyClassInitialize(TestContext testContext) { }
-        //
-        // Use ClassCleanup to run code after all tests in a class have run
-        // [ClassCleanup()]
-        // public static void MyClassCleanup() { }
-        //
-        // Use TestInitialize to run code before running each test 
-        // [TestInitialize()]
-        // public void MyTestInitialize() { }
-        //
-        // Use TestCleanup to run code after each test has run
-        // [TestCleanup()]
-        // public void MyTestCleanup() { }
-        //
-        #endregion
 
         List<II2NPHeader> DataReceived = new List<II2NPHeader>();
 
@@ -83,7 +40,7 @@ namespace I2PTests
             public void MTUUsed( IPEndPoint ep, MTUConfig mtu ) { }
         }
 
-        [TestMethod]
+        [Test]
         public void TestSSU()
         {
             Logging.LogToFile( "TestSSU.log" );
@@ -92,10 +49,10 @@ namespace I2PTests
             testcontext.DefaultTCPPort = 2048 + BufUtils.RandomInt( 5000 );
             testcontext.DefaultUDPPort = 2048 + BufUtils.RandomInt( 5000 );
 
-            var host = new SSUHost_Accessor( testcontext, new FixedMTU() );
+            var host = new SSUHost( testcontext, new FixedMTU() );
             host.AllowConnectToSelf = true;
 
-            host.add_ConnectionCreated( new Action<I2PCore.Transport.ITransport>( host_ConnectionCreated ) );
+            host.ConnectionCreated += host_ConnectionCreated;
 
             // Remote
             var dnsa = Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetwork ).FirstOrDefault();
@@ -106,7 +63,7 @@ namespace I2PTests
             remotetestcontext.DefaultTCPPort = testcontext.DefaultTCPPort + 5;
             remotetestcontext.DefaultUDPPort = testcontext.DefaultUDPPort + 5;
 
-            var remotehost = new SSUHost_Accessor( remotetestcontext, new FixedMTU() );
+            var remotehost = new SSUHost( remotetestcontext, new FixedMTU() );
             remotehost.AllowConnectToSelf = true;
             var client = remotehost.AddSession( addr, testcontext.MyRouterIdentity );
             client.Connect();
@@ -170,7 +127,7 @@ namespace I2PTests
             }
         }
 
-        [TestMethod]
+        [Test]
         public void TestSSUFragmentation()
         {
             var fragmenter = new DataFragmenter();
@@ -241,7 +198,7 @@ namespace I2PTests
             }
         }
 
-        [TestMethod]
+        [Test]
         public void TestSSUOutOfOrderFragmentation()
         {
             var fragmenter = new DataFragmenter();

@@ -7,12 +7,12 @@ using System.Text;
 using System.IO;
 using System.Collections;
 
-// [Sektor-chunk storlek: 4 bytes][ 12 bytes reserved ]
-//     [Sektor typ: 1 byte 0x01 = bitmap]
-//     [Sektor typ: 1 byte 0x02 = Datasector]
-//     [Sektor typ: 1 byte 0x04 = Fortsättning]
-//     [Sektor typ: 1 byte 0x08 = Key / Metadata]
-//     [Sektor typ: 1 byte 0xFF = Allocated / Not initialized]
+// [Sektor-chunk storlek: 4 bytes][ 1st sector reserved ]
+//     [Sector typ: 1 byte 0x01 = bitmap]
+//     [Sector typ: 1 byte 0x02 = Datasector]
+//     [Sector typ: 1 byte 0x04 = Fortsättning]
+//     [Sector typ: 1 byte 0x08 = Key / Metadata]
+//     [Sector typ: 1 byte 0xFF = Allocated / Not initialized]
 //         [Nästa sektor index 4 bytes, eller $FFFFFFFF om sista bitmap sector.]
 //             [Bitmap. 1 bit per sektor: 1 Allokerad. 0. Fri. Sektor-chunk storlek - 5 bytes]
 //             [Icke Fortsättning]
@@ -219,7 +219,7 @@ namespace I2PCore.Utils
 
         public static long BitmapToPos( int bit, int sectorsize )
         {
-            var result = 16 + bit * sectorsize;
+            var result = ( bit + 1 ) * sectorsize;
 #if STORE_DETAILED_TRACE_LOGS
             System.Diagnostics.Debug.WriteLine( string.Format( "BitmapToPos: Bit: {0}, sectorsize: {1}, result: {2}", bit, sectorsize, result ) );
 #endif
@@ -228,7 +228,7 @@ namespace I2PCore.Utils
 
         public static int PosToBitmap( long pos, int sectorsize )
         {
-            var result = (int)( ( pos - 16 ) / sectorsize );
+            var result = (int)( pos / sectorsize - 1 );
 #if STORE_DETAILED_TRACE_LOGS
             System.Diagnostics.Debug.WriteLine( string.Format( "PosToBitmap: Pos: {0}, sectorsize: {1}, result: {2}", pos, sectorsize, result ) );
 #endif
@@ -313,12 +313,12 @@ namespace I2PCore.Utils
             }
         }
 
-        long BitmapToPos( int bit )
+        internal long BitmapToPos( int bit )
         {
             return BitmapSector.BitmapToPos( bit, Chunksize );
         }
 
-        long PosToBitmap( int bit )
+        internal long PosToBitmap( int bit )
         {
             return BitmapSector.PosToBitmap( bit, Chunksize );
         }

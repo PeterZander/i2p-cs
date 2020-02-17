@@ -56,7 +56,7 @@ namespace I2PCore.Transport.SSU
             Worker.Start();
         }
 
-        bool AllowConnectToSelf { get; set; } = false;
+        internal bool AllowConnectToSelf { get; set; } = false;
 
         LinkedList<IPAddress> ReportedAddresses = new LinkedList<IPAddress>();
         TickCounter LastIPReport = null;

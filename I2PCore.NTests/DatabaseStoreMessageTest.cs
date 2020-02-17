@@ -1,22 +1,14 @@
-﻿using System;
-using System.Text;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System.Collections.Generic;
+using NUnit.Framework;
 using I2PCore.Data;
 using I2PCore.Tunnel.I2NP.Messages;
 using I2PCore.Utils;
-using I2PCore.Tunnel.I2NP.Data;
 using Org.BouncyCastle.Math;
-using I2PCore.Tunnel;
 using System.Net;
 
 namespace I2PTests
 {
-    /// <summary>
-    /// Summary description for GarlicTest
-    /// </summary>
-    [TestClass]
+    [TestFixture]
     public class DatabaseStoreMessageTest
     {
         I2PPrivateKey Private;
@@ -41,47 +33,7 @@ namespace I2PTests
             Me = new I2PRouterIdentity( Public, new I2PSigningPublicKey( new BigInteger( "12" ), I2PKeyType.DefaultSigningKeyCert ) );
         }
 
-        private TestContext testContextInstance;
-
-        /// <summary>
-        ///Gets or sets the test context which provides
-        ///information about and functionality for the current test run.
-        ///</summary>
-        public TestContext TestContext
-        {
-            get
-            {
-                return testContextInstance;
-            }
-            set
-            {
-                testContextInstance = value;
-            }
-        }
-
-        #region Additional test attributes
-        //
-        // You can use the following additional attributes as you write your tests:
-        //
-        // Use ClassInitialize to run code before running the first test in the class
-        // [ClassInitialize()]
-        // public static void MyClassInitialize(TestContext testContext) { }
-        //
-        // Use ClassCleanup to run code after all tests in a class have run
-        // [ClassCleanup()]
-        // public static void MyClassCleanup() { }
-        //
-        // Use TestInitialize to run code before running each test 
-        // [TestInitialize()]
-        // public void MyTestInitialize() { }
-        //
-        // Use TestCleanup to run code after each test has run
-        // [TestCleanup()]
-        // public void MyTestCleanup() { }
-        //
-        #endregion
-
-        [TestMethod]
+        [Test]
         public void TestSimpleDatabaseStoreCreation()
         {
             var mapping = new I2PMapping();
@@ -108,7 +60,7 @@ namespace I2PTests
             Assert.IsTrue( rdsm.RouterInfo.VerifySignature() );
         }
 
-        [TestMethod]
+        [Test]
         public void TestSimpleDatabaseHeader5StoreCreation()
         {
             var mapping = new I2PMapping();
@@ -135,7 +87,7 @@ namespace I2PTests
             Assert.IsTrue( rdsm.RouterInfo.VerifySignature() );
         }
 
-        [TestMethod]
+        [Test]
         public void TestSimpleDatabaseStoreLeaseSetCreation()
         {
             var linfo = new I2PLeaseInfo( Public, PublicSigning, Private, PrivateSigning );
@@ -162,7 +114,7 @@ namespace I2PTests
             Assert.IsTrue( rdsm.LeaseSet.VerifySignature() );
         }
 
-        [TestMethod]
+        [Test]
         public void TestSimpleDatabaseStoreLeaseSetEd25519Creation()
         {
             var linfo = new I2PLeaseInfo( Public, PublicSigningEd25519, Private, PrivateSigningEd25519 );

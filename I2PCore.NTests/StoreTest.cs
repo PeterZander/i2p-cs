@@ -1,5 +1,5 @@
 ﻿using I2PCore.Utils;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,69 +7,10 @@ using System.Threading;
 
 namespace I2PTests
 {
-    
-    
-    /// <summary>
-    ///This is a test class for StoreTest and is intended
-    ///to contain all StoreTest Unit Tests
-    ///</summary>
-    [TestClass()]
+    [TestFixture]
     public class StoreTest
     {
-
-
-        private TestContext testContextInstance;
-
-        /// <summary>
-        ///Gets or sets the test context which provides
-        ///information about and functionality for the current test run.
-        ///</summary>
-        public TestContext TestContext
-        {
-            get
-            {
-                return testContextInstance;
-            }
-            set
-            {
-                testContextInstance = value;
-            }
-        }
-
-        #region Additional test attributes
-        // 
-        //You can use the following additional attributes as you write your tests:
-        //
-        //Use ClassInitialize to run code before running the first test in the class
-        //[ClassInitialize()]
-        //public static void MyClassInitialize(TestContext testContext)
-        //{
-        //}
-        //
-        //Use ClassCleanup to run code after all tests in a class have run
-        //[ClassCleanup()]
-        //public static void MyClassCleanup()
-        //{
-        //}
-        //
-        //Use TestInitialize to run code before running each test
-        //[TestInitialize()]
-        //public void MyTestInitialize()
-        //{
-        //}
-        //
-        //Use TestCleanup to run code after each test has run
-        //[TestCleanup()]
-        //public void MyTestCleanup()
-        //{
-        //}
-        //
-        #endregion
-
-        /// <summary>
-        ///A test for Write
-        ///</summary>
-        [TestMethod()]
+        [Test]
         public void WriteTest1()
         {
             var data1 = new byte[10000];
@@ -144,7 +85,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Write
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void WriteTest()
         {
             var data1 = new byte[10000];
@@ -187,7 +128,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Save
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void SaveTest()
         {
             int defaultsectorsize = 1024;
@@ -217,7 +158,7 @@ namespace I2PTests
         /// <summary>
         ///A test for ReadAll
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void ReadAllTest()
         {
             int defaultsectorsize = 300;
@@ -238,7 +179,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Next
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void NextTest()
         {
             int defaultsectorsize = 60;
@@ -265,7 +206,7 @@ namespace I2PTests
         /// <summary>
         ///A test for IndexStream
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void IndexStreamTest()
         {
             var data1 = new byte[100000];
@@ -313,7 +254,7 @@ namespace I2PTests
         /// <summary>
         ///A test for IndexStream
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void IndexStreamTest1()
         {
             var data1 = new byte[10000];
@@ -361,7 +302,7 @@ namespace I2PTests
         /// <summary>
         ///A test for IndexStream with offset
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void IndexStreamTest2()
         {
             var data1 = new byte[100000];
@@ -423,7 +364,7 @@ namespace I2PTests
         /// <summary>
         /// Stress IndexStream
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void IndexStreamTest3()
         {
             const int MaxSectorSize = 32000;
@@ -512,7 +453,7 @@ namespace I2PTests
         /// <summary>
         ///A test for GetMatchingIx
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void GetMatchingIxTest()
         {
             int defaultsectorsize = 1024;
@@ -538,7 +479,7 @@ namespace I2PTests
         /// <summary>
         ///A test for GetMatching
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void GetMatchingTest()
         {
             int defaultsectorsize = 1024;
@@ -566,7 +507,7 @@ namespace I2PTests
         /// <summary>
         ///A test for GetDataLength
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void GetDataLengthTest()
         {
             int defaultsectorsize = 1024;
@@ -599,7 +540,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Delete
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void DeleteTest1()
         {
             int defaultsectorsize = 128;
@@ -646,7 +587,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Delete
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void DeleteTest()
         {
             int defaultsectorsize = 128;
@@ -691,9 +632,32 @@ namespace I2PTests
         }
 
         /// <summary>
+        /// A test of record alignment
+        /// All records should be alligned to sector size chunks to enable
+        /// efficient storage on block devices with fixed sector size.
+        ///</summary>
+        [Test]
+        public void StoreRecordAlignment()
+        {
+            var data = new byte[] { 0x5c, 0xff, 0x00, 0x27 };
+            Stream dest = new MemoryStream();
+            int defaultsectorsize = 4096;
+            using ( Store target = new Store( dest, defaultsectorsize ) )
+            {
+                var ix = target.Write( data );
+                Assert.AreEqual( data.Length, target.GetDataLength( ix ) );
+                var copy = target.Read( ix );
+                Assert.IsTrue( BufUtils.Equal( copy, data ) );
+
+                var sectorstart = target.BitmapToPos( ix );
+                Assert.IsTrue( sectorstart % defaultsectorsize == 0 );
+            }
+        }
+
+        /// <summary>
         ///A test for Store Constructor
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void StoreConstructorTest1()
         {
             var data = new byte[] { 0x5c, 0xff, 0x00, 0x27 };
@@ -712,7 +676,7 @@ namespace I2PTests
         /// <summary>
         ///A test for Store Constructor
         ///</summary>
-        [TestMethod()]
+        [Test]
         public void StoreConstructorTest()
         {
             var data = new byte[] { 0x5c, 0xff, 0x00, 0x27 };
