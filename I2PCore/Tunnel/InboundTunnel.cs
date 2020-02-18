@@ -20,8 +20,6 @@ namespace I2PCore.Tunnel
 
         internal I2PTunnelId GatewayTunnelId;
 
-        internal bool Fake0HopTunnel;
-
         public readonly uint TunnelBuildReplyMessageId = BufUtils.RandomUint();
         public readonly int OutTunnelHops;
 
@@ -31,14 +29,9 @@ namespace I2PCore.Tunnel
         readonly object GarlicMessageReceivedLock = new object();
         public event Action<GarlicMessage> GarlicMessageReceived;
 
-        public override TickSpan Lifetime => Fake0HopTunnel     
-                    ? TickSpan.Seconds( 20 ) 
-                    : base.Lifetime;
-
         public InboundTunnel( ITunnelOwner owner, TunnelConfig config, int outtunnelhops )
             : base( owner, config )
         {
-            Fake0HopTunnel = false;
             OutTunnelHops = outtunnelhops;
 
             var gw = config.Info.Hops[0];
@@ -53,10 +46,9 @@ namespace I2PCore.Tunnel
         }
 
         // Fake 0-hop
-        public InboundTunnel( ITunnelOwner owner, TunnelConfig config )
+        protected InboundTunnel( ITunnelOwner owner, TunnelConfig config )
             : base( owner, config )
         {
-            Fake0HopTunnel = true;
             Established = true;
 
             ReceiveTunnelId = config.Info.Hops.Last().TunnelId;
@@ -79,8 +71,6 @@ namespace I2PCore.Tunnel
         { 
             get 
             {
-                if ( Fake0HopTunnel ) return TickSpan.Seconds( 100 );
-
                 var hops = OutTunnelHops + TunnelMemberHops;
                 var timeperhop = Config.Pool == TunnelConfig.TunnelPool.Exploratory
                         ? ( MeassuredTunnelBuildTimePerHop * 2 ) / 3

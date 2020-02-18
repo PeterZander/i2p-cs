@@ -15,7 +15,6 @@ using System.Net.NetworkInformation;
 // TODO: SSU PeerTest with automatic firewall detection
 // TODO: Add IPV6
 // TODO: Add leases
-// TODO: Change to NUnit
 // TODO: NTCP does not close the old listen socket when settings change.
 // TODO: Replace FailedToConnectException with return value?
 // TODO: IP block lists for incomming connections, NTCP

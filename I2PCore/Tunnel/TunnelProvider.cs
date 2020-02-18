@@ -29,6 +29,7 @@ namespace I2PCore.Tunnel
 
         private const double TunnelSelectionElitism = 5.0;
 
+        // The byte value have no real meaning, the dictionaries are hash sets.
         ConcurrentDictionary<InboundTunnel, byte> PendingInbound = new ConcurrentDictionary<InboundTunnel, byte>();
         ConcurrentDictionary<OutboundTunnel,byte> PendingOutbound = new ConcurrentDictionary<OutboundTunnel, byte>();
 
@@ -115,7 +116,7 @@ namespace I2PCore.Tunnel
 
                         QueueStatusLog.Do( () =>
                         {
-                            var zh = EstablishedInbound.Count( t => t.Key.Fake0HopTunnel );
+                            var zh = EstablishedInbound.Count( t => t.Key is ZeroHopTunnel );
                             Logging.LogInformation(
                                 $"Established 0-hop tunnels     : {zh,2}" );
 
@@ -135,19 +136,23 @@ namespace I2PCore.Tunnel
 
                         ExecuteQueue(
                             PendingOutbound.Select( d => d.Key ),
-                            ( t ) => PendingOutbound.TryRemove( (OutboundTunnel)t, out _ ) );
+                            ( t ) => PendingOutbound.TryRemove( (OutboundTunnel)t, out _ ),
+                            true );
 
                         ExecuteQueue(
                             PendingInbound.Select( d => d.Key ),
-                            ( t ) => PendingInbound.TryRemove( (InboundTunnel)t, out _ ) );
+                            ( t ) => PendingInbound.TryRemove( (InboundTunnel)t, out _ ),
+                            true );
 
                         ExecuteQueue(
                             EstablishedOutbound.Select( d => d.Key ),
-                            ( t ) => EstablishedOutbound.TryRemove( (OutboundTunnel)t, out _ ) );
+                            ( t ) => EstablishedOutbound.TryRemove( (OutboundTunnel)t, out _ ),
+                            false );
 
                         ExecuteQueue(
                             EstablishedInbound.Select( d => d.Key ),
-                            ( t ) => EstablishedInbound.TryRemove( (InboundTunnel)t, out _ ) );
+                            ( t ) => EstablishedInbound.TryRemove( (InboundTunnel)t, out _ ),
+                            false );
 
                         RunDestinationEncyption.Do( RouterSession.Run );
 
@@ -221,6 +226,8 @@ namespace I2PCore.Tunnel
 #if DEBUG
                 removedtunnels.Add( one );
 #endif
+                one.Owner?.TunnelBuildTimeout( one );
+
                 foreach ( var dest in one.TunnelMembers )
                 {
                     NetDb.Inst.Statistics.TunnelBuildTimeout( dest.IdentHash );
@@ -228,8 +235,6 @@ namespace I2PCore.Tunnel
 
                 RemoveTunnel( one );
                 one.Shutdown();
-
-                one.Owner?.TunnelBuildTimeout( one );
             }
 #if DEBUG
             if ( removedtunnels.Any() )
@@ -238,7 +243,7 @@ namespace I2PCore.Tunnel
                 var pools = removedtunnels.GroupBy( t => t.Pool );
                 foreach ( var onepool in pools )
                 {
-                    st.Append( $"{onepool.First()} " );
+                    st.Append( $"{onepool.Key} " );
                     foreach ( var one in pool )
                     {
                         st.Append( $"{one.TunnelDebugTrace} " );
@@ -250,11 +255,16 @@ namespace I2PCore.Tunnel
 #endif
         }
 
-        private void ExecuteQueue( IEnumerable<Tunnel> q, Action<Tunnel> remove )
-        {
-            var failed = new List<Tunnel>();
-            var expired = new List<Tunnel>();
+        readonly ConcurrentQueue<(Tunnel, bool)> FailedTunnels = new ConcurrentQueue<(Tunnel, bool)>();
 
+        private void ExecuteQueue( IEnumerable<Tunnel> q, Action<Tunnel> remove, bool ispending )
+        {
+            RunTunnels( q );
+            RemoveFailedTunnels( remove, ispending );
+        }
+
+        private void RunTunnels( IEnumerable<Tunnel> q )
+        {
             foreach ( var tunnel in q )
             {
                 try
@@ -262,51 +272,62 @@ namespace I2PCore.Tunnel
                     var ok = tunnel.Exectue();
                     if ( !ok )
                     {
-                        failed.Add( tunnel );
+                        FailedTunnels.Enqueue( (tunnel, true) );
                     }
                     else
                     {
-                        if ( tunnel.Expired ) 
+                        if ( tunnel.Expired )
                         {
                             // Normal timeout
-                            Logging.LogDebug( string.Format( "TunnelProvider: ExecuteQueue removing tunnel {0} to {1}. Lifetime. Created: {2}.",
-                                tunnel.TunnelDebugTrace, tunnel.Destination.Id32Short, tunnel.EstablishedTime ) );
-
-                            expired.Add( tunnel );
+                            FailedTunnels.Enqueue( (tunnel, false) );
                             tunnel.Shutdown();
                         }
                     }
                 }
                 catch ( Exception ex )
                 {
-                    Logging.LogDebug( string.Format( "TunnelProvider {0}: Exception [{1}] '{2}' in tunnel to {3}. {4}",
-                        tunnel.TunnelDebugTrace, ex.GetType(), ex.Message, tunnel.Destination.Id32Short, tunnel ) );
+                    Logging.LogDebug(
+                        $"TunnelProvider: Exception in tunnel {tunnel} [{ex.GetType()}] '{ex.Message}'." );
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.Log( ex );
 #endif
-                    failed.Add( tunnel );
+                    FailedTunnels.Enqueue( (tunnel, true) );
                 }
             }
+        }
 
-            foreach ( var one in failed )
+        private void RemoveFailedTunnels( Action<Tunnel> remove, bool ispending )
+        {
+            while ( FailedTunnels.TryDequeue( out var t ) )
             {
-                Logging.LogDebug( string.Format( "TunnelProvider {0}: ExecuteQueue removing failed tunnel to {1} pool {2}.",
-                    one.TunnelDebugTrace, one.Destination.Id32Short, one.Config.Pool ) );
+                var tunnel = t.Item1;
+                var isfailed = t.Item2;
 
-                one.Owner?.TunnelFailed( one );
+                if ( isfailed )
+                {
+                    if ( ispending )
+                    {
+                        Logging.LogDebug( $"TunnelProvider: ExecuteQueue removing failed tunnel {tunnel} during build." );
+                        tunnel.Owner?.TunnelBuildTimeout( tunnel );
+                    }
+                    else
+                    {
+                        Logging.LogDebug( $"TunnelProvider: ExecuteQueue removing failed tunnel {tunnel}." );
+                        tunnel.Owner?.TunnelFailed( tunnel );
+                    }
 
-                remove?.Invoke( one );
-                RemoveTunnel( one );
-            }
-            foreach ( var one in expired )
-            {
-                Logging.LogDebug( string.Format( "TunnelProvider {0}: ExecuteQueue removing expired tunnel to {1} pool {2}.",
-                    one.TunnelDebugTrace, one.Destination.Id32Short, one.Config.Pool ) );
+                    remove?.Invoke( tunnel );
+                    RemoveTunnel( tunnel );
+                }
+                else
+                {
+                    Logging.LogDebug( $"TunnelProvider: ExecuteQueue removing expired tunnel {tunnel} created {tunnel.CreationTime}." );
 
-                one.Owner?.TunnelExpired( one );
+                    tunnel.Owner?.TunnelExpired( tunnel );
 
-                remove?.Invoke( one );
-                RemoveTunnel( one );
+                    remove?.Invoke( tunnel );
+                    RemoveTunnel( tunnel );
+                }
             }
         }
 
@@ -403,7 +424,7 @@ namespace I2PCore.Tunnel
                 TunnelConfig.TunnelPool.Exploratory,
                 setup );
 
-            var tunnel = new InboundTunnel( null, config );
+            var tunnel = new ZeroHopTunnel( null, config );
             EstablishedInbound[tunnel] = 1;
             TunnelIds.Add( tunnel.ReceiveTunnelId, tunnel );
             return tunnel;
@@ -452,7 +473,7 @@ namespace I2PCore.Tunnel
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
             if ( !t.Active ) result += penalty;
             if ( t.Expired ) result += penalty;
-            if ( t is InboundTunnel && ( (InboundTunnel)t ).Fake0HopTunnel ) result += 10 * penalty;
+            if ( t is ZeroHopTunnel ) result += 10 * penalty;
 
             return result;
         }

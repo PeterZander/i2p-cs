@@ -261,6 +261,7 @@
     <Compile Include="Tunnel\ITunnelOwner.cs" />
     <Compile Include="Tunnel\TunnelIdSubsriptions.cs" />
     <Compile Include="Tunnel\TunnelBuildRequestDecrypt.cs" />
+    <Compile Include="Tunnel\ZeroHopTunnel.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />

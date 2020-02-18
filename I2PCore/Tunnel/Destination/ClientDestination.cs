@@ -31,9 +31,17 @@ namespace I2PCore.Tunnel
         { 
             get 
             {
-                return TargetInboundTunnelCount 
-                    - InboundEstablishedPool.Count( t => !t.Key.NeedsRecreation ) 
-                    - InboundPending.Count;
+                var stable = InboundEstablishedPool.Count( t => !t.Key.NeedsRecreation );
+                var result = TargetInboundTunnelCount
+                            - stable
+                            - InboundPending.Count;
+
+#if LOG_ALL_TUNNEL_TRANSFER
+                Logging.LogDebug( $"ClientDestination: TargetInboundTunnelCount: {TargetInboundTunnelCount} " +
+                            $"Stable: {stable} Pending: {InboundPending.Count} Result: {result}" );
+#endif
+
+                return result;
             }
         }
 
@@ -41,9 +49,17 @@ namespace I2PCore.Tunnel
         {
             get
             {
-                return TargetOutboundTunnelCount 
-                    - OutboundEstablishedPool.Count( t => !t.Key.NeedsRecreation ) 
-                    - OutboundPending.Count;
+                var stable = OutboundEstablishedPool.Count( t => !t.Key.NeedsRecreation );
+                var result = TargetOutboundTunnelCount
+                            - stable
+                            - OutboundPending.Count;
+
+#if LOG_ALL_TUNNEL_TRANSFER
+                Logging.LogDebug( $"ClientDestination: TargetOutboundTunnelCount: {TargetOutboundTunnelCount} " +
+                            $"Stable: {stable} Pending: {OutboundPending.Count} Result: {result}" );
+#endif
+
+                return result;
             }
         }
 
@@ -104,8 +120,8 @@ namespace I2PCore.Tunnel
                     new TunnelMessageTunnel( header, lease.TunnelGw, lease.TunnelId ) );
             }, () => InboundEstablishedPool.Random().Key );
 
-            NetDb.Inst.IdentHashLookup.LeaseSetReceived += new IdentResolver.IdentResolverResultLeaseSet( IdentHashLookup_LeaseSetReceived );
-            NetDb.Inst.IdentHashLookup.LookupFailure += new IdentResolver.IdentResolverResultFail( IdentHashLookup_LookupFailure );
+            NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
+            NetDb.Inst.IdentHashLookup.LookupFailure += IdentHashLookup_LookupFailure;
         }
 
         public void ReadAppConfig()
@@ -145,16 +161,6 @@ namespace I2PCore.Tunnel
             StartDestLookup( hash, cb );
         }
 
-        // TODO: Remove
-        internal ClientDestination( ClientTunnelProvider tp, bool publishdest, ClientDestination remotedest )
-        {
-            ClientTunnelMgr = tp;
-            PublishDestination = publishdest;
-            NewIdentity();
-
-            TestRemoteDest = remotedest;
-        }
-
         PeriodicAction SendNewData = new PeriodicAction( TickSpan.Seconds( 30 ) );
         PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 8 ) );
 
@@ -192,10 +198,11 @@ namespace I2PCore.Tunnel
 
             QueueStatusLog.Do( () =>
             {
-                Logging.LogInformation( string.Format(
-                    "ClientTunnelProvider {4}: Established tunnels in: {0,2}, out: {1,2}. Pending in: {2,2}, out {3,2}",
-                    InboundEstablishedPool.Count, OutboundEstablishedPool.Count,
-                    InboundPending.Count, OutboundPending.Count, MyDestination.IdentHash.Id32Short ) );
+                Logging.LogInformation(
+                    $"ClientTunnelProvider {MyDestination.IdentHash.Id32Short}: " +
+                    $"Established tunnels in: {InboundEstablishedPool.Count,2}, " +
+                    $"out: {OutboundEstablishedPool.Count,2}. " +
+                    $"Pending in: {InboundPending.Count,2}, out {OutboundPending.Count,2}" );
             } );
 
             Destinations.Run();
@@ -233,7 +240,7 @@ namespace I2PCore.Tunnel
             if ( tunnel is InboundTunnel it )
             {
                 InboundEstablishedPool[it] = 0;
-                it.GarlicMessageReceived += new Action<I2PCore.Tunnel.I2NP.Messages.GarlicMessage>( InboundTunnel_GarlicMessageReceived );
+                it.GarlicMessageReceived += InboundTunnel_GarlicMessageReceived;
                 AddTunnelToLeaseSet( it );
             }
         }

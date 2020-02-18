@@ -85,37 +85,37 @@ namespace I2PCore.Tunnel
             return new TunnelInfo( hops );
         }
 
-        private OutboundTunnel CreateOutboundTunnel( ClientDestination dest, TunnelInfo prototype )
+        private OutboundTunnel CreateOutboundTunnel( ClientDestination client, TunnelInfo prototype )
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype ?? CreateOutgoingTunnelChain( dest ) );
+                prototype ?? CreateOutgoingTunnelChain( client ) );
 
             var tunnel = (OutboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
             {
                 TunnelMgr.AddTunnel( tunnel );
-                dest.AddOutboundPending( tunnel );
-                PendingTunnels[tunnel] = dest;
+                client.AddOutboundPending( tunnel );
+                PendingTunnels[tunnel] = client;
             }
             return tunnel;
         }
 
-        private InboundTunnel CreateInboundTunnel( ClientDestination dest, TunnelInfo prototype )
+        private InboundTunnel CreateInboundTunnel( ClientDestination client, TunnelInfo prototype )
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype ?? CreateIncommingTunnelChain( dest ) );
+                prototype ?? CreateIncommingTunnelChain( client ) );
 
             var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
             {
                 tunnel.GarlicMessageReceived += new Action<GarlicMessage>( GarlicMessageReceived );
                 TunnelMgr.AddTunnel( tunnel );
-                dest.AddInboundPending( tunnel );
-                PendingTunnels[tunnel] = dest;
+                client.AddInboundPending( tunnel );
+                PendingTunnels[tunnel] = client;
             }
             return tunnel;
         }
@@ -165,13 +165,26 @@ namespace I2PCore.Tunnel
 
         private void LogStatusReport()
         {
-            var ei = Destinations.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
-            var pi = PendingTunnels.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
-            var eo = Destinations.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
-            var po = PendingTunnels.Count( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
+            var dti = Destinations.Where( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
+            var pti = PendingTunnels.Where( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Inbound );
+            var dto = Destinations.Where( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
+            var pto = PendingTunnels.Where( t => t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
+
+            var ei = dti.Count();
+            var pi = pti.Count();
+            var eo = dto.Count();
+            var po = pto.Count();
+
+            var post = "";
+            var pist = "";
+
+#if LOG_ALL_TUNNEL_TRANSFER
+            pist = string.Join( ", ", pti.Select( t => t.Key.TunnelDebugTrace ) );
+            post = string.Join( ", ", pto.Select( t => t.Key.TunnelDebugTrace ) );
+#endif
 
             Logging.LogInformation(
-                $"Established client tunnels in : {ei,2} ( {pi,2} ), out: {eo,2} ( {po,2} )" );
+                $"Established client tunnels in : {ei,2} ( {pi,2} {pist}), out: {eo,2} ( {po,2} {post})" );
         }
 
         class TunnelsNeededInfo
@@ -229,10 +242,21 @@ namespace I2PCore.Tunnel
         {
             TunnelUnderReplacement replace = null;
 
-            PendingTunnels.TryRemove( tunnel, out var client );
+            if ( !PendingTunnels.TryRemove( tunnel, out var client ) )
+            {
+                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for established tunnel {tunnel}" );
+                return;
+            }
             Destinations[tunnel] = client;
 
-            client.TunnelEstablished( tunnel );
+            try
+            {
+                client.TunnelEstablished( tunnel );
+            }
+            catch ( Exception ex )
+            {
+                Logging.Log( ex );
+            }
 
             replace = RunningReplacements.Where( p => 
                 p.Value.NewTunnels.Any( 
@@ -253,8 +277,20 @@ namespace I2PCore.Tunnel
 
         public void TunnelBuildTimeout( Tunnel tunnel )
         {
-            if ( !PendingTunnels.TryRemove( tunnel, out var client ) ) return;
-            client.RemoveTunnel( tunnel );
+            if ( !PendingTunnels.TryRemove( tunnel, out var client ) )
+            {
+                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client TunnelBuildTimeout! {tunnel}" );
+                return;
+            }
+
+            try
+            {
+                client.RemoveTunnel( tunnel );
+            }
+            catch ( Exception ex )
+            {
+                Logging.Log( ex );
+            }
 
             var replace = FindReplaceRecord( tunnel );
 
@@ -285,7 +321,11 @@ namespace I2PCore.Tunnel
 
         protected void TunnelReplacementNeeded( Tunnel tunnel )
         {
-            if ( !Destinations.TryGetValue( tunnel, out var client ) ) return;
+            if ( !Destinations.TryGetValue( tunnel, out var client ) )
+            {
+                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for TunnelReplacementNeeded {tunnel}" );
+                return;
+            }
 
             if ( !RunningReplacements.TryGetValue( tunnel, out var replace ) ) return; // Already being replaced
 
@@ -312,14 +352,27 @@ namespace I2PCore.Tunnel
 
         public void TunnelExpired( Tunnel tunnel )
         {
-            if ( !PendingTunnels.TryGetValue( tunnel, out var client ) ) return;
+            if ( !Destinations.TryRemove( tunnel, out var client ) )
+            {
+                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for TunnelExpired {tunnel}" );
+                return;
+            }
+
+            try
+            {
+                client.RemoveTunnel( tunnel );
+            }
+            catch( Exception ex )
+            {
+                Logging.Log( ex );
+            }
 
             var replace = FindReplaceRecord( tunnel );
 
             if ( replace != null )
             {
-                Logging.LogDebug( "ClientTunnelProvider: TunnelTimeout: Failed replacing " + replace.OldTunnel.ToString() +
-                    " with " + tunnel.ToString() );
+                Logging.LogDebug( $"ClientTunnelProvider: TunnelTimeout: Failed replacing {replace.OldTunnel }" +
+                    $" with {tunnel}" );
 
                 /*
                 if ( replace.OldTunnel.Expired )
@@ -331,8 +384,6 @@ namespace I2PCore.Tunnel
 
                 ReplaceTunnel( tunnel, client, replace );
             }
-
-            client.RemoveTunnel( tunnel );
         }
         #endregion
 
