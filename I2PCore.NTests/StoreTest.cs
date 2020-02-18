@@ -4,6 +4,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System;
 
 namespace I2PTests
 {
@@ -628,6 +629,95 @@ namespace I2PTests
                     foreach ( var oneix in togrow ) target.Write( data1, oneix );
                     Assert.IsTrue( dest.Length > fullsize );
                 }
+            }
+        }
+
+        /// <summary>
+        /// A test of BitmapToPos
+        ///</summary>
+        [Test]
+        public void BitmapToPosTest()
+        {
+            var sectorsize = 768;
+            var reservedsectors = 1;
+
+            int v = 3;
+
+            Assert.IsTrue( BitmapSector.BitmapToPos( v, sectorsize ) == 
+                ( reservedsectors + v ) * sectorsize );
+        }
+
+        /// <summary>
+        /// A test of PosToBitmap
+        ///</summary>
+        [Test]
+        public void PosToBitmapTest()
+        {
+            var sectorsize = 1845;
+            var reservedsectors = 1;
+
+            int v = 7;
+            var bix = BitmapSector.PosToBitmap( v, sectorsize );
+            Assert.IsTrue( bix == -reservedsectors + 0 );
+
+            v = 8423;
+            bix = BitmapSector.PosToBitmap( v, sectorsize );
+            Assert.IsTrue( bix ==
+                -reservedsectors + (int)Math.Floor( (double)v / sectorsize ) );
+        }
+
+        /// <summary>
+        /// Testing file format tag verification
+        /// </summary>
+        [Test]
+        public void StoreFileFormatVersionTest()
+        {
+            try
+            {
+                var data = new byte[] { 0x23, 0x5c, 0xff, 0x00, 0x27 };
+                Stream dest = new MemoryStream();
+                int defaultsectorsize = 128;
+
+                StoreFileFormatVersionTest_OneRun( data, dest, defaultsectorsize );
+
+                dest.Position = 0;
+                var destmem = StreamUtils.Read( dest );
+
+                var news = new MemoryStream();
+                news.Write( destmem );
+                news.Position = 0;
+
+                StoreFileFormatVersionTest_OneRun( data, news, defaultsectorsize );
+
+                destmem[6] = 0;
+                news = new MemoryStream();
+                news.Write( destmem );
+                news.Position = 0;
+
+                try
+                {
+                    StoreFileFormatVersionTest_OneRun( data, news, defaultsectorsize );
+                    Assert.Fail( "Should throw execptions" );
+                }
+                catch ( IOException )
+                {
+                    Assert.IsTrue( true );
+                }
+            }
+            catch ( IOException )
+            {
+                Assert.Fail( "Should not throw execptions" );
+            }
+        }
+
+        private static void StoreFileFormatVersionTest_OneRun( byte[] data, Stream dest, int defaultsectorsize )
+        {
+            using ( Store target = new Store( dest, defaultsectorsize ) )
+            {
+                var ix = target.Write( data );
+                Assert.AreEqual( data.Length, target.GetDataLength( ix ) );
+                var copy = target.Read( ix );
+                Assert.IsTrue( BufUtils.Equal( copy, data ) );
             }
         }
 

@@ -64,19 +64,9 @@ namespace I2PCore
 
         private Store GetStore()
         {
-            for ( int i = 0; i < 5; ++i )
-            {
-                try
-                {
-                    return new Store( GetFullPath( "routerinfo.sto" ), DefaultStoreChunkSize );
-                }
-                catch ( Exception ex )
-                {
-                    Logging.Log( "GetStore", ex );
-                    System.Threading.Thread.Sleep( 500 );
-                }
-            }
-            return null;
+            return BufUtils.GetStore( 
+                GetFullPath( "routerinfo.sto" ), 
+                DefaultStoreChunkSize );
         }
 
         void Load()

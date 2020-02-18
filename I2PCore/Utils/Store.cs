@@ -70,7 +70,7 @@ namespace I2PCore.Utils
 				var nextix = StreamUtils.ReadInt32( TheStore.TheFile );
 				SectorData = StreamUtils.Read( TheStore.TheFile, (int)TheStore.SectorDataSize );
 
-                if ( nextix != Store.LAST_SECTOR_IN_CHAIN )
+                if ( nextix != Store.LAST_SECTOR_IN_CHAIN_TAG )
                 {
                     NextBitmap = new BitmapSector( TheStore, nextix, SectorSize );
                 }
@@ -90,7 +90,7 @@ namespace I2PCore.Utils
             TheStore.TheFile.Position = BitmapToPos( Ix );
 
             StreamUtils.WriteUInt8( TheStore.TheFile, (byte)Store.SectorTypes.Bitmap );
-            StreamUtils.WriteInt32( TheStore.TheFile, Store.LAST_SECTOR_IN_CHAIN );
+            StreamUtils.WriteInt32( TheStore.TheFile, Store.LAST_SECTOR_IN_CHAIN_TAG );
             NextBitmap = null;
 
             SectorData = new byte[(int)TheStore.SectorDataSize];
@@ -242,7 +242,15 @@ namespace I2PCore.Utils
         /// "Allocated" is allocated (reserved in bitmap) but not initialized.
         /// </summary>
         [Flags]
-        public enum SectorTypes : byte { Unallocated = 0x00, Bitmap = 0x01, Data = 0x02, Continuation = 0x04, Metadata = 0x08, Allocated = 0xFF }
+        public enum SectorTypes : byte 
+        { 
+            Unallocated = 0x00, 
+            Bitmap = 0x01, 
+            Data = 0x02, 
+            Continuation = 0x04, 
+            Metadata = 0x08, 
+            Allocated = 0xFF 
+        }
 
         public delegate bool KeyCheck( byte[] buffer );
 
@@ -254,11 +262,20 @@ namespace I2PCore.Utils
         internal BitmapSector Bits;
         int FreeSectorSearchStartIndex;
 
+        public const int MINIMUM_SECTOR_SIZE = SECTOR_0_HEADER_SIZE;
+
+        internal const int SECTOR_0_HEADER_SIZE = 
+                    4       // Sector size
+                    + 8;    // File format version
+
         internal const int RESERVED_SECTORS = 2;
         internal const int BITMAP_START_SECTOR = 0;
         internal const int METADATA_START_SECTOR = 1;
 
-        internal const int LAST_SECTOR_IN_CHAIN = -1;
+        internal const int LAST_SECTOR_IN_CHAIN_TAG = -1;
+
+        internal const ulong FILE_FORMAT_VERSION = 1;
+        internal const ulong FILE_FORMAT_MASK = 0xF5CFC5F5C5F5CFC5;
 
         bool OwnsStreamHandle;
 
@@ -281,7 +298,10 @@ namespace I2PCore.Utils
 
         private void Initialize( Stream dest, int defaultsectorsize )
         {
-            if ( defaultsectorsize > 0 && defaultsectorsize < 16 ) throw new Exception( "Minimum chunk size: 16 bytes." );
+            if ( defaultsectorsize > 0 && defaultsectorsize < MINIMUM_SECTOR_SIZE )
+            {
+                throw new Exception( $"Minimum chunk size: {MINIMUM_SECTOR_SIZE} bytes." );
+            }
 
             Chunksize = defaultsectorsize <= 0 ? 1024 : defaultsectorsize;
 
@@ -294,9 +314,15 @@ namespace I2PCore.Utils
             InitializeReservedSectors();
         }
 
-        public const int SectorHeaderSize = sizeof( byte ) + sizeof( int );
-        public const int FirstSectorHeaderSize = SectorHeaderSize + sizeof( long );
+        public const int SectorHeaderSize = 
+                            sizeof( byte )      // SectorTypes
+                            + sizeof( int );    // Next sector index
 
+        public const int FirstSectorHeaderSize = 
+                            SectorHeaderSize 
+                            + sizeof( long );   // Stream length
+
+        // First sector in a stream
         public long FirstSectorDataSize
         {
             get
@@ -305,6 +331,7 @@ namespace I2PCore.Utils
             }
         }
 
+        // Following sectors in a stream
         public long SectorDataSize
         {
             get
@@ -325,12 +352,13 @@ namespace I2PCore.Utils
 
         private void InitializeChunksize()
         {
-            if ( TheFile.Length < 4 )
+            if ( TheFile.Length < SECTOR_0_HEADER_SIZE )
             {
                 if ( TheFile.CanWrite )
                 {
                     TheFile.Position = 0;
                     TheFile.WriteInt32( Chunksize );
+                    TheFile.WriteUInt64( FILE_FORMAT_VERSION ^ FILE_FORMAT_MASK );
                 }
                 else
                 {
@@ -341,6 +369,14 @@ namespace I2PCore.Utils
             {
                 TheFile.Position = 0;
 				Chunksize = StreamUtils.ReadInt32( TheFile );
+
+                var fileformattag = StreamUtils.ReadUInt64( TheFile );
+                var fileformatversion = fileformattag ^ FILE_FORMAT_MASK;
+
+                if ( fileformatversion != FILE_FORMAT_VERSION )
+                {
+                    throw new IOException( $"File format version {fileformatversion} not supported." );
+                }
             }
         }
 
@@ -356,7 +392,7 @@ namespace I2PCore.Utils
                 Bits[BITMAP_START_SECTOR] = true;
                 TheFile.Position = BitmapToPos( BITMAP_START_SECTOR );
 				TheFile.WriteUInt8( (byte)SectorTypes.Bitmap );
-				TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+				TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
             }
 
             if ( !Bits[METADATA_START_SECTOR] )                 // Start key / metadata sector
@@ -364,7 +400,7 @@ namespace I2PCore.Utils
                 Bits[METADATA_START_SECTOR] = true;
                 TheFile.Position = BitmapToPos( METADATA_START_SECTOR );
 				TheFile.WriteUInt8( (byte)SectorTypes.Metadata );
-				TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+				TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
 				TheFile.WriteUInt64( 0L ); // Might be size :P
             }
         }
@@ -447,7 +483,7 @@ namespace I2PCore.Utils
             StreamUtils.WriteUInt8( TheFile, (byte)SectorTypes.Unallocated );
             var nextsector = StreamUtils.ReadInt32( TheFile );
 
-            while ( nextsector != LAST_SECTOR_IN_CHAIN )
+            while ( nextsector != LAST_SECTOR_IN_CHAIN_TAG )
             {
                 Bits[nextsector] = false;
                 if ( FreeSectorSearchStartIndex > nextsector ) FreeSectorSearchStartIndex = nextsector;
@@ -477,7 +513,7 @@ namespace I2PCore.Utils
 
             TheFile.Position = BitmapToPos( ix );
             TheFile.WriteUInt8( (byte)Store.SectorTypes.Data );
-            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
             TheFile.WriteInt64( 0L );
 
             return new StoreStream( this, ix, offset );
@@ -489,7 +525,7 @@ namespace I2PCore.Utils
 
             TheFile.Position = BitmapToPos( ix );
             TheFile.WriteUInt8( (byte)Store.SectorTypes.Data );
-            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
             TheFile.WriteInt64( 0L );
 
             return new StoreStream( this, ix, reservefirstsector );
@@ -565,7 +601,7 @@ namespace I2PCore.Utils
                 var len = (int)Math.Min( totallen - resultpos, buflen );
 				var readlen = TheFile.Read( result, resultpos, len );
 
-                if ( nextsector == LAST_SECTOR_IN_CHAIN )
+                if ( nextsector == LAST_SECTOR_IN_CHAIN_TAG )
                 {
                     var curlen = resultpos + readlen;
                     if ( totallen > curlen )
@@ -629,7 +665,7 @@ namespace I2PCore.Utils
 
                     if ( sectorspaceleft == 0 )
                     {
-                        if ( nextsector != LAST_SECTOR_IN_CHAIN )
+                        if ( nextsector != LAST_SECTOR_IN_CHAIN_TAG )
                         {
                             if ( !Bits[nextsector] ) throw new Exception( "Cannot update an unallocated sector!" );
                             TheFile.Position = BitmapToPos( nextsector );
@@ -643,7 +679,7 @@ namespace I2PCore.Utils
                         else
                         {
                             thissector = ExtendLastSector( thissector );
-                            nextsector = LAST_SECTOR_IN_CHAIN;
+                            nextsector = LAST_SECTOR_IN_CHAIN_TAG;
                         }
 
                         sectorspaceleft = SectorDataSize;
@@ -670,7 +706,7 @@ namespace I2PCore.Utils
 
             TheFile.Position = BitmapToPos( thissector );
 			TheFile.WriteUInt8( (byte)Store.SectorTypes.Data );
-			TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+			TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
             TheFile.WriteInt64( datablocks.Sum( r => (long)r.Length ) );
 
             result = thissector;
@@ -711,14 +747,14 @@ namespace I2PCore.Utils
 #if DEBUG
             TheFile.Position = BitmapToPos( thissector ) + 1;
             var ns = StreamUtils.ReadInt32( TheFile );
-            if ( ns != LAST_SECTOR_IN_CHAIN ) throw new ArgumentException( "Store: Sector passed is not last in chain!" );
+            if ( ns != LAST_SECTOR_IN_CHAIN_TAG ) throw new ArgumentException( "Store: Sector passed is not last in chain!" );
 #endif
             TheFile.Position = BitmapToPos( thissector ) + 1;
             TheFile.WriteInt32( nextsector );
 
             TheFile.Position = BitmapToPos( nextsector );
             TheFile.WriteUInt8( (byte)Store.SectorTypes.Continuation );
-            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+            TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
             return nextsector;
         }
 
@@ -817,7 +853,7 @@ namespace I2PCore.Utils
                 {
                     Sectors.Add( ix );
 
-                    if ( nextsector == LAST_SECTOR_IN_CHAIN ) break;
+                    if ( nextsector == LAST_SECTOR_IN_CHAIN_TAG ) break;
                     file.Position = TheStore.BitmapToPos( nextsector );
                     ix = nextsector;
 
@@ -1008,7 +1044,7 @@ namespace I2PCore.Utils
 
                         TheStore.TheFile.Position = TheStore.BitmapToPos( newix );
                         TheStore.TheFile.WriteUInt8( (byte)( Sectors.Count == 1 ? Store.SectorTypes.Data: SectorTypes.Continuation ) );
-                        TheStore.TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN );
+                        TheStore.TheFile.WriteInt32( LAST_SECTOR_IN_CHAIN_TAG );
                     }
                 }
                 else

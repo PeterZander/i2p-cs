@@ -52,9 +52,11 @@ namespace I2PCore
             }
         }
 
-        private Store GetStore()
+        private static Store GetStore()
         {
-            return new Store( NetDb.Inst.GetFullPath( "statistics.sto" ), -1 );
+            return BufUtils.GetStore( 
+                        NetDb.Inst.GetFullPath( "statistics.sto" ), 
+                        -1 );
         }
 
         public void Load()
@@ -94,8 +96,8 @@ namespace I2PCore
                     }
                 }
                 sw2.Stop();
-                Logging.Log( $"Statistics load: Total: {sw2.Elapsed}, " + 
-                    $"Read(): {readsw.Elapsed}, Constr: {constrsw.Elapsed}, " + 
+                Logging.Log( $"Statistics load: Total: {sw2.Elapsed}, " +
+                    $"Read(): {readsw.Elapsed}, Constr: {constrsw.Elapsed}, " +
                     $"Dict: {dicsw.Elapsed} " );
 
                 // var times = Destinations.Select( d => d.Value.TunnelBuildTimeMsPerHop.ToString() );

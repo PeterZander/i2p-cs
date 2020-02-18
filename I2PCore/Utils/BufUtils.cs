@@ -10,6 +10,7 @@ using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Parameters;
 using System.Net;
+using System.IO;
 
 namespace I2PCore.Utils
 {
@@ -823,5 +824,30 @@ namespace I2PCore.Utils
             readable = ( readable / 1024.0 );
             return $"{readable:0.###} {suffix}";
         }
+
+        public static Store GetStore( string filename, int sectorsize )
+        {
+            filename = Path.GetFullPath( filename );
+
+            for ( int i = 0; i < 5; ++i )
+            {
+                try
+                {
+                    return new Store( filename, sectorsize );
+                }
+                catch ( IOException ex )
+                {
+                    Logging.LogWarning( $"GetStore file version mismatch. Deleting file '{filename}'.", ex );
+                    File.Delete( filename );
+                }
+                catch ( Exception ex )
+                {
+                    Logging.LogDebug( "GetStore", ex );
+                    System.Threading.Thread.Sleep( 500 );
+                }
+            }
+            return null;
+        }
+
     }
 }

@@ -19,27 +19,41 @@ namespace I2PTests
             var start = new TickCounter();
 
             Assert.IsTrue( TickCounter.MaxDelta.DeltaToNowMilliseconds > 0 );
+            Assert.IsTrue( TickCounter.MaxDelta.DeltaToNow > TickSpan.Milliseconds( 0 ) );
 
             var maxd = TickCounter.MaxDelta;
             System.Threading.Thread.Sleep( 200 );
+
             Assert.IsTrue( maxd.DeltaToNowMilliseconds > 0 );
             Assert.IsTrue( maxd.DeltaToNowMilliseconds > int.MaxValue / 2 );
 
-            Assert.IsTrue( start.DeltaToNowMilliseconds > 0 );
+            Assert.IsTrue( maxd.DeltaToNow > TickSpan.Milliseconds( 0 ) );
+            Assert.IsTrue( maxd.DeltaToNow > TickSpan.Milliseconds( int.MaxValue / 2 ) );
 
-            Assert.IsTrue( Math.Round( ( TickCounter.Now - start ).ToSeconds / 3f ) == Math.Round( (float)start.DeltaToNowSeconds / 3f ) );
+            Assert.IsTrue( start.DeltaToNowMilliseconds > 0 );
+            Assert.IsTrue( start.DeltaToNow > TickSpan.Milliseconds( 0 ) );
+
+            Assert.IsTrue( (int)Math.Round( ( TickCounter.Now - start ).ToSeconds / 3f ) 
+                    == (int)Math.Round( start.DeltaToNowSeconds / 3f ) );
+
+            Assert.IsTrue( (int)Math.Round( ( ( TickCounter.Now - start ) / 3f ).ToSeconds )
+                    == (int)Math.Round( ( start.DeltaToNow / 3f ).ToSeconds ) );
 
             var start_copy = new TickCounter( start.Ticks );
 
             System.Threading.Thread.Sleep( BufUtils.RandomInt( 300 ) + 200 );
 
             var startdelta = start.DeltaToNowMilliseconds;
+            var startdeltaspan = start.DeltaToNow;
             var now1 = new TickCounter();
 
             Assert.IsTrue( start.ToString().Length > 0 );
 
             Assert.IsTrue( ( now1 - start ).ToMilliseconds > 0 );
             Assert.IsTrue( ( ( now1 - start ).ToMilliseconds ) / 100 == startdelta / 100 );
+
+            Assert.IsTrue( now1 - start > TickSpan.Milliseconds( 0 ) );
+            Assert.IsTrue( ( now1 - start ) / 100 == startdeltaspan / 100 );
         }
 
         [Test]
@@ -118,7 +132,7 @@ namespace I2PTests
         public void TestRoulette3()
         {
             var populationcount = RouletteSelection<float,float>.IncludeTop;
-            var samplecount = 10000;
+            var samplecount = 50000;
 
             var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), populationcount );
             var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k );

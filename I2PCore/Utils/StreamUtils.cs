@@ -166,7 +166,7 @@ namespace I2PCore.Utils
 		{
 			unchecked 
 			{
-				return (ushort)( ( ReadInt8( src ) | ( ReadInt8( src ) << 8 ) ) );
+				return (ushort)( ReadInt8( src ) | ( ReadInt8( src ) << 8 ) );
 			}
 		}
 
@@ -174,7 +174,7 @@ namespace I2PCore.Utils
 		{
 			unchecked 
 			{
-				return (uint)( ReadUInt16( src ) | ( ReadUInt16( src ) << 16 ) );
+				return ReadUInt16( src ) | ( (uint)ReadUInt16( src ) << 16 );
 			}
 		}
 
@@ -182,7 +182,7 @@ namespace I2PCore.Utils
 		{
 			unchecked 
 			{
-				return ReadUInt32( src ) | ( ReadUInt32( src ) << 32 );
+                return ReadUInt32( src ) | ( (ulong)ReadUInt32( src ) << 32 );
 			}
 		}
 
