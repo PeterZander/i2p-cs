@@ -4,7 +4,8 @@ using System.Linq;
 using System.Text;
 using I2PCore.Data;
 using I2PCore.Utils;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
+using System.Collections.Concurrent;
 
 namespace I2PCore.Utils
 {
@@ -22,8 +23,8 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 1.009;
-        internal const int IncludeTop = 2000;
+        private const double Elitism = 1.002;
+        internal const int IncludeTop = 3000;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
         readonly double TotalSpaceSum;
@@ -42,7 +43,7 @@ namespace I2PCore.Utils
         {
             TotalSpaceSum = 0;
 
-            var newwheel = new List<RouletteSpace<K>>();
+            var newwheel = new ConcurrentBag<RouletteSpace<K>>();
             foreach ( var info in infos )
             {
                 var space = new RouletteSpace<K>()
@@ -64,17 +65,9 @@ namespace I2PCore.Utils
                 return;
             }
 
-            var fits = Wheel.Select( sp => sp.Fit );
-            MinFit = fits.Min();
-            MaxFit = fits.Max();
-            AverageFit = fits.Average();
-            AbsDevFit = fits.AbsDev();
-            StdDevFit = fits.StdDev();
-
-            var i = 0.01;
+            var i = 1.0;
 
             var selection = Wheel
-                .OrderBy( sp => sp.Fit )
                 .Select( sp => sp );
 
             var selcount = selection.Count();
@@ -86,7 +79,16 @@ namespace I2PCore.Utils
                     .Take( IncludeTop );
             }
 
-            foreach ( var one in selection )
+            Wheel = new ConcurrentBag<RouletteSpace<K>>( selection );
+
+            var fits = Wheel.Select( sp => sp.Fit );
+            MinFit = fits.Min();
+            MaxFit = fits.Max();
+            AverageFit = fits.Average();
+            AbsDevFit = fits.AbsDev();
+            StdDevFit = fits.StdDev();
+
+            foreach ( var one in Wheel.OrderBy( sp => sp.Fit ) )
             {
                 one.Space = i;
                 i *= Elitism;
@@ -94,7 +96,7 @@ namespace I2PCore.Utils
             }
         }
 
-        public K GetWeightedRandom( HashSet<K> exclude )
+        public K GetWeightedRandom( ConcurrentBag<K> exclude )
         {
             lock ( Wheel )
             {

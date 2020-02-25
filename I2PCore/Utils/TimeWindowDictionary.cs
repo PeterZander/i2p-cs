@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +10,8 @@ namespace I2PCore.Utils
     public class TimeWindowDictionary<T, V> : IEnumerable<KeyValuePair<T, V>> where V : class 
     {
         TickSpan MemorySpan;
-        Dictionary<T, KeyValuePair<V, TickCounter>> Memory = new Dictionary<T, KeyValuePair<V, TickCounter>>();
+        ConcurrentDictionary<T, KeyValuePair<V, TickCounter>> Memory = 
+                new ConcurrentDictionary<T, KeyValuePair<V, TickCounter>>();
 
         TickCounter LastCleanup = TickCounter.Now;
 
@@ -25,27 +28,66 @@ namespace I2PCore.Utils
 
         internal void Clear()
         {
-            lock( Memory ) Memory.Clear();
+            Memory.Clear();
+        }
+
+        public bool IsEmpty
+        {
+            get
+            {
+                Cleanup();
+                return Memory.IsEmpty;
+            }
+        }
+
+        public int Count
+        {
+            get
+            {
+                Cleanup();
+                return Memory.Count;
+            }
         }
 
         public void Set( T ident, V value )
         {
-            lock ( Memory )
+            if ( LastCleanup.DeltaToNowSeconds > 240 )
             {
-                if ( LastCleanup.DeltaToNowSeconds > 240 )
+                Cleanup();
+            }
+
+            if ( Memory.TryGetValue( ident, out var pair ) )
+            {
+                pair.Value.SetNow();
+            }
+            else
+            {
+                Memory[ident] = new KeyValuePair<V, TickCounter>( value, TickCounter.Now );
+            }
+        }
+
+        public bool TryGetValue( T ident, out V value )
+        {
+            if ( LastCleanup.DeltaToNowSeconds > 240 )
+            {
+                Cleanup();
+            }
+
+            if ( Memory.TryGetValue( ident, out var pair ) )
+            {
+                if ( pair.Value.DeltaToNow > MemorySpan )
                 {
-                    Cleanup();
+                    Memory.TryRemove( ident, out _ );
+                    value = null;
+                    return false;
                 }
 
-                if ( Memory.TryGetValue( ident, out var pair ) )
-                {
-                    pair.Value.SetNow();
-                }
-                else
-                {
-                    Memory[ident] = new KeyValuePair<V, TickCounter>( value, TickCounter.Now );
-                }
+                value = pair.Key;
+                return true;
             }
+
+            value = null;
+            return false;
         }
 
         /// <summary>
@@ -53,40 +95,44 @@ namespace I2PCore.Utils
         /// </summary>
         public V Get( T ident )
         {
-            lock ( Memory )
+            if ( LastCleanup.DeltaToNowSeconds > 240 )
             {
-                if ( LastCleanup.DeltaToNowSeconds > 240 )
-                {
-                    Cleanup();
-                }
-
-                KeyValuePair<V, TickCounter> pair;
-
-                if ( Memory.TryGetValue( ident, out pair ) )
-                {
-                    if ( pair.Value.DeltaToNow > MemorySpan )
-                    {
-                        Memory.Remove( ident );
-                        return null;
-                    }
-                    return pair.Key;
-                }
-
-                return null;
+                Cleanup();
             }
+
+            if ( Memory.TryGetValue( ident, out var pair ) )
+            {
+                if ( pair.Value.DeltaToNow > MemorySpan )
+                {
+                    Memory.TryRemove( ident, out _ );
+                    return null;
+                }
+                return pair.Key;
+            }
+
+            return null;
         }
 
         public bool Remove( T ident )
         {
-            lock ( Memory )
+            if ( LastCleanup.DeltaToNowSeconds > 240 )
             {
-                if ( LastCleanup.DeltaToNowSeconds > 240 )
-                {
-                    Cleanup();
-                }
-
-                return Memory.Remove( ident );
+                Cleanup();
             }
+
+            return Memory.TryRemove( ident, out _ );
+        }
+
+        public bool TryRemove( T ident, out V value )
+        {
+            if ( LastCleanup.DeltaToNowSeconds > 240 )
+            {
+                Cleanup();
+            }
+
+            var result = Memory.TryRemove( ident, out var val );
+            value = val.Key;
+            return result;
         }
 
         public V Get( T ident, Func<V> generator )
@@ -100,14 +146,9 @@ namespace I2PCore.Utils
 
         public void ProcessItem( T key, Action<T,V> action )
         {
-            lock ( Memory )
+            if ( Memory.TryGetValue( key, out var pair ) )
             {
-                KeyValuePair<V, TickCounter> pair;
-
-                if ( Memory.TryGetValue( key, out pair ) )
-                {
-                    action( key, pair.Key );
-                }
+                action( key, pair.Key );
             }
         }
 
@@ -118,21 +159,30 @@ namespace I2PCore.Utils
 
             foreach ( var identpair in Memory.ToArray() )
             {
-                if ( identpair.Value.Value.DeltaToNow > MemorySpan ) Memory.Remove( identpair.Key );
+                if ( identpair.Value.Value.DeltaToNow > MemorySpan )
+                {
+                    Memory.TryRemove( identpair.Key, out _ );
+                }
             }
         }
 
         #region IEnumerable<KeyValuePair<T,V>> Members
         public IEnumerator<KeyValuePair<T, V>> GetEnumerator()
         {
-            lock ( Memory ) Cleanup();
-            return Memory.AsEnumerable().Select( p => new KeyValuePair<T, V>( p.Key, p.Value.Key ) ).GetEnumerator();
+            Cleanup();
+            return Memory
+                .AsEnumerable()
+                .Select( p => new KeyValuePair<T, V>( p.Key, p.Value.Key ) )
+                .GetEnumerator();
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator()
         {
-            lock ( Memory ) Cleanup();
-            return Memory.AsEnumerable().Select( p => new KeyValuePair<T, V>( p.Key, p.Value.Key ) ).GetEnumerator();
+            Cleanup();
+            return Memory
+                    .AsEnumerable()
+                    .Select( p => new KeyValuePair<T, V>( p.Key, p.Value.Key ) )
+                    .GetEnumerator();
         }
         #endregion
     }

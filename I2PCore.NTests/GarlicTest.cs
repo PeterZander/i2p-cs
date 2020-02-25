@@ -1,30 +1,42 @@
 ﻿using NUnit.Framework;
 using I2PCore.Data;
-using I2PCore.Tunnel.I2NP.Messages;
+using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
-using I2PCore.Tunnel.I2NP.Data;
+using I2PCore.TunnelLayer.I2NP.Data;
 using Org.BouncyCastle.Math;
 using System.Net;
-using I2PCore.Tunnel;
+using I2PCore.TunnelLayer;
+using System;
+using Org.BouncyCastle.Crypto.Modes;
+using Org.BouncyCastle.Crypto.Engines;
+using I2PCore.SessionLayer;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Linq;
 
 namespace I2PTests
 {
     [TestFixture]
     public class GarlicTest
     {
-        I2PPrivateKey Private;
-        I2PPublicKey Public;
-        I2PRouterIdentity Me;
+        private readonly I2PPrivateKey Private;
+        private readonly I2PPublicKey Public;
+        private readonly I2PRouterIdentity Me;
 
-        I2PPrivateKey DestinationPrivate;
-        I2PPublicKey DestinationPublic;
-        I2PRouterIdentity Destination;
+        private readonly I2PPrivateKey DestinationPrivate;
+        private readonly I2PPublicKey DestinationPublic;
+        private readonly I2PRouterIdentity Destination;
 
-        I2PSigningPrivateKey PrivateSigning;
-        I2PSigningPublicKey PublicSigning;
+        private readonly I2PSigningPrivateKey PrivateSigning;
+        private readonly I2PSigningPublicKey PublicSigning;
+
+        private readonly CbcBlockCipher CBCAESCipher = new CbcBlockCipher( new AesEngine() );
 
         public GarlicTest()
         {
+            Logging.LogToConsole = true;
+            Logging.LogLevel = Logging.LogLevels.DebugData;
+
             Private = new I2PPrivateKey( I2PKeyType.DefaultAsymetricKeyCert );
             Public = new I2PPublicKey( Private );
 
@@ -39,90 +51,360 @@ namespace I2PTests
         }
 
         [Test]
+        public void TestAESBlock()
+        {
+            for( int runs = 0; runs < 10; ++runs )
+            {
+                var buf = new BufLen( new byte[30000] );
+                var writer = new BufRefLen( buf );
+
+                var data = BufUtils.Random( 1 + BufUtils.RandomInt( 45 ) );
+                var datar = new BufRefLen( data );
+                var tags = new List<I2PSessionTag>();
+                for ( int i = 0; i < BufUtils.RandomInt( 5 ); ++i )
+                {
+                    tags.Add( new I2PSessionTag() );
+                }
+
+                var newsession = BufUtils.RandomDouble( 1.0 ) < 0.3 ? new I2PSessionKey() : null;
+                var b1 = new GarlicAESBlock( writer, tags, newsession, datar );
+
+                var bldata = new BufLen( buf, 0, writer - buf ).Clone();
+
+                var b2 = new GarlicAESBlock( new BufRefLen( bldata ) );
+
+                var b1ar = new BufLen( b1.ToByteArray() );
+                var b2ar = new BufLen( b2.ToByteArray() );
+                Assert.IsTrue( b1ar == b2ar );
+
+                var bufs = new BufRefStream();
+                b1.Write( bufs );
+
+                var b3 = new GarlicAESBlock( new BufRefLen( bufs.ToByteArray() ) );
+
+                var b3ar = new BufLen( b3.ToByteArray() );
+                Assert.IsTrue( b1ar == b3ar );
+            }
+        }
+
+        [Test]
         public void TestGarlicCreate()
         {
             //var g = new Garlic( new GarlicCloveDeliveryTunnel( new DeliveryStatusMessage( 0x425c ), Destination.IdentHash, 1234 ) );
+            var ls = new I2PDate( DateTime.Now + TimeSpan.FromMinutes( 5 ) );
+
+            var origmessage = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
+            var bigmessage = new DataMessage( new BufLen( BufUtils.Random( 14 * 1024 ) ) );
+
+            var garlic = new Garlic(
+                new GarlicClove(
+                    new GarlicCloveDeliveryLocal( origmessage ),
+                    ls ),
+                new GarlicClove(
+                    new GarlicCloveDeliveryLocal( bigmessage ),
+                    ls )
+            );
+
+            var egmsg = Garlic.EGEncryptGarlic(
+                    garlic,
+                    Public,
+                    new I2PSessionKey(),
+                    null );
+
+            var origegdata = egmsg.EGData.Clone();
+
+            // Decrypt
+
+            var (aesblock,sessionkey1) = Garlic.EGDecryptGarlic( origegdata.Clone(), Private );
+
+            var newgarlic = new Garlic( (BufRefLen)aesblock.Payload );
+
+            var g1 = new BufLen( garlic.ToByteArray() );
+            var g2 = new BufLen( newgarlic.ToByteArray() );
+
+            Assert.IsTrue( g1 == g2 );
+
+            // Retrieve
+
+            var (aesblock2,sessionkey2) = Garlic.RetrieveAESBlock( origegdata.Clone(), Private, null );
+
+            newgarlic = new Garlic( (BufRefLen)aesblock2.Payload );
+
+            g1 = new BufLen( garlic.ToByteArray() );
+            g2 = new BufLen( newgarlic.ToByteArray() );
+
+            Assert.IsTrue( g1 == g2 );
+            Assert.IsTrue( sessionkey1 == sessionkey2 );
         }
 
         [Test]
         public void TestGarlicCreateMessage()
         {
-            var session = new DestinationSessions( ( d, h, inf ) => { }, () => null );
+            var dsm1 = new DeliveryStatusMessage( 0x425c )
+            {
+                MessageId = 2354
+            };
 
-            /*
-            var msg1 = session.CreateMessage( 
-                Destination, 
-                new GarlicCloveDeliveryTunnel( 
-                    new DeliveryStatusMessage( 0x425c ), 
-                    Destination.IdentHash, 
-                    1234 ) );
+            var dsm2 = new DeliveryStatusMessage( 0x425c )
+            {
+                MessageId = 2354
+            };
 
-            // Tags should be available now
-            var msg2 = session.CreateMessage(
-                Destination,
-                new GarlicCloveDeliveryTunnel(
-                    new DeliveryStatusMessage( 0x425c ),
-                    Destination.IdentHash,
-                    1234 ) );
+            dsm2.Timestamp = dsm1.Timestamp;
+            dsm2.Expiration = dsm1.Expiration;
 
-            Assert.IsTrue( msg1.Garlic.Data != msg2.Garlic.Data );
+            var dsm1h = dsm1.CreateHeader16;
+            var dsm2h = dsm2.CreateHeader16;
 
-            var other_session = new DestinationSessions( ( d, h, inf ) => { }, () => null );
+            var dsm1hap = dsm1h.HeaderAndPayload;
+            var dsm2hap = dsm2h.HeaderAndPayload;
 
-            var msg3 = other_session.CreateMessage(
-                Destination,
-                new GarlicCloveDeliveryTunnel(
-                    new DeliveryStatusMessage( 0x425c ),
-                    Destination.IdentHash,
-                    1234 ) );
+            var st11 = FreenetBase64.Encode( dsm1hap );
+            var st12 = FreenetBase64.Encode( dsm2hap );
 
-            var msg4 = other_session.CreateMessage(
-                Destination,
-                new GarlicCloveDeliveryTunnel(
-                    new DeliveryStatusMessage( 0x425c ),
-                    Destination.IdentHash,
-                    1234 ) );
+            Assert.IsTrue( dsm1hap == dsm2hap );
 
-            Assert.IsTrue( msg1.Garlic.Data != msg3.Garlic.Data );
-            Assert.IsTrue( msg2.Garlic.Data != msg4.Garlic.Data );
+            var gcd1 = new GarlicCloveDeliveryDestination(
+                    dsm1,
+                    Destination.IdentHash );
 
-            Assert.IsTrue( msg1.Garlic.Data != msg4.Garlic.Data );
-            Assert.IsTrue( msg2.Garlic.Data != msg3.Garlic.Data );
+            var gcd2 = new GarlicCloveDeliveryDestination(
+                    dsm2,
+                    Destination.IdentHash );
 
-            Assert.IsTrue( msg1.Garlic.Data.Length == msg3.Garlic.Data.Length );
-            Assert.IsTrue( msg2.Garlic.Data.Length == msg4.Garlic.Data.Length );
-             */
+            var gcd1ar = gcd1.ToByteArray();
+            var gcd2ar = gcd2.ToByteArray();
+
+            var st1 = FreenetBase64.Encode( new BufLen( gcd1ar ) );
+            var st2 = FreenetBase64.Encode( new BufLen( gcd2ar ) );
+
+            Assert.IsTrue( BufUtils.Equal( gcd1ar, gcd2ar ) );
+
+            var msg1 = new GarlicClove( gcd1 );
+            var msg2 = new GarlicClove( gcd2 );
+
+            var g1 = new Garlic( msg1, msg2 );
+            var g2 = new Garlic( new BufRefLen( g1.ToByteArray() ).Clone() );
+
+            Assert.IsTrue( BufUtils.Equal( g1.ToByteArray(), g2.ToByteArray() ) );
         }
 
         [Test]
-        public void TestEncodeDecode()
+        public void TestEncodeDecodeEG()
         {
-            var recv = new ReceivedSessions( Private );
-            var session = new DestinationSessions( ( d, h, inf ) => { }, () => null );
+            var m1 = new DeliveryStatusMessage( 0x4321 );
+            var m2 = new DeliveryStatusMessage( 0xa3c2 );
 
-            var origmessage = new DeliveryStatusMessage( 0x425c );
+            var garlic = new Garlic(
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        m1,
+                        Destination.IdentHash ) ),
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        m2,
+                        Destination.IdentHash ) )
+            );
 
-            /*
-            var msg1eg = session.CreateMessage(
-                Me,
-                new GarlicCloveDeliveryTunnel(
-                    origmessage,
-                    Destination.IdentHash,
-                    1234 ) );
+            // No tags
 
-            var msg2aes = session.CreateMessage(
-                Me,
-                new GarlicCloveDeliveryTunnel(
-                    origmessage,
-                    Destination.IdentHash,
-                    1234 ) );
+            var cg = Garlic.EGEncryptGarlic( garlic, Public, new I2PSessionKey(), null );
+            var egdata = new BufLen( cg.EGData.ToByteArray() ).Clone();
 
-            var dmsg1eg = recv.DecryptMessage( msg1eg.Garlic );
-            var dmsg2aes = recv.DecryptMessage( msg2aes.Garlic );
+            var (aesblock,sk) = Garlic.EGDecryptGarlic( egdata, Private );
+            var g2 = new Garlic( (BufRefLen)aesblock.Payload );
 
-            Assert.IsTrue( origmessage.Payload == dmsg1eg.Cloves.First().Message.Payload );
-            Assert.IsTrue( origmessage.Payload == dmsg2aes.Cloves.First().Message.Payload );
-             */
+            Assert.IsTrue( BufUtils.Equal( garlic.ToByteArray(), g2.ToByteArray() ) );
+
+            // With tags
+            var tags = new List<I2PSessionTag>();
+            for ( int i = 0; i < 8; ++i )
+            {
+                tags.Add( new I2PSessionTag() );
+            }
+
+            cg = Garlic.EGEncryptGarlic( garlic, Public, new I2PSessionKey(), tags );
+            egdata = new BufLen( cg.EGData.ToByteArray() ).Clone();
+
+            (aesblock, sk) = Garlic.EGDecryptGarlic( egdata, Private );
+            g2 = new Garlic( (BufRefLen)aesblock.Payload );
+
+            Assert.IsTrue( BufUtils.Equal( garlic.ToByteArray(), g2.ToByteArray() ) );
+        }
+
+        [Test]
+        public void TestEncodeDecodeAES()
+        {
+            var m1 = new DeliveryStatusMessage( 0x4321 );
+            var m2 = new DeliveryStatusMessage( 0xa3c2 );
+
+            var garlic = new Garlic(
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        m1,
+                        Destination.IdentHash ) ),
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        m2,
+                        Destination.IdentHash ) )
+            );
+
+            // No tags
+
+            var sessionkey = new I2PSessionKey();
+            var sessiontag = new I2PSessionTag();
+
+            var cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
+            var egdata = new BufLen( cg.EGData.ToByteArray() ).Clone();
+
+            var (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, (t) => sessionkey );
+            var g2 = new Garlic( (BufRefLen)aesblock.Payload );
+
+            Assert.IsTrue( BufUtils.Equal( garlic.ToByteArray(), g2.ToByteArray() ) );
+
+            // With tags
+            var tags = new List<I2PSessionTag>();
+            for ( int i = 0; i < 30; ++i )
+            {
+                tags.Add( new I2PSessionTag() );
+            }
+
+            cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
+            egdata = new BufLen( cg.EGData.ToByteArray() ).Clone();
+
+            (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, ( t ) => sessionkey );
+            g2 = new Garlic( (BufRefLen)aesblock.Payload );
+
+            Assert.IsTrue( BufUtils.Equal( garlic.ToByteArray(), g2.ToByteArray() ) );
+        }
+
+        class TunnelOwner : ITunnelOwner
+        {
+            public void TunnelBuildTimeout( Tunnel tunnel )
+            {
+            }
+
+            public void TunnelEstablished( Tunnel tunnel )
+            {
+            }
+
+            public void TunnelExpired( Tunnel tunnel )
+            {
+            }
+
+            public void TunnelFailed( Tunnel tunnel )
+            {
+            }
+        }
+
+        public class CaptureOutTunnel: OutboundTunnel
+        {
+            public ConcurrentQueue<TunnelMessage> SendQueueAccess { get => SendQueue; }
+
+            public CaptureOutTunnel( ITunnelOwner owner, TunnelConfig config ): base( owner, config, 3 )
+            {
+
+            }
+        }
+
+        class TestSessionKeyOrigin : SessionKeyOrigin
+        {
+            public void DeliveryStatusReceived( DeliveryStatusMessage msg )
+            {
+                InboundTunnel_DeliveryStatusReceived( msg );
+            }
+
+            public TestSessionKeyOrigin( I2PDestination mydest, I2PDestination remotedest ): base( mydest, remotedest )
+            {
+
+            }
+        }
+
+        [Test]
+        public void TestEncodeDecodeLoop()
+        {
+            var m1 = new DeliveryStatusMessage( 0x4321 );
+            var m2 = new DeliveryStatusMessage( 0xa3c2 );
+
+            var cloves = new List<GarlicClove>()
+            {
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        m1,
+                        Destination.IdentHash ) ),
+                new GarlicClove(
+                    new GarlicCloveDeliveryLocal( m2 ) )
+            };
+
+            var originfo = new I2PDestinationInfo( 
+                    I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
+            var origdest = new I2PDestination( originfo );
+
+            var destinfo = new I2PDestinationInfo(
+                    I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
+            var destdest = new I2PDestination( destinfo );
+
+            var origko = new TestSessionKeyOrigin( origdest, destdest );
+            var recv = new ReceivedSessions( "recv", destinfo.PrivateKey );
+
+            CaptureOutTunnel outtunnel = new CaptureOutTunnel( 
+                    new TunnelOwner(), 
+                    new TunnelConfig(
+                        TunnelConfig.TunnelDirection.Outbound,
+                        TunnelConfig.TunnelPool.Client,
+                        new TunnelInfo( new List<HopInfo>
+                        {
+                            new HopInfo(
+                                Destination,
+                                new I2PTunnelId() )
+                        }
+                    ) ) );
+
+            for ( int i = 0; i < 100; ++i )
+            {
+                origko.Send( 
+                        outtunnel, 
+                        new I2PLease(
+                            new I2PIdentHash( true ), 
+                            new I2PTunnelId() ),
+                        () => ( new I2PIdentHash( true ), new I2PTunnelId() ),
+                        cloves.ToArray() );
+
+                Assert.IsTrue( outtunnel.SendQueueAccess.TryDequeue( out var tmsg ) );
+                var recgarlic = recv.DecryptMessage( ( (GarlicMessage)tmsg.Message ).Garlic );
+
+                Assert.IsTrue( 
+                        cloves.All( origclove => 
+                            recgarlic.Cloves.Any( c => 
+                                c.Message.Payload == origclove.Delivery.Message.Payload ) ) );
+
+                var dsmsgs = recgarlic.Cloves
+                            .Where( c => c.Message.MessageType == I2NPMessage.MessageTypes.DeliveryStatus )
+                            .Select( c => c.Message );
+
+                foreach ( DeliveryStatusMessage dsm in dsmsgs )
+                {
+                    origko.DeliveryStatusReceived( dsm );
+                }
+
+                cloves.Clear();
+                for ( int j = 0; j < 2 + BufUtils.RandomInt( 4 ); ++j )
+                {
+                    GarlicCloveDelivery gcd = null;
+
+                    var msg = CreateDatabaseStoreMessage();
+
+                    switch ( BufUtils.RandomInt( 4 ) )
+                    {
+                        case 0: gcd = new GarlicCloveDeliveryLocal( msg ); break;
+                        case 1: gcd = new GarlicCloveDeliveryRouter( msg, new I2PIdentHash( true ) ); break;
+                        case 2: gcd = new GarlicCloveDeliveryTunnel( msg, new I2PIdentHash( true ), new I2PTunnelId() ); break;
+                        case 3: gcd = new GarlicCloveDeliveryRouter( msg, new I2PIdentHash( true ) ); break;
+                    }
+
+                    cloves.Add( new GarlicClove( gcd ) );
+                }
+            }
         }
 
         DatabaseStoreMessage CreateDatabaseStoreMessage()
@@ -161,8 +443,7 @@ namespace I2PTests
         [Test]
         public void TestBiggerEncodeDecode()
         {
-            var recv = new ReceivedSessions( Private );
-            var session = new DestinationSessions( ( d, h, inf ) => { }, () => null );
+            var recv = new ReceivedSessions( this, Private );
 
             var origdsmessage = new DeliveryStatusMessage( 0x425c );
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 16000 ) ) );
@@ -230,8 +511,7 @@ namespace I2PTests
         [Test]
         public void TestTooBigEncodeDecode()
         {
-            var recv = new ReceivedSessions( Private );
-            var session = new DestinationSessions( ( d, h, inf ) => { }, () => null );
+            var recv = new ReceivedSessions( this, Private );
 
             /*
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 65000 ) ) );

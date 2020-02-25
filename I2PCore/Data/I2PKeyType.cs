@@ -57,9 +57,9 @@ namespace I2PCore.Data
         {
             var result = new StringBuilder();
 
-            result.AppendLine( "I2PKeyType - " + base.ToString() );
-            result.AppendLine( "Key : " + KeySizeBits + " bits, " + KeySizeBytes + " bytes." );
-            result.AppendLine( "Key : " + Key.ToString() );
+            result.AppendLine( $"I2PKeyType {GetType().Name}" );
+            result.AppendLine( $"Key : {KeySizeBits} bits, {KeySizeBytes} bytes." );
+            result.AppendLine( $"Key : {Key}" );
 
             return result.ToString();
         }

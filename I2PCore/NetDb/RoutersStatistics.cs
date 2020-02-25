@@ -7,6 +7,7 @@ using System.Threading;
 using I2PCore.Utils;
 using System.Diagnostics;
 using System.Net;
+using System.Collections.Concurrent;
 
 namespace I2PCore
 {
@@ -28,27 +29,23 @@ namespace I2PCore
     public class RoutersStatistics: IMTUProvider
     {
         enum StoreRecordId : int { RouterStatistics = 1 };
-        Dictionary<I2PIdentHash, RouterStatistics> Routers = new Dictionary<I2PIdentHash, RouterStatistics>();
+        ConcurrentDictionary<I2PIdentHash, RouterStatistics> Routers = 
+                new ConcurrentDictionary<I2PIdentHash, RouterStatistics>();
 
         public RouterStatistics this[ I2PIdentHash ix ]
         {
             get
             {
-                lock ( Routers )
+                if ( !Routers.TryGetValue( ix, out var stat ) )
                 {
-                    RouterStatistics stat;
-
-                    if ( !Routers.ContainsKey( ix ) )
-                    {
-                        stat = new RouterStatistics( ix );
-                        Routers[ix] = stat;
-                    }
-                    else
-                    {
-                        stat = Routers[ix];
-                    }
-                    return stat;
+                    stat = new RouterStatistics( ix );
+                    Routers[ix] = stat;
                 }
+                else
+                {
+                    stat = Routers[ix];
+                }
+                return stat;
             }
         }
 
@@ -116,38 +113,39 @@ namespace I2PCore
             var created = 0;
             using ( var s = GetStore() )
             {
-                lock ( Routers )
+                if ( !Routers.Any() ) return;
+
+                foreach ( var one in Routers.ToArray() )
                 {
-                    if ( !Routers.Any() ) return;
-
-                    foreach ( var one in Routers.ToArray() )
+                    if ( one.Value.Deleted && one.Value.StoreIx > 0 )
                     {
-                        if ( one.Value.Deleted && one.Value.StoreIx > 0 )
-                        {
-                            s.Delete( one.Value.StoreIx );
-                            one.Value.StoreIx = -1;
+                        s.Delete( one.Value.StoreIx );
+                        one.Value.StoreIx = -1;
 
-                            Routers.Remove( one.Key );
-                            ++deleted;
-                            continue;
-                        }
+                        Routers.TryRemove( one.Key, out _ );
+                        ++deleted;
+                        continue;
+                    }
 
-                        var rec = new BufLen[] { (BufLen)(int)StoreRecordId.RouterStatistics, new BufLen( one.Value.ToByteArray() ) };
+                    var rec = new BufLen[] 
+                    { 
+                        (BufLen)(int)StoreRecordId.RouterStatistics, 
+                        new BufLen( one.Value.ToByteArray() ) 
+                    };
 
-                        if ( one.Value.StoreIx > 0 )
+                    if ( one.Value.StoreIx > 0 )
+                    {
+                        if ( one.Value.Updated )
                         {
-                            if ( one.Value.Updated )
-                            {
-                                s.Write( rec, one.Value.StoreIx );
-                                ++updated;
-                                one.Value.Updated = false;
-                            }
+                            s.Write( rec, one.Value.StoreIx );
+                            ++updated;
+                            one.Value.Updated = false;
                         }
-                        else
-                        {
-                            one.Value.StoreIx = s.Write( rec );
-                            ++created;
-                        }
+                    }
+                    else
+                    {
+                        one.Value.StoreIx = s.Write( rec );
+                        ++created;
                     }
                 }
             }
@@ -242,10 +240,7 @@ namespace I2PCore
 
         public void UpdateScore()
         {
-            lock ( Routers )
-            {
-                foreach ( var one in Routers.ToArray() ) one.Value.UpdateScore();
-            }
+            foreach ( var one in Routers.ToArray() ) one.Value.UpdateScore();
         }
 
         bool NodeInactive( RouterStatistics d )
@@ -260,7 +255,7 @@ namespace I2PCore
         }
 
         HashSet<I2PIdentHash> GetInactive( 
-            IEnumerable<KeyValuePair<I2PIdentHash,RouterStatistics>> p ) 
+            ConcurrentDictionary<I2PIdentHash,RouterStatistics> p ) 
         {
             if ( !p.Any() ) return new HashSet<I2PIdentHash>();
 
@@ -271,27 +266,21 @@ namespace I2PCore
 
         internal HashSet<I2PIdentHash> GetInactive()
         {
-            lock ( Routers )
-            {
-                if ( !Routers.Any() ) return new HashSet<I2PIdentHash>();
-                return GetInactive( Routers );
-            }
+            if ( !Routers.Any() ) return new HashSet<I2PIdentHash>();
+            return GetInactive( Routers );
         }
 
         internal void RemoveOldStatistics()
         {
             var now = DateTime.Now;
 
-            lock ( Routers )
-            {
-                var toremove = Routers.Where( one =>
-                    Math.Abs( ( now - (DateTime)one.Value.Created ).TotalDays ) > 7 )
-                    .ToArray();
+            var toremove = Routers.Where( one =>
+                Math.Abs( ( now - (DateTime)one.Value.Created ).TotalDays ) > 7 )
+                .ToArray();
 
-                foreach( var one in toremove )
-                {
-                    one.Value.Deleted = true;
-                }
+            foreach( var one in toremove )
+            {
+                one.Value.Deleted = true;
             }
 
             Save();
@@ -299,12 +288,9 @@ namespace I2PCore
 
         public void Remove( I2PIdentHash hash )
         {
-            lock ( Routers )
+            if ( Routers.TryGetValue( hash, out var router ) )
             {
-                if ( Routers.ContainsKey( hash ) )
-                {
-                    Routers[hash].Deleted = true;
-                }
+                router.Deleted = true;
             }
         }
 

@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
 using I2PCore.Utils;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
+using System.Collections.Concurrent;
 
 namespace I2PCore
 {
@@ -11,20 +12,18 @@ namespace I2PCore
     {
         private I2PIdentHash GetRandomRouter(
             RouletteSelection<I2PRouterInfo, I2PIdentHash> r,
-            IEnumerable<I2PIdentHash> exclude,
+            ConcurrentBag<I2PIdentHash> exclude,
             bool exploratory )
         {
             I2PIdentHash result;
             var me = RouterContext.Inst.MyRouterIdentity.IdentHash;
-
-            var excludeset = new HashSet<I2PIdentHash>( exclude );
 
             if ( exploratory )
             {
                 lock ( RouterInfos )
                 {
                     var subset = RouterInfos
-                            .Where( k => !excludeset.Contains( k.Key ) );
+                            .Where( k => !exclude.Contains( k.Key ) );
                     do
                     {
                         result = subset
@@ -40,7 +39,7 @@ namespace I2PCore
             bool tryagain;
             do
             {
-                result = r.GetWeightedRandom( r.Wheel.Count() < 300 ? null : excludeset );
+                result = r.GetWeightedRandom( r.Wheel.Count() < 300 ? null : exclude );
                 tryagain = result == me;
             } while ( tryagain && ++retries < 20 );
 
@@ -51,7 +50,7 @@ namespace I2PCore
 
         I2PRouterInfo GetRandomRouterInfo( RouletteSelection<I2PRouterInfo, I2PIdentHash> r, bool exploratory )
         {
-            return this[GetRandomRouter( r, Enumerable.Empty<I2PIdentHash>(), exploratory )];
+            return this[GetRandomRouter( r, new ConcurrentBag<I2PIdentHash>(), exploratory )];
         }
 
         public I2PRouterInfo GetRandomRouterInfo( bool exploratory )
@@ -66,7 +65,7 @@ namespace I2PCore
         {
             I2PIdentHash result;
 
-            result = GetRandomRouter( Roulette, RecentlyUsedForTunnel, exploratory );
+            result = GetRandomRouter( Roulette, new ConcurrentBag<I2PIdentHash>( RecentlyUsedForTunnel ), exploratory );
             if ( result is null ) return null;
 
             RecentlyUsedForTunnel.Update( result );
@@ -88,7 +87,7 @@ namespace I2PCore
 
         public I2PIdentHash GetRandomFloodfillRouter( bool exploratory )
         {
-            return GetRandomRouter( RouletteFloodFill, RecentlyUsedForFF, exploratory );
+            return GetRandomRouter( RouletteFloodFill, new ConcurrentBag<I2PIdentHash>( RecentlyUsedForFF ), exploratory );
         }
 
         public IEnumerable<I2PIdentHash> GetRandomFloodfillRouter( bool exploratory, int count )
@@ -118,7 +117,7 @@ namespace I2PCore
         public IEnumerable<I2PIdentHash> GetClosestFloodfill(
                 I2PIdentHash reference,
                 int count,
-                IList<I2PIdentHash> exclude,
+                ConcurrentBag<I2PIdentHash> exclude,
                 bool nextset )
         {
             lock ( RouletteFloodFill.Wheel )
@@ -130,7 +129,7 @@ namespace I2PCore
                         .Where( inf => inf.Fit > minfit );
 
                 subset = ( exclude != null && exclude.Any() )
-                    ? subset.Where( inf => !exclude.Any( excl => excl == inf.Id ) )
+                    ? subset.Where( inf => !exclude.Contains( inf.Id ) )
                     : subset;
 
                 var refkey = nextset
@@ -148,7 +147,7 @@ namespace I2PCore
         public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo(
             I2PIdentHash reference,
             int count,
-            List<I2PIdentHash> exclude,
+            ConcurrentBag<I2PIdentHash> exclude,
             bool nextset )
         {
             return Find( GetClosestFloodfill( reference, count, exclude, nextset ) );

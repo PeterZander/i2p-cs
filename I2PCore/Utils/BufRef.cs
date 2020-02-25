@@ -9,7 +9,7 @@ namespace I2PCore.Utils
     /// <summary>
     /// Buffer reference with fixed offset.
     /// </summary>
-    public class BufBase: IEnumerable<byte>, IEquatable<BufBase>, IComparable<BufBase>
+    public class BufBase: IEnumerable<byte>, IEquatable<BufBase>, IComparable<BufBase>, IFormattable
     {
         protected readonly byte[] Data; 
         protected readonly int StartIx; // Original start position. Will never change.
@@ -250,12 +250,7 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            var result = string.Format( "StartIx: {0}, Position: {1} [", StartIx, Position );
-            for ( int i = 0; i < Data.Length && i < 8; ++i )
-            {
-                result += ( i == 0 ? string.Format( "0x{0:X2}", this[i] ) : string.Format( ",0x{0:X2}", this[i] ) );
-            }
-            return result + "]";
+            return ToString( "8", null );
         }
 
         #region IEnumerable<byte> Members
@@ -391,7 +386,77 @@ namespace I2PCore.Utils
             }
         }
 
+        public string ToString( string format, IFormatProvider formatprovider )
+        {
+            int? len = null;
+
+            if ( this is BufRefLen ) len = ( (BufRefLen)this ).Length;
+            if ( this is BufLen ) len = ( (BufLen)this ).Length;
+            if ( !len.HasValue ) len = Data.Length - Position;
+
+            var result = new StringBuilder();
+
+            bool showheader = true;
+            bool showchars = false;
+            bool showindex = false;
+            bool parsingheader;
+
+            do
+            {
+                parsingheader = false;
+
+                if ( format?.StartsWith( "I", StringComparison.Ordinal ) ?? false )
+                {
+                    showindex = true;
+                    format = format.Substring( 1 );
+                    parsingheader = true;
+                }
+                if ( format?.StartsWith( "C", StringComparison.Ordinal ) ?? false )
+                {
+                    showchars = true;
+                    format = format.Substring( 1 );
+                    parsingheader = true;
+                }
+                if ( format?.StartsWith( "h", StringComparison.Ordinal ) ?? false )
+                {
+                    showheader = false;
+                    format = format.Substring( 1 );
+                    parsingheader = true;
+                }
+            } while ( parsingheader );
+
+            if ( !int.TryParse( format, out var maxlen ) )
+            {
+                maxlen = 8;
+            }
+
+            if ( showheader )
+            {
+                result.Append( $"{GetType().Name} [{StartIx}:{Position}], Length: {len} [" );
+            }
+            else
+            {
+                result.Append( "[" );
+            }
+
+            for ( int i = 0; i < len && i < maxlen; ++i )
+            {
+                var bufbaseval = showindex
+                        ? showchars
+                            ? $"[{i}]0x{this[i]:X2}'{(char)this[i]}'"
+                            : $"[{i}]0x{this[i]:X2}"
+                        : showchars
+                            ? $"0x{this[i]:X2}'{(char)this[i]}'"
+                            : $"0x{this[i]:X2}";
+                result.Append( i == 0 ? $"{bufbaseval}" : $",{bufbaseval}" );
+            }
+            result.Append( "]" );
+
+            return result.ToString();
+        }
+
         #endregion
+
     }
 
     /// <summary>
@@ -860,13 +925,7 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            var len = Length;
-            var result = string.Format( "StartIx: {0}, Position: {1}, Length: {2} [", StartIx, Position, len );
-            for ( int i = 0; i < len && i < 8; ++i )
-            {
-                result += ( i == 0 ? string.Format( "0x{0:X2}", this[i] ) : string.Format( ",0x{0:X2}", this[i] ) );
-            }
-            return result + "]";
+            return ToString( "8", null );
         }
 
         #region IBufStream Members
@@ -1166,13 +1225,7 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            var len = Length;
-            var result = string.Format( "StartIx: {0}, Position: {1}, Length: {2} [", StartIx, Position, len );
-            for ( int i = 0; i < len && i < 8; ++i )
-            {
-                result += ( i == 0 ? string.Format( "0x{0:X2}", this[i] ) : string.Format( ",0x{0:X2}", this[i] ) );
-            }
-            return result + "]";
+            return ToString( "8", null );
         }
 
         #region IEquatable<BufRefLen> Members

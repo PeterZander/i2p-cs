@@ -88,7 +88,7 @@ namespace I2PCore.Utils
             if ( obj is null ) return false;
             if ( Object.ReferenceEquals( this, obj ) ) return true;
             var other = obj as TickSpan;
-            if ( other == null ) return false;
+            if ( other is null ) return false;
             return Ticks == other.Ticks;
         }
 
@@ -178,7 +178,7 @@ namespace I2PCore.Utils
         #endregion
     }
 
-    public class TickCounter
+    public class TickCounter: IComparable<TickCounter>
     {
         int TickCount;
         public int Ticks { get { return TickCount; } }
@@ -264,31 +264,38 @@ namespace I2PCore.Utils
 
         public static TickSpan operator -( TickCounter left, TickCounter right )
         {
-            if ( left == null || right == null ) throw new ArgumentException( "Tickcounter op - null" );
+            if ( left is null || right is null ) throw new ArgumentException( "Tickcounter op - null" );
             return TimeDelta( left, right );
         }
 
         public static TickCounter operator -( TickCounter left, int right )
         {
-            if ( left == null ) throw new ArgumentException( "Tickcounter op - null" );
+            if ( left is null ) throw new ArgumentException( "Tickcounter op - null" );
             return new TickCounter( left.TickCount - right );
         }
 
         public static TickCounter operator +( TickCounter left, TickSpan span )
         {
-            if ( left == null || span == null ) throw new ArgumentException( "Tickcounter op - null" );
+            if ( left is null || span is null ) throw new ArgumentException( "Tickcounter op - null" );
             return new TickCounter( left.TickCount + span.Ticks );
         }
 
         public static TickCounter operator -( TickCounter left, TickSpan span )
         {
-            if ( left == null || span == null ) throw new ArgumentException( "Tickcounter op - null" );
+            if ( left is null || span is null ) throw new ArgumentException( "Tickcounter op - null" );
             return new TickCounter( left.TickCount - span.Ticks );
         }
 
         public override string ToString()
         {
             return $"delta {TickSpan.DebugText( DeltaToNow )}";
+        }
+
+        public int CompareTo( TickCounter other )
+        {
+            if ( other is null ) return 1;
+            if ( Object.ReferenceEquals( this, other ) ) return 0;
+            return DeltaToNowMilliseconds.CompareTo( other.DeltaToNowMilliseconds );
         }
     }
 }

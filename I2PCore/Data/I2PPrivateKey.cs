@@ -6,7 +6,7 @@ using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 using I2PCore.Utils;
 using System.Threading;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
 
 namespace I2PCore.Data
 {
@@ -79,6 +79,9 @@ namespace I2PCore.Data
                             }
                         }
                     }
+                }
+                catch ( ThreadAbortException )
+                {
                 }
                 catch ( Exception ex )
                 {

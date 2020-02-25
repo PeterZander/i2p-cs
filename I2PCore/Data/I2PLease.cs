@@ -21,13 +21,21 @@ namespace I2PCore.Data
             EndDate = enddate;
         }
 
+        public I2PLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid )
+        {
+            TunnelGw = tunnelgw;
+            TunnelId = tunnelid;
+            EndDate = new I2PDate( 
+                DateTime.UtcNow 
+                    + TimeSpan.FromSeconds( LeaseLifetime.ToSeconds ) );
+        }
+
         public I2PLease( BufRef reader )
         {
             TunnelGw = new I2PIdentHash( reader );
             TunnelId = new I2PTunnelId( reader );
 
             EndDate = new I2PDate( reader );
-            //Logging.Log( "EndDate: " + EndDate.ToString() );
         }
 
         public void Write( BufRefStream dest )

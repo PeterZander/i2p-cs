@@ -108,7 +108,7 @@ namespace I2PTests
                 if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
             }
 
-            Assert.IsTrue( is42 > ( 20 * samples ) / 256 );
+            Assert.IsTrue( is42 > ( 3 * samples ) / 256 );
         }
 
         [Test]
@@ -125,7 +125,7 @@ namespace I2PTests
                 if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
             }
 
-            Assert.IsTrue( is42 > samples / 2 - samples / 30 );
+            Assert.IsTrue( is42 > samples / 1000 );
         }
 
         [Test]

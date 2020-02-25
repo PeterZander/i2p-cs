@@ -95,5 +95,16 @@ namespace I2PCore.Utils
             Bufs.AddLast( buf );
             LengthField += buf.Length;
         }
+
+        public byte[] ToByteArray()
+        {
+            var result = new byte[Bufs.Sum( b => b.Length )];
+            var rwriter = new BufRefLen( result );
+            foreach( var b in Bufs )
+            {
+                rwriter.Write( b );
+            }
+            return result;
+        }
     }
 }

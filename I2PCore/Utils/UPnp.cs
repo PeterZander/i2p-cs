@@ -11,7 +11,7 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.IO;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
 
 namespace I2PCore.Utils
 {

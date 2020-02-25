@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
@@ -6,15 +6,16 @@ using System.IO;
 using I2PCore.Utils;
 using System.Threading;
 using System.Diagnostics;
-using I2PCore.Router;
-using I2PCore.Tunnel.I2NP.Messages;
-using I2PCore.Transport;
+using I2PCore.SessionLayer;
+using I2PCore.TunnelLayer.I2NP.Messages;
+using I2PCore.TransportLayer;
 
 namespace I2PCore
 {
     public partial class NetDb
     {
-        public const int RouterInfoExpiryTimeSeconds = 60 * 60; // From HandleDatabaseLookupMessageJob.java
+        // From HandleDatabaseLookupMessageJob.java
+        public static readonly TickSpan RouterInfoExpiryTime = TickSpan.Minutes( 60 );
 
         const int RouterInfoCountLowWaterMark = 100;
 

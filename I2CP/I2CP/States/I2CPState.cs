@@ -5,7 +5,7 @@ using System.Text;
 using I2PCore.Utils;
 using System.Net;
 using I2PCore.Data;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;

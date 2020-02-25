@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using I2PCore.Utils;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;

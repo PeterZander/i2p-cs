@@ -10,7 +10,7 @@ using I2PCore.Utils;
 
 namespace I2PCore.Data
 {
-    public class I2PKeysAndCert : I2PType
+    public class I2PKeysAndCert : I2PType, IEquatable<I2PKeysAndCert>
     {
         public BufLen PublicKeyBuf { get { return new BufLen( Data, 0, Certificate.PublicKeyLength ); } }
         public I2PPublicKey PublicKey { 
@@ -126,6 +126,8 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
+            return $"{GetType().Name} {IdentHash.Id32Short}";
+            /*
             var result = new StringBuilder();
 
             result.AppendLine( "I2PKeysAndCert" );
@@ -133,7 +135,25 @@ namespace I2PCore.Data
             result.AppendLine( "SigningPublicKey - " + SigningPublicKey.ToString() );
             result.AppendLine( "Certificate      : " + Certificate.ToString() );
 
-            return result.ToString();
+            return result.ToString();*/
+        }
+
+        public override int GetHashCode()
+        {
+            return IdentHash?.GetHashCode() ?? 0;
+        }
+
+        public override bool Equals( object obj )
+        {
+            var other = obj as I2PKeysAndCert;
+            if ( other is null || obj is null ) return false;
+
+            return IdentHash?.Equals( other?.IdentHash ) ?? false;
+        }
+
+        public bool Equals( I2PKeysAndCert other )
+        {
+            return IdentHash?.Equals( other?.IdentHash ) ?? false;
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Text;
 using I2PCore.Data;
 using I2PCore.Utils;
 using System.Globalization;
-using I2PCore.Tunnel;
+using I2PCore.TunnelLayer;
 
 namespace I2PCore
 {
@@ -15,7 +15,7 @@ namespace I2PCore
         {
             get
             {
-                return ( Tunnel.Tunnel.MeassuredTunnelBuildTimePerHop * 1200 ).ToMilliseconds;
+                return ( Tunnel.MeassuredTunnelBuildTimePerHop * 1200 ).ToMilliseconds;
             }
         }
 

@@ -58,6 +58,11 @@ namespace I2PCore.Data
             dest.PokeFlip64( DateMilliseconds, offset );
         }
 
+        public ulong Nudge()
+        {
+            return ++DateMilliseconds;
+        }
+
         public override string ToString()
         {
             return ( RefDate + new TimeSpan( (long)DateMilliseconds * 10000 ) ).ToString();

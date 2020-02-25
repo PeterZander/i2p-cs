@@ -40,7 +40,7 @@
     <Compile Include="ElGamalTest.cs" />
     <Compile Include="GarlicTest.cs" />
     <Compile Include="I2PTypesTest.cs" />
-    <Compile Include="DatabaseStoreMessageTest.cs" />
+    <Compile Include="I2NPMessagesTest.cs" />
     <Compile Include="TransportTest.cs" />
     <Compile Include="TunnelDataMessageTest.cs" />
     <Compile Include="UtilsTest.cs" />

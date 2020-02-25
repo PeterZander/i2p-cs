@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -75,7 +76,7 @@ namespace I2PCore
             var l = new List<I2PIdentHash>();
             for ( int i = 0; i < 1000; ++i )
             {
-                l.Add( GetRandomRouter( Roulette, Enumerable.Empty<I2PIdentHash>(), false ) );
+                l.Add( GetRandomRouter( Roulette, new ConcurrentBag<I2PIdentHash>(), false ) );
             }
             var lines = l.GroupBy( i => i ).OrderByDescending( g => g.Count() );
             foreach ( var one in lines )
@@ -133,9 +134,17 @@ namespace I2PCore
 
                 Logging.LogDebug( String.Format( "Roulette stats minfit: {0}, maxfit: {1}", mins, maxs ) );
 
-                Logging.LogDebug( $"Min example: {NetDb.Inst.Statistics[min.Random().Id]}" );
-                Logging.LogDebug( $"Med example: {NetDb.Inst.Statistics[avg.Random().Id]}" );
-                Logging.LogDebug( $"Max example: {NetDb.Inst.Statistics[max.Random().Id]}" );
+                var minexinst = min.Random();
+                var medexinst = avg.Random();
+                var maxexinst = max.Random();
+
+                var minex = NetDb.Inst.Statistics[minexinst.Id];
+                var medex = NetDb.Inst.Statistics[medexinst.Id];
+                var maxex = NetDb.Inst.Statistics[maxexinst.Id];
+
+                Logging.LogDebug( $"Min example: Space {minexinst.Space,10:F2} {minex}" );
+                Logging.LogDebug( $"Med example: Space {medexinst.Space,10:F2} {medex}" );
+                Logging.LogDebug( $"Max example: Space {maxexinst.Space,10:F2} {maxex}" );
             }
         }
     }

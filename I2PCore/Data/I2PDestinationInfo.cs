@@ -73,5 +73,9 @@ namespace I2PCore.Data
             return FreenetBase64.Encode( new BufLen( ToByteArray() ) );
         }
 
+        public override string ToString()
+        {
+            return $"{Certificate} {PublicKey}";
+        }
     }
 }

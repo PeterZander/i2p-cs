@@ -13,7 +13,11 @@ namespace I2PCore.Data
     {
         public I2PPublicKey( I2PPrivateKey priv ): base( priv.Certificate )
         {
-            Key = new BufLen( I2PConstants.ElGamalG.ModPow( priv.ToBigInteger(), I2PConstants.ElGamalP ).ToByteArrayUnsigned() );
+            Key = new BufLen( I2PConstants
+                    .ElGamalG.ModPow( 
+                        priv.ToBigInteger(), 
+                        I2PConstants.ElGamalP )
+                            .ToByteArrayUnsigned() );
         }
 
         public I2PPublicKey( BufRef buf, I2PCertificate cert ) : base( buf, cert ) { }

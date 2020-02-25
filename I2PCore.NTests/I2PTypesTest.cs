@@ -50,6 +50,7 @@ namespace I2PTests
 
             var asstr = destinfo.ToBase64();
             var dfromstr = new I2PDestinationInfo( asstr );
+            //var asstr1 = dfromstr.ToBase64();
             Assert.IsTrue( BufUtils.Equal( destinfo.ToByteArray(), dfromstr.ToByteArray() ) );
         }
     }

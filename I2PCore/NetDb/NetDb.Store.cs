@@ -5,7 +5,7 @@ using I2PCore.Data;
 using System.IO;
 using I2PCore.Utils;
 using System.Diagnostics;
-using I2PCore.Router;
+using I2PCore.SessionLayer;
 using CM = System.Configuration.ConfigurationManager;
 
 namespace I2PCore
@@ -271,6 +271,7 @@ namespace I2PCore
             {
                 inactive = new HashSet<I2PIdentHash>(
                     inactive
+                        .Where( k => RouterInfos.ContainsKey( k ) )
                         .OrderBy( k => (DateTime)RouterInfos[k].Key.PublishedDate )
                         .Take( RouterInfos.Count - 400 ) );
             }

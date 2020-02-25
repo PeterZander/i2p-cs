@@ -128,21 +128,21 @@ namespace I2PCore.Data
 
         public static bool operator == ( I2PIdentHash left, I2PIdentHash right )
         {
-            if ( ReferenceEquals( left, null ) && ReferenceEquals( right, null ) ) return true;
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return false;
+            if ( left is null && right is null ) return true;
+            if ( left is null || right is null ) return false;
             return left.Hash == right.Hash;
         }
 
         public static bool operator !=( I2PIdentHash left, I2PIdentHash right )
         {
-            if ( ReferenceEquals( left, null ) && ReferenceEquals( right, null ) ) return false;
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return true;
+            if ( left is null && right is null ) return false;
+            if ( left is null || right is null ) return true;
             return left.Hash != right.Hash;
         }
 
         public override bool Equals( object obj )
         {
-            if ( ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             if ( !( obj is I2PIdentHash ) ) return false;
             return this == (I2PIdentHash)obj;
         }
@@ -164,7 +164,7 @@ namespace I2PCore.Data
 
         public static bool operator <( I2PIdentHash left, I2PIdentHash right )
         {
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return false;
+            if ( left is null || right is null ) return false;
             for ( int i = 0; i < 32; ++i )
             {
                 if ( left[i] < right[i] ) return true;
@@ -175,7 +175,7 @@ namespace I2PCore.Data
 
         public static bool operator >( I2PIdentHash left, I2PIdentHash right )
         {
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return false;
+            if ( left is null || right is null ) return false;
             for ( int i = 0; i < 32; ++i )
             {
                 if ( left[i] < right[i] ) return false;
