@@ -255,19 +255,12 @@
     <Compile Include="TunnelLayer\TunnelIdSubsriptions.cs" />
     <Compile Include="TunnelLayer\TunnelBuildRequestDecrypt.cs" />
     <Compile Include="TunnelLayer\ZeroHopTunnel.cs" />
-    <Compile Include="SessionLayer\Destination\ClientDestination.cs" />
-    <Compile Include="SessionLayer\Origin\ClientOrigin.cs" />
     <Compile Include="SessionLayer\IClient.cs" />
-    <Compile Include="SessionLayer\Client.cs" />
+    <Compile Include="SessionLayer\ClientDestination.cs" />
     <Compile Include="TunnelLayer\TunnelQuality.cs" />
-    <Compile Include="SessionLayer\ReceivedSessions.cs" />
-    <Compile Include="SessionLayer\RemoteDestinations.cs" />
-    <Compile Include="SessionLayer\Origin\SessionKeyOrigin.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="SessionLayer\Destination\" />
-    <Folder Include="SessionLayer\Origin\" />
-    <Folder Include="SessionLayer\Streaming\" />
+    <Compile Include="SessionLayer\DecryptReceivedSessions.cs" />
+    <Compile Include="SessionLayer\RemoteDestinationsLeasesUpdates.cs" />
+    <Compile Include="SessionLayer\SessionKeyOrigin.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">

@@ -12,7 +12,10 @@ using System.Collections.Concurrent;
 
 namespace I2PCore.SessionLayer
 {
-    public class ReceivedSessions
+    /// <summary>
+    /// Decrypts currently received EG/AES Sessions with tags.
+    /// </summary>
+    public class DecryptReceivedSessions
     {
         readonly I2PPrivateKey PrivateKey;
 
@@ -22,7 +25,7 @@ namespace I2PCore.SessionLayer
         protected CbcBlockCipher Cipher = new CbcBlockCipher( new AesEngine() );
         readonly object Owner;
 
-        public ReceivedSessions( object owner, I2PPrivateKey key )
+        public DecryptReceivedSessions( object owner, I2PPrivateKey key )
         {
             Owner = owner;
             PrivateKey = key;

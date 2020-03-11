@@ -13,6 +13,7 @@ namespace I2PCore.Data
 
         public enum KeyTypes : ushort
         {
+            Invalid = ushort.MaxValue,
             ElGamal2048 = 0
         }
 
@@ -55,13 +56,9 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.AppendLine( $"I2PKeyType {GetType().Name}" );
-            result.AppendLine( $"Key : {KeySizeBits} bits, {KeySizeBytes} bytes." );
-            result.AppendLine( $"Key : {Key}" );
-
-            return result.ToString();
+            return $"I2PKeyType {GetType().Name}" +
+                $"Key : {KeySizeBits} bits, {KeySizeBytes} bytes." +
+                $"Key : {Key}";
         }
     }
 }

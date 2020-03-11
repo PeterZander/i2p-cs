@@ -64,6 +64,7 @@ namespace I2PCore.Data
 	    };
 
         public static readonly BigInteger ElGamalP = new BigInteger( 1, ELGP, 0, 256 );
+        public static readonly BigInteger ElGamalPMinusOne = ElGamalP.Subtract( BigInteger.One );
         public static BigInteger ElGamalG = new BigInteger( "2", 10 );
 
         public const int I2P_NETWORK_ID = 0x02;

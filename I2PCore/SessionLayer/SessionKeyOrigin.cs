@@ -7,13 +7,26 @@ using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
+using static I2PCore.SessionLayer.ClientDestination;
 
 namespace I2PCore.SessionLayer
 {
+    /// <summary>
+    /// Source of new EG/AES sessions / tag generation
+    /// </summary>
     public class SessionKeyOrigin
     {
-        public int LowWatermarkForNewTags { get; set; } = 7;
-        public int NewTagsWhenGenerating { get; set; } = 15;
+        public int LowWatermarkForNewTags
+        {
+            get => Owner?.LowWatermarkForNewTags ?? 7;
+            set => Owner.LowWatermarkForNewTags = value;
+        }
+
+        public int NewTagsWhenGenerating
+        {
+            get => Owner?.NewTagsWhenGenerating ?? 15;
+            set => Owner.NewTagsWhenGenerating = value;
+        }
 
         class SessionAndTags
         {
@@ -29,11 +42,13 @@ namespace I2PCore.SessionLayer
         ConcurrentDictionary<I2PSessionKey, SessionAndTags> AckedTags =
             new ConcurrentDictionary<I2PSessionKey, SessionAndTags>();
 
+        readonly ClientDestination Owner;
         readonly I2PDestination MyDestination;
         readonly I2PDestination RemoteDestination;
 
-        public SessionKeyOrigin( I2PDestination mydest, I2PDestination remotedest )
+        public SessionKeyOrigin( ClientDestination owner, I2PDestination mydest, I2PDestination remotedest )
         {
+            Owner = owner;
             MyDestination = mydest;
             RemoteDestination = remotedest;
 
@@ -64,22 +79,23 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public bool Send( 
+        public ClientStates Send( 
                     OutboundTunnel outtunnel, 
-                    I2PLease remotelease, 
-                    Func<(I2PIdentHash,I2PTunnelId)> replytunnelsel,
+                    I2PLease remotelease,
+                    I2PLeaseSet publishedleases,
+                    Func<InboundTunnel> replytunnelsel,
                     params GarlicClove[] cloves )
         {
             if ( remotelease is null )
             {
                 Logging.LogDebug( $"{this}: No remote lease available." );
-                return false;
+                return ClientStates.NoLeases;
             }
 
             if ( outtunnel is null )
             {
                 Logging.LogDebug( $"{this}: No outbound tunnels available." );
-                return false;
+                return ClientStates.NoTunnels;
             }
 
             EGGarlic egmsg = null;
@@ -105,13 +121,13 @@ namespace I2PCore.SessionLayer
                                 .Select( t => t.Key )
                                 .ToList();
 
-                        var (replygw, replytunnel) = replytunnelsel();
+                        var replytunnel = replytunnelsel();
 
                         var ackstatus = new DeliveryStatusMessage( newtags.MessageId );
                         var ackclove = new GarlicClove(
                                         new GarlicCloveDeliveryTunnel(
                                             ackstatus,
-                                            replygw, replytunnel ) );
+                                            replytunnel.Destination, replytunnel.GatewayTunnelId ) );
 
                         newcloves = new List<GarlicClove>( cloves )
                         {
@@ -119,45 +135,54 @@ namespace I2PCore.SessionLayer
                         }.ToArray();
 
                     }
-#if LOG_ALL_LEASE_MGMT
-                    Logging.LogDebug( $"{this}: Encrypting with session key {session.SessionKey}" );
+#if NO_LOG_ALL_LEASE_MGMT
+                    Logging.LogInformation( $"{this}: Encrypting with session key {session.SessionKey}" );
 #endif
-                    var tag = session.Tags.First();
-                    session.Tags.TryRemove( tag.Key, out _ );
-                    if ( session.Tags.IsEmpty )
+                    if ( session.Tags.Count > 0 )
                     {
-                        AckedTags.TryRemove( key, out _ );
-                        goto again;
-                    }
+                        var tag = session.Tags.First();
+                        session.Tags.TryRemove( tag.Key, out _ );
+                        if ( session.Tags.IsEmpty )
+                        {
+                            AckedTags.TryRemove( key, out _ );
+                            goto again;
+                        }
 
-                    var garlic = new Garlic( newcloves );
-                    egmsg = Garlic.AESEncryptGarlic(
-                            garlic,
-                            session.SessionKey,
-                            tag.Key,
-                            newtagslist );
+                        var garlic = new Garlic( newcloves );
+                        egmsg = Garlic.AESEncryptGarlic(
+                                garlic,
+                                session.SessionKey,
+                                tag.Key,
+                                newtagslist );
+                    }
                 }
             }
 
             if ( egmsg == null )
             {
                 var newtags = GenerateNewTags( new I2PSessionKey() );
-#if LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey} {RemoteDestination.PublicKey}, {newtags.MessageId}" );
+#if NO_LOG_ALL_LEASE_MGMT
+                Logging.LogInformation( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey} {RemoteDestination.PublicKey}, {newtags.MessageId}" );
 #endif
 
-                var (replygw, replytunnel) = replytunnelsel();
+                var replytunnel = replytunnelsel();
 
+                var myleases = new DatabaseStoreMessage( publishedleases );
                 var ackstatus = new DeliveryStatusMessage( newtags.MessageId );
-                var ackclove = new GarlicClove(
+
+                var newcloves = new List<GarlicClove>
+                {
+                    new GarlicClove(
+                                new GarlicCloveDeliveryDestination(
+                                    myleases,
+                                    RemoteDestination.IdentHash ) ),
+                    new GarlicClove(
                                 new GarlicCloveDeliveryTunnel(
                                     ackstatus,
-                                    replygw, replytunnel ) );
-
-                var newcloves = new List<GarlicClove>( cloves )
-                {
-                    ackclove
+                                    replytunnel.Destination, replytunnel.GatewayTunnelId ) ),
                 };
+
+                newcloves.AddRange( cloves );
 
                 var garlic = new Garlic( newcloves );
 
@@ -173,7 +198,7 @@ namespace I2PCore.SessionLayer
                     new GarlicMessage( egmsg ),
                     remotelease.TunnelGw, remotelease.TunnelId ) );
 
-            return true;
+            return ClientStates.Established;
         }
 
         private SessionAndTags GenerateNewTags( I2PSessionKey sessionkey )

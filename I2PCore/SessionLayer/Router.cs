@@ -9,6 +9,8 @@ using I2PCore.Data;
 using System.Threading;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
+using static I2PCore.SessionLayer.ClientDestination;
+using System.Collections.Concurrent;
 
 namespace I2PCore.SessionLayer
 {
@@ -50,6 +52,9 @@ namespace I2PCore.SessionLayer
                 };
                 Worker.Start();
 
+                NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
+                NetDb.Inst.IdentHashLookup.LookupFailure += IdentHashLookup_LookupFailure;
+
                 Started = true;
             }
             catch ( Exception ex )
@@ -89,21 +94,54 @@ namespace I2PCore.SessionLayer
             finally
             {
                 Terminated = true;
+
+                NetDb.Inst.IdentHashLookup.LeaseSetReceived -= IdentHashLookup_LeaseSetReceived;
+                NetDb.Inst.IdentHashLookup.LookupFailure -= IdentHashLookup_LookupFailure;
             }
         }
 
-        public static ClientDestination CreateDestination( I2PDestinationInfo dest, bool publish )
+        static readonly ConcurrentDictionary<I2PDestination, ClientDestination> RunningDestinations =
+            new ConcurrentDictionary<I2PDestination, ClientDestination>();
+
+        public static ClientDestination CreateDestination( I2PDestinationInfo destinfo, bool publish, out bool alreadyrunning )
         {
-            var newclient = new ClientDestination( ClientMgr, dest, publish );
-            ClientMgr.AttachClient( newclient );
-            return newclient;
+            lock ( RunningDestinations )
+            {
+                if ( RunningDestinations.TryGetValue( destinfo.Destination, out var runninginst ) )
+                {
+                    alreadyrunning = true;
+                    return runninginst;
+                }
+
+                var newclient = new ClientDestination( destinfo, publish );
+                ClientMgr.AttachClient( newclient );
+                alreadyrunning = false;
+                return newclient;
+            }
         }
 
-        public static ClientOrigin CreateOrigin( I2PDestinationInfo mydest, I2PDestination remotedest )
+        public static ClientDestination CreateDestination( I2PDestination dest, I2PPrivateKey privkey, bool publish, out bool alreadyrunning )
         {
-            var newclient = new ClientOrigin( ClientMgr, mydest, remotedest );
-            ClientMgr.AttachClient( newclient );
-            return newclient;
+            lock ( RunningDestinations )
+            {
+                if ( RunningDestinations.TryGetValue( dest, out var runninginst ) )
+                {
+                    alreadyrunning = true;
+                    return runninginst;
+                }
+
+                var newclient = new ClientDestination( dest, privkey, publish );
+                RunningDestinations[dest] = newclient;
+                ClientMgr.AttachClient( newclient );
+                alreadyrunning = false;
+                return newclient;
+            }
+        }
+
+        internal static void ShutdownClient( ClientDestination dest )
+        {
+            ClientMgr.DetachClient( dest );
+            RunningDestinations.TryRemove( dest.Destination, out _ );
         }
 
         static void TunnelProvider_I2NPMessageReceived( II2NPHeader msg )
@@ -198,7 +236,11 @@ namespace I2PCore.SessionLayer
                         garlicmsg.Garlic.EGData,
                         RouterContext.Inst.PrivateKey );
 
-                if ( aesblock == null ) return;
+                if ( aesblock == null )
+                {
+                    Logging.LogWarning( $"Router: HandleGarlic: Failed to decrypt." );
+                    return;
+                }
 
                 var garlic = new Garlic( (BufRefLen)aesblock.Payload );
 
@@ -238,5 +280,86 @@ namespace I2PCore.SessionLayer
                 Logging.Log( "Router: HandleGarlic", ex );
             }
         }
+
+        #region DestLookup
+
+        class DestinationLookupEntry
+        {
+            public I2PIdentHash Id;
+            public DestinationLookupResult Callback;
+            public object Tag;
+        }
+
+        static readonly List<DestinationLookupEntry> UnresolvedDestinations =
+                new List<DestinationLookupEntry>();
+
+        internal static void StartDestLookup(
+                I2PIdentHash hash,
+                DestinationLookupResult cb,
+                object tag )
+        {
+            lock ( UnresolvedDestinations )
+            {
+                UnresolvedDestinations.Add( new DestinationLookupEntry()
+                {
+                    Id = hash,
+                    Callback = cb,
+                    Tag = tag,
+                } );
+            }
+
+            NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash );
+        }
+
+        public static void LookupDestination( 
+                I2PIdentHash hash, 
+                DestinationLookupResult cb,
+                object tag = null )
+        {
+            if ( cb == null ) return;
+            StartDestLookup( hash, cb, tag );
+        }
+
+        static void IdentHashLookup_LookupFailure( I2PIdentHash key )
+        {
+            lock ( UnresolvedDestinations )
+            {
+                var cbs = UnresolvedDestinations
+                    .Where( e => e.Id == key )
+                    .ToArray();
+
+                foreach ( var cbe in cbs )
+                {
+                    if ( UnresolvedDestinations.Remove( cbe ) )
+                    {
+                        ThreadPool.QueueUserWorkItem( a =>
+                            cbe.Callback.Invoke( cbe.Id, null, cbe.Tag ) );
+                    }
+                }
+            }
+        }
+
+        static void IdentHashLookup_LeaseSetReceived( I2PLeaseSet ls )
+        {
+            var key = ls.Destination.IdentHash;
+
+            lock ( UnresolvedDestinations )
+            {
+                var cbs = UnresolvedDestinations
+                    .Where( e => e.Id == key )
+                    .ToArray();
+
+                foreach ( var cbe in cbs )
+                {
+                    if ( UnresolvedDestinations.Remove( cbe ) )
+                    {
+                        ThreadPool.QueueUserWorkItem( a =>
+                            cbe.Callback.Invoke( cbe.Id, ls, cbe.Tag ) );
+                    }
+                }
+            }
+        }
+
+        #endregion
     }
 }

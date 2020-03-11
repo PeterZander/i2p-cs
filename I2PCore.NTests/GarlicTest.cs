@@ -314,7 +314,11 @@ namespace I2PTests
                 InboundTunnel_DeliveryStatusReceived( msg );
             }
 
-            public TestSessionKeyOrigin( I2PDestination mydest, I2PDestination remotedest ): base( mydest, remotedest )
+            public TestSessionKeyOrigin( 
+                    ClientDestination owner,
+                    I2PDestination mydest, 
+                    I2PDestination remotedest )
+                        : base( owner, mydest, remotedest )
             {
 
             }
@@ -333,19 +337,33 @@ namespace I2PTests
                         m1,
                         Destination.IdentHash ) ),
                 new GarlicClove(
+                    new GarlicCloveDeliveryLocal(
+                        new DataMessage( new BufLen( BufUtils.Random( 3000 ) ) ) ) ),
+                new GarlicClove(
+                    new GarlicCloveDeliveryLocal(
+                        new TunnelGatewayMessage( m1, new I2PTunnelId() ) ) ),
+                new GarlicClove(
                     new GarlicCloveDeliveryLocal( m2 ) )
             };
 
             var originfo = new I2PDestinationInfo( 
                     I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
-            var origdest = new I2PDestination( originfo );
+            var origdest = originfo.Destination;
 
             var destinfo = new I2PDestinationInfo(
                     I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
-            var destdest = new I2PDestination( destinfo );
+            var destdest = destinfo.Destination;
 
-            var origko = new TestSessionKeyOrigin( origdest, destdest );
-            var recv = new ReceivedSessions( "recv", destinfo.PrivateKey );
+            var publishedleases = new I2PLeaseSet(
+                origdest,
+                new I2PLease[] {
+                    new I2PLease( new I2PIdentHash( true ), new I2PTunnelId() )
+                },
+                new I2PLeaseInfo( originfo ) );
+
+            var origko = new TestSessionKeyOrigin( null, origdest, destdest );
+
+            var recv = new DecryptReceivedSessions( "recv", destinfo.PrivateKey );
 
             CaptureOutTunnel outtunnel = new CaptureOutTunnel( 
                     new TunnelOwner(), 
@@ -360,6 +378,16 @@ namespace I2PTests
                         }
                     ) ) );
 
+            var replytunnel = new ZeroHopTunnel(
+                    new TunnelOwner(),
+                    new TunnelConfig(
+                        TunnelConfig.TunnelDirection.Inbound,
+                        TunnelConfig.TunnelPool.Exploratory,
+                        new TunnelInfo( new List<HopInfo>()
+                        {
+                            new HopInfo( Destination, new I2PTunnelId() )
+                        } ) ) );
+
             for ( int i = 0; i < 100; ++i )
             {
                 origko.Send( 
@@ -367,7 +395,8 @@ namespace I2PTests
                         new I2PLease(
                             new I2PIdentHash( true ), 
                             new I2PTunnelId() ),
-                        () => ( new I2PIdentHash( true ), new I2PTunnelId() ),
+                        publishedleases,
+                        () => replytunnel,
                         cloves.ToArray() );
 
                 Assert.IsTrue( outtunnel.SendQueueAccess.TryDequeue( out var tmsg ) );
@@ -404,6 +433,10 @@ namespace I2PTests
 
                     cloves.Add( new GarlicClove( gcd ) );
                 }
+
+                cloves.Add( new GarlicClove(
+                    new GarlicCloveDeliveryLocal(
+                        new DataMessage( new BufLen( BufUtils.Random( 3000 ) ) ) ) ) );
             }
         }
 
@@ -443,7 +476,7 @@ namespace I2PTests
         [Test]
         public void TestBiggerEncodeDecode()
         {
-            var recv = new ReceivedSessions( this, Private );
+            var recv = new DecryptReceivedSessions( this, Private );
 
             var origdsmessage = new DeliveryStatusMessage( 0x425c );
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 16000 ) ) );
@@ -511,7 +544,7 @@ namespace I2PTests
         [Test]
         public void TestTooBigEncodeDecode()
         {
-            var recv = new ReceivedSessions( this, Private );
+            var recv = new DecryptReceivedSessions( this, Private );
 
             /*
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 65000 ) ) );

@@ -95,6 +95,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             }
 
             writer.Write( ls );
+            UpdateCachedFields( (BufRefLen)Payload );
         }
 
         public DatabaseStoreMessage( I2PLeaseSet leaseset ): this( leaseset, 0, null, 0 )
@@ -223,12 +224,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         {
             var result = new StringBuilder();
 
-            result.AppendLine( "DatabaseStore" );
-            result.AppendLine( "Key          : " + ( Key == null ? "(null)" : Key.ToString() ) );
-            result.AppendLine( "Content      : " + Content.ToString() );
-            result.AppendLine( "Reply token  : " + ReplyToken.ToString() );
-            result.AppendLine( "Reply Tunnel : " + ReplyTunnelId.ToString() );
-            result.AppendLine( "Reply GW     : " + ( ReplyGateway == null ? "(null)" : ReplyGateway.ToString() ) );
+            result.AppendLine( $"DatabaseStore {Content}, key {Key.Id32Short}" );
+            result.AppendLine( $"Reply token {ReplyToken}, tunnel {ReplyTunnelId}, GW {ReplyGateway}" );
 
             if ( Content == MessageContent.RouterInfo )
             {

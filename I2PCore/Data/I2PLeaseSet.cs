@@ -20,15 +20,12 @@ namespace I2PCore.Data
 
         public I2PSignature Signature;
 
-        I2PLeaseInfo Info;
-
         public I2PLeaseSet( I2PDestination dest, IEnumerable<I2PLease> leases, I2PLeaseInfo info )
         {
             Destination = dest;
 
-            Info = info;
-            PublicKey = info.PublicKey;
-            PublicSigningKey = info.PublicSigningKey;
+            PublicKey = info?.PublicKey;
+            PublicSigningKey = info?.PublicSigningKey;
 
             if ( leases != null && leases.Any() )
             {
@@ -36,6 +33,17 @@ namespace I2PCore.Data
                 {
                     LeasesField.Add( lease );
                 }
+            }
+
+            if ( info != null )
+            {
+                PublicKey = info.PublicKey;
+                PublicSigningKey = info.PublicSigningKey;
+
+                Signature = new I2PSignature( 
+                    new BufRefLen( 
+                        CreateSignature( info.PrivateSigningKey ) ),
+                    info.PrivateSigningKey.Certificate );
             }
         }
 
@@ -113,14 +121,14 @@ namespace I2PCore.Data
 #endif
         }
 
-        public bool VerifySignature()
+        public bool VerifySignature( I2PSigningPublicKey spkey )
         {
-            var versig = I2PSignature.SupportedSignatureType( PublicSigningKey.Certificate.SignatureType );
+            var versig = I2PSignature.SupportedSignatureType( spkey.Certificate.SignatureType );
 
             if ( !versig )
             {
-                Logging.LogDebug( "I2PLeaseSet: VerifySignature false. Not supported: " +
-                    PublicSigningKey.Certificate.SignatureType.ToString() );
+                Logging.LogDebug( $"I2PLeaseSet: VerifySignature false. Not supported: " +
+                    $"{spkey.Certificate.SignatureType}" );
                 return false;
             }
 
@@ -137,10 +145,10 @@ namespace I2PCore.Data
                 signfields.Add( new BufLen( lease.ToByteArray() ) );
             }
 
-            versig = I2PSignature.DoVerify( PublicSigningKey, Signature, signfields.ToArray() );
+            versig = I2PSignature.DoVerify( spkey, Signature, signfields.ToArray() );
             if ( !versig )
             {
-                Logging.LogDebug( $"I2PLeaseSet: I2PSignature.DoVerify failed: {PublicSigningKey.Certificate.SignatureType}" );
+                Logging.LogDebug( $"I2PLeaseSet: I2PSignature.DoVerify failed: {spkey.Certificate.SignatureType}" );
                 return false;
             }
 
@@ -150,19 +158,8 @@ namespace I2PCore.Data
         public void Write( BufRefStream dest )
         {
             Destination.Write( dest );
-            Info.PublicKey.Write( dest );
-            Info.PublicSigningKey.Write( dest );
-
-            var cnt = (byte)LeasesField.Count;
-            if ( cnt > 16 ) throw new OverflowException( "Max 16 leases per I2PLeaseSet" );
-
-            var signfields = new List<BufLen>
-            {
-                new BufLen( Destination.ToByteArray() ),
-                Info.PublicKey.Key,
-                Info.PublicSigningKey.Key,
-                (BufLen)cnt
-            };
+            PublicKey.Write( dest );
+            PublicSigningKey.Write( dest );
 
             dest.Write( (byte)LeasesField.Count );
 
@@ -170,29 +167,37 @@ namespace I2PCore.Data
             {
                 var buf = lease.ToByteArray();
                 dest.Write( buf );
+            }
+
+            Signature.Write( dest );
+        }
+
+        private byte[] CreateSignature( I2PSigningPrivateKey privsignkey )
+        {
+            var cnt = (byte)LeasesField.Count;
+            if ( cnt > 16 ) throw new OverflowException( "Max 16 leases per I2PLeaseSet" );
+
+            var signfields = new List<BufLen>
+            {
+                new BufLen( Destination.ToByteArray() ),
+                PublicKey.Key,
+                PublicSigningKey.Key,
+                (BufLen)cnt
+            };
+
+            foreach ( var lease in LeasesField )
+            {
+                var buf = lease.ToByteArray();
                 signfields.Add( new BufLen( buf ) );
             }
 
-            dest.Write( I2PSignature.DoSign( Info.PrivateSigningKey, signfields.ToArray() ) );
+            return I2PSignature.DoSign( privsignkey, signfields.ToArray() );
         }
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.AppendLine( "I2PLeaseSet" );
-
-            result.AppendLine( $"Destination      : {Destination}" );
-            result.AppendLine( $"PublicKey        : {PublicKey}" );
-            result.AppendLine( $"PublicSigningKey : {PublicSigningKey}" );
-            result.AppendLine( $"Lease count      : {LeasesField.Count}" );
-
-            foreach ( var one in LeasesField )
-            {
-                result.AppendLine( $"Lease            : {one}" );
-            }
-
-            return result.ToString();
+            return $"I2PLeaseSet [{Leases?.Count()}]: {Destination?.IdentHash.Id32Short} " +
+                $"{string.Join( ",", LeasesField )}";
         }
     }
 }

@@ -21,7 +21,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         }
 
         public Garlic( params GarlicClove[] cloves )
-            : this( new I2PDate( DateTime.UtcNow.AddMinutes( 5 ) ), cloves )
+            : this( DefaultRTT(), cloves )
         {
         }
 
@@ -31,8 +31,13 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         }
 
         public Garlic( IEnumerable<GarlicClove> cloves )
-            : this( new I2PDate( DateTime.UtcNow.AddMinutes( 5 ) ), cloves )
+            : this( DefaultRTT(), cloves )
         {
+        }
+
+        private static I2PDate DefaultRTT()
+        {
+            return new I2PDate( DateTime.UtcNow.AddSeconds( 15 ) );
         }
 
         public Garlic( I2PDate expiration, IEnumerable<GarlicClove> cloves )

@@ -68,7 +68,19 @@ namespace I2PCore.Data
             }
         }
 
-        public BufLen CertificateBuf { get { return new BufLen( Data, 256 + 128, new I2PCertificate( new BufRef( Data, 256 + 128 ) ).CertLength ); } }
+        public BufLen CertificateBuf 
+        { 
+            get 
+            { 
+                return new BufLen( 
+                        Data, 
+                        256 + 128, 
+                        new I2PCertificate( 
+                            new BufRef( Data, 256 + 128 ) )
+                                .CertLength ); 
+            } 
+        }
+
         public I2PCertificate Certificate
         {
             get
@@ -84,17 +96,19 @@ namespace I2PCore.Data
             }
         }
 
-        BufLen Data;
+        readonly BufLen Data;
 
         public I2PKeysAndCert( I2PPublicKey pubkey, I2PSigningPublicKey signkey )
         {
             Data = new BufLen( new byte[RecordSize( signkey.Certificate )] );
-
             Data.Randomize();
+
             Certificate = signkey.Certificate;
             PublicKey = pubkey;
             SigningPublicKey = signkey;
         }
+
+        public int Size { get => RecordSize( SigningPublicKey.Certificate ); }
 
         private int RecordSize( I2PCertificate cert )
         {
@@ -109,7 +123,7 @@ namespace I2PCore.Data
 
         public void Write( BufRefStream dest )
         {
-            Data.WriteTo( dest );
+            dest.Write( (BufRefLen)Data );
         }
 
         I2PIdentHash CachedIdentHash;
@@ -127,15 +141,6 @@ namespace I2PCore.Data
         public override string ToString()
         {
             return $"{GetType().Name} {IdentHash.Id32Short}";
-            /*
-            var result = new StringBuilder();
-
-            result.AppendLine( "I2PKeysAndCert" );
-            result.AppendLine( "PublicKey - " + PublicKey.ToString() );
-            result.AppendLine( "SigningPublicKey - " + SigningPublicKey.ToString() );
-            result.AppendLine( "Certificate      : " + Certificate.ToString() );
-
-            return result.ToString();*/
         }
 
         public override int GetHashCode()

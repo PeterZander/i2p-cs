@@ -453,7 +453,6 @@ namespace I2PCore.TransportLayer.NTCP
                     Logging.LogTransport( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
                 }
             }
-        
             finally
             {
                 Terminated = true;
@@ -480,7 +479,7 @@ namespace I2PCore.TransportLayer.NTCP
                 }
                 catch ( Exception ex )
                 {
-                    Logging.Log( DebugId, ex );
+                    Logging.LogDebugData( $"{DebugId} {ex}" );
                 }
 
                 if ( MySocket != null )
@@ -492,7 +491,7 @@ namespace I2PCore.TransportLayer.NTCP
                     }
                     catch ( Exception ex )
                     {
-                        Logging.Log( DebugId, ex );
+                        Logging.LogDebugData( $"{DebugId} {ex}" );
                     }
                     finally
                     {

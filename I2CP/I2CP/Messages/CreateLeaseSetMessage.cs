@@ -12,6 +12,8 @@ namespace I2P.I2CP.Messages
     {
         public ushort SessionId;
         public I2PLeaseInfo Info;
+        public I2PSigningPrivateKey DSAPrivateSigningKey;
+        public I2PPrivateKey PrivateKey;
         public I2PLeaseSet Leases;
 
         public CreateLeaseSetMessage( 
@@ -25,24 +27,30 @@ namespace I2P.I2CP.Messages
             Leases = new I2PLeaseSet( dest, leases, info );
         }
 
+        public CreateLeaseSetMessage( BufRef reader, I2CPSession session ) 
+                : base( ProtocolMessageType.CreateLS )
+        {
+            SessionId = reader.ReadFlip16();
+
+            var cert = session.SessionIds[SessionId].Config.Destination.Certificate;
+
+            DSAPrivateSigningKey = new I2PSigningPrivateKey( 
+                    reader, 
+                    new I2PCertificate( I2PSigningKey.SigningKeyTypes.DSA_SHA1 ) );
+
+            PrivateKey = new I2PPrivateKey( reader, cert );
+            Leases = new I2PLeaseSet( reader );
+        }
+
+        static readonly byte[] TwentyBytes = { 0, 0, 0, 0, 0, 0, 0, 0, 
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
         public override void Write( BufRefStream dest )
         {
-            dest.Write( BitConverter.GetBytes( SessionId ) );
-            var dummy = new I2PSigningPrivateKey( new I2PCertificate() );
-            dummy.Write( dest );
-            //Info.PrivateSigningKey.Write( dest );
-            Info.PrivateKey.Write( dest );
+            dest.Write( (BufRefLen)BufUtils.Flip16BL( SessionId ) );
+            dest.Write( TwentyBytes );
+            PrivateKey.Write( dest );
             Leases.Write( dest );
-
-            /*
-            var ar = dest.ToArray();
-            int ix = 22;
-            var pivk = new I2PPrivateKey( ar, ref ix );
-            ix = 665;
-            var refpubk = new I2PPublicKey( ar, ref ix );
-            var diff = ( new I2PPublicKey( pivk ) ).Key.Subtract( refpubk.Key );
-            var ok = diff.CompareTo( BigInteger.Zero ) == 0;
-             */
         }
     }
 }

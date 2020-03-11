@@ -8,13 +8,19 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		LICENCE.txt = LICENCE.txt
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2P", "I2P\I2P.csproj", "{B6D93850-785D-44A7-8DE0-62BE841704EA}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PCore", "I2PCore\I2PCore.csproj", "{383410B1-C0B4-4957-8F36-0107C7F109E3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2CP", "I2CP\I2CP.csproj", "{568D66C4-6583-418A-9272-E315F3024672}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PCore.NTests", "I2PCore.NTests\I2PCore.NTests.csproj", "{7618CBAB-BBFA-430F-A58D-7CE89893AB3F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PRouter", "I2PRouter\I2PRouter.csproj", "{2E6DD4E3-C2CD-4FDE-BCC4-B63CD8049E6B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PEchoClient", "I2PEchoClient\I2PEchoClient.csproj", "{B6D93850-785D-44A7-8DE0-62BE841704EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PEchoServer", "I2PEchoServer\I2PEchoServer.csproj", "{C8FBAD70-126D-4FE6-A0D2-F65E110BB486}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "I2PDemo", "I2PDemo\I2PDemo.csproj", "{467D8BEF-2EF7-4778-88CE-B43C23606964}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,10 +28,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{383410B1-C0B4-4957-8F36-0107C7F109E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{383410B1-C0B4-4957-8F36-0107C7F109E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{383410B1-C0B4-4957-8F36-0107C7F109E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -38,11 +40,32 @@ Global
 		{7618CBAB-BBFA-430F-A58D-7CE89893AB3F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7618CBAB-BBFA-430F-A58D-7CE89893AB3F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7618CBAB-BBFA-430F-A58D-7CE89893AB3F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E6DD4E3-C2CD-4FDE-BCC4-B63CD8049E6B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E6DD4E3-C2CD-4FDE-BCC4-B63CD8049E6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E6DD4E3-C2CD-4FDE-BCC4-B63CD8049E6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E6DD4E3-C2CD-4FDE-BCC4-B63CD8049E6B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6D93850-785D-44A7-8DE0-62BE841704EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8FBAD70-126D-4FE6-A0D2-F65E110BB486}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8FBAD70-126D-4FE6-A0D2-F65E110BB486}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8FBAD70-126D-4FE6-A0D2-F65E110BB486}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8FBAD70-126D-4FE6-A0D2-F65E110BB486}.Release|Any CPU.Build.0 = Release|Any CPU
+		{467D8BEF-2EF7-4778-88CE-B43C23606964}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{467D8BEF-2EF7-4778-88CE-B43C23606964}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{467D8BEF-2EF7-4778-88CE-B43C23606964}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{467D8BEF-2EF7-4778-88CE-B43C23606964}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {145D1B94-E30F-4EEC-9E56-78FE31AB6EED}
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		Policies = $0
+		$0.DotNetNamingPolicy = $1
+		$1.DirectoryNamespaceAssociation = PrefixedHierarchical
 	EndGlobalSection
 EndGlobal

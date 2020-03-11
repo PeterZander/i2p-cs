@@ -10,29 +10,36 @@ namespace I2P.I2CP.Messages
 {
     public class GetDateMessage: I2CPMessage
     {
-        I2PString Version;
-        I2PMapping Mapping;
+        public I2PString Version;
+        public I2PMapping Mapping;
 
         public GetDateMessage( string ver, I2PMapping map )
             : base( ProtocolMessageType.GetDate )
         {
             Version = new I2PString( ver );
-            Mapping = map == null ? new I2PMapping(): map;
+            Mapping = map;
         }
 
-        public GetDateMessage( BufRef reader )
+        public GetDateMessage( BufRefLen reader )
             : base( ProtocolMessageType.GetDate )
         {
-            reader.Seek( 4 );
-            if ( (ProtocolMessageType)reader.Read8() != MessageType ) throw new ArgumentException( "GetDateMessage( reader ) Wrong message type." );
             Version = new I2PString( reader );
-            Mapping = new I2PMapping( reader );
+
+            // As of release 0.9.11, the authentication [Mapping] may be included, with the keys i2cp.username and i2cp.password.
+            if ( reader.Length > 0 )
+            {
+                Mapping = new I2PMapping( reader );
+            }
         }
 
         public override void Write( BufRefStream dest )
         {
             Version.Write( dest );
-            Mapping.Write( dest );
+
+            if ( Mapping != null )
+            {
+                Mapping.Write( dest );
+            }
         }
     }
 }

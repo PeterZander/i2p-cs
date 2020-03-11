@@ -9,6 +9,7 @@ using System.Diagnostics;
 using I2PCore.SessionLayer;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.TransportLayer;
+using System.Collections.Concurrent;
 
 namespace I2PCore
 {
@@ -19,13 +20,12 @@ namespace I2PCore
 
         const int RouterInfoCountLowWaterMark = 100;
 
-        Dictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>> RouterInfos = new Dictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>>();
+        ConcurrentDictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>> RouterInfos = 
+                new ConcurrentDictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>>();
+
         TimeWindowDictionary<I2PIdentHash, I2PLeaseSet> LeaseSets =
             new TimeWindowDictionary<I2PIdentHash, I2PLeaseSet>( I2PLease.LeaseLifetime * 2 );
         Dictionary<I2PString, I2PString> ConfigurationSettings = new Dictionary<I2PString, I2PString>();
-
-        const int DefaultStoreChunkSize = 512;
-        enum StoreRecordId : int { StoreIdRouterInfo = 1, StoreIdLeaseSet = 2, StoreIdConfig = 3 };
 
         protected static Thread Worker;
         public static NetDb Inst { get; protected set; }
@@ -135,32 +135,29 @@ namespace I2PCore
         {
             Statistics.UpdateScore();
 
-            lock ( RouterInfos )
-            {
-                var havehost = RouterInfos.Values.Where( rp =>
-                    rp.Key.Adresses.Any( a =>
-                        a.Options.Contains( "host" ) ) );
+            var havehost = RouterInfos.Values.Where( rp =>
+                rp.Key.Adresses.Any( a =>
+                    a.Options.Contains( "host" ) ) );
 
-                Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( havehost.Select( p => p.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+            Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( havehost.Select( p => p.Key ),
+                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
-                RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                    havehost.Where( p => p.Key.Options["caps"].Contains( 'f' ) )
-                        .Select( rp => rp.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+            RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
+                havehost.Where( p => p.Key.Options["caps"].Contains( 'f' ) )
+                    .Select( rp => rp.Key ),
+                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
-                RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                    havehost.Where( ri => !ri.Key.Options["caps"].Contains( 'f' ) )
-                        .Select( ri => ri.Key ),
-                    ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+            RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
+                havehost.Where( ri => !ri.Key.Options["caps"].Contains( 'f' ) )
+                    .Select( ri => ri.Key ),
+                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
 
-                Logging.LogInformation( "All routers" );
-                ShowRouletteStatistics( Roulette );
-                Logging.LogInformation( "Floodfill routers" );
-                ShowRouletteStatistics( RouletteFloodFill );
-                Logging.LogInformation( "Non floodfill routers" );
-                ShowRouletteStatistics( RouletteNonFloodFill );
-            }
+            Logging.LogInformation( "All routers" );
+            ShowRouletteStatistics( Roulette );
+            Logging.LogInformation( "Floodfill routers" );
+            ShowRouletteStatistics( RouletteFloodFill );
+            Logging.LogInformation( "Non floodfill routers" );
+            ShowRouletteStatistics( RouletteNonFloodFill );
 
 #if SHOW_PROBABILITY_PROFILE
             ShowProbabilityProfile();
@@ -183,30 +180,9 @@ namespace I2PCore
         {
             if ( !ValidateRI( info ) ) return false;
 
-            lock ( RouterInfos )
+            if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
             {
-                if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
-                {
-                    if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Key.PublishedDate ).TotalSeconds > 2 )
-                    {
-                        if ( !info.VerifySignature() )
-                        {
-                            Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
-                            return false;
-                        }
-
-                        var meta = indb.Value;
-                        meta.Deleted = false;
-                        meta.Updated = true;
-                        RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( info, meta );
-                        Logging.LogDebugData( $"NetDb: Updated RouterInfo for: {info.Identity.IdentHash}" );
-                    }
-                    else
-                    {
-                        return true;
-                    }
-                }
-                else
+                if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Key.PublishedDate ).TotalSeconds > 2 )
                 {
                     if ( !info.VerifySignature() )
                     {
@@ -214,32 +190,50 @@ namespace I2PCore
                         return false;
                     }
 
-                    if ( !RouterContext.Inst.UseIpV6 )
-                    {
-                        if ( !info.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
-                        {
-                            Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {info.Identity.IdentHash.Id32}" );
-                            return false;
-                        }
-                    }
-
-                    var meta = new RouterInfoMeta
-                    {
-                        Updated = true
-                    };
-                    RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
-                    Logging.LogDebugData( $"NetDb: Added RouterInfo for: {info.Identity.IdentHash}" );
-
-                    Statistics.IsFirewalledUpdate( 
-                            info.Identity.IdentHash, 
-                            info.Adresses
-                                .Any( a =>
-                                    a.Options.Any( o =>
-                                        o.Key.ToString() == "ihost0" ) ) );
+                    var meta = indb.Value;
+                    meta.Deleted = false;
+                    meta.Updated = true;
+                    RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( info, meta );
+                    Logging.LogDebugData( $"NetDb: Updated RouterInfo for: {info.Identity.IdentHash}" );
+                }
+                else
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                if ( !info.VerifySignature() )
+                {
+                    Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
+                    return false;
                 }
 
-                if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
+                if ( !RouterContext.Inst.UseIpV6 )
+                {
+                    if ( !info.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
+                    {
+                        Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {info.Identity.IdentHash.Id32}" );
+                        return false;
+                    }
+                }
+
+                var meta = new RouterInfoMeta
+                {
+                    Updated = true
+                };
+                RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
+                Logging.LogDebugData( $"NetDb: Added RouterInfo for: {info.Identity.IdentHash}" );
+
+                Statistics.IsFirewalledUpdate( 
+                        info.Identity.IdentHash, 
+                        info.Adresses
+                            .Any( a =>
+                                a.Options.Any( o =>
+                                    o.Key.ToString() == "ihost0" ) ) );
             }
+
+            if ( RouterInfoUpdates != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoUpdates( info ) );
 
             return true;
         }

@@ -9,27 +9,33 @@ namespace I2P.I2CP.Messages
 {
     public class MessagePayloadMessage: I2CPMessage
     {
-        I2PMessagePayload Payload;
+        public ushort SessionId;
+        public uint MessageId;
+        public BufLen Payload;
 
-        public MessagePayloadMessage( byte[] payload, ref int ix )
+        public MessagePayloadMessage( ushort sessionid, uint msgid, BufLen data )
             : base( ProtocolMessageType.MessagePayload )
         {
-            Payload = new I2PMessagePayload();
-            Payload.SessionId = BitConverter.ToUInt16( payload, ix );
-            Payload.MessageId = BitConverter.ToUInt32( payload, ix + 2 );
-            ix += 6;
-
-            var len = BitConverter.ToUInt32( payload, ix );
-            ix += 4;
-
-            var buf = new byte[len];
-            Array.Copy( buf, 0, payload, ix, len );
-            Payload.Payload = buf;
+            SessionId = sessionid;
+            MessageId = msgid;
+            Payload = data;
         }
 
         public override void Write( BufRefStream dest )
         {
-            throw new NotImplementedException();
+            var header = new byte[10];
+            var writer = new BufRefLen( header );
+            writer.WriteFlip16( SessionId );
+            writer.WriteFlip32( MessageId );
+            writer.WriteFlip32( (uint)Payload.Length );
+
+            dest.Write( header );
+            dest.Write( (BufRefLen)Payload );
+        }
+
+        public override string ToString()
+        {
+            return $"{GetType().Name} {SessionId} {MessageId} {Payload}";
         }
     }
 }

@@ -48,7 +48,7 @@ namespace I2PCore.TunnelLayer
         }
 
         readonly PeriodicAction Maintenance = new PeriodicAction( TickSpan.Minutes( 15 ) );
-        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 10 ) );
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 30 ) );
 
         public void Execute()
         {

@@ -57,8 +57,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
     public class TunnelDataFragmentFollowOn: TunnelDataFragmentCreation
     {
-        int FragmentNumber;
-        bool LastFragment;
+        readonly int FragmentNumber;
+        readonly bool LastFragment;
         public TunnelDataFragmentFollowOn( TunnelDataMessage td, TunnelMessage srcmsg, BufLen tmdata, int fragnr, bool lastfrag )
             : base( td, srcmsg, tmdata, true )
         {

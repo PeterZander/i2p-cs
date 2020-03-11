@@ -35,6 +35,11 @@ namespace I2PCore.Data
             return Mappings.TryGetValue( new I2PString( key ), out var result ) ? result : null;
         }
 
+        public string TryGet( string key, string def )
+        {
+            return Mappings.TryGetValue( new I2PString( key ), out var result ) ? result.ToString() : def;
+        }
+
         public bool TryGet( string key, out I2PString result )
         {
             return Mappings.TryGetValue( new I2PString( key ), out result );

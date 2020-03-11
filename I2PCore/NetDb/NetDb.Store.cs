@@ -12,6 +12,9 @@ namespace I2PCore
 {
     public partial class NetDb
     {
+        const int DefaultStoreChunkSize = 512;
+        enum StoreRecordId : int { StoreIdRouterInfo = 1, StoreIdLeaseSet = 2, StoreIdConfig = 3 };
+
         class RouterInfoMeta
         {
             public int StoreIx;
@@ -91,7 +94,7 @@ namespace I2PCore
                                 if ( !ValidateRI( one ) )
                                 {
                                     s.Delete( ix );
-                                    RouterInfos.Remove( one.Identity.IdentHash );
+                                    RouterInfos.TryRemove( one.Identity.IdentHash, out _ );
                                     Statistics.DestinationInformationFaulty( one.Identity.IdentHash );
 
                                     continue;
@@ -172,41 +175,38 @@ namespace I2PCore
 
             using ( var s = GetStore() )
             {
-                lock ( RouterInfos )
+                foreach ( var one in RouterInfos.ToArray() )
                 {
-                    foreach ( var one in RouterInfos.ToArray() )
+                    try
                     {
-                        try
+                        if ( one.Value.Value.Deleted )
                         {
-                            if ( one.Value.Value.Deleted )
-                            {
-                                if ( one.Value.Value.StoreIx > 0 ) s.Delete( one.Value.Value.StoreIx );
-                                RouterInfos.Remove( one.Key );
-                                ++deleted;
-                                continue;
-                            }
+                            if ( one.Value.Value.StoreIx > 0 ) s.Delete( one.Value.Value.StoreIx );
+                            RouterInfos.TryRemove( one.Key, out _ );
+                            ++deleted;
+                            continue;
+                        }
 
-                            if ( !onlyupdated || ( onlyupdated && one.Value.Value.Updated ) )
-                            {
-                                var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdRouterInfo, new BufLen( one.Value.Key.ToByteArray() ) };
-                                if ( one.Value.Value.StoreIx > 0 )
-                                {
-                                    s.Write( rec, one.Value.Value.StoreIx );
-                                    ++updated;
-                                }
-                                else
-                                {
-                                    one.Value.Value.StoreIx = s.Write( rec );
-                                    ++created;
-                                }
-                                one.Value.Value.Updated = false;
-                            }
-                        }
-                        catch ( Exception ex )
+                        if ( !onlyupdated || ( onlyupdated && one.Value.Value.Updated ) )
                         {
-                            Logging.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
-                            one.Value.Value.StoreIx = -1;
+                            var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdRouterInfo, new BufLen( one.Value.Key.ToByteArray() ) };
+                            if ( one.Value.Value.StoreIx > 0 )
+                            {
+                                s.Write( rec, one.Value.Value.StoreIx );
+                                ++updated;
+                            }
+                            else
+                            {
+                                one.Value.Value.StoreIx = s.Write( rec );
+                                ++created;
+                            }
+                            one.Value.Value.Updated = false;
                         }
+                    }
+                    catch ( Exception ex )
+                    {
+                        Logging.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
+                        one.Value.Value.StoreIx = -1;
                     }
                 }
 

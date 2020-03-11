@@ -19,7 +19,15 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         }
 
         [Flags]
-        public enum DeliveryFlags : byte { Encrypted = 0x80, Delay = 0x10 }
+        public enum DeliveryFlags : byte {
+            // Optional, present if encrypt flag bit is set.
+            // Unimplemented, never set, never present.
+            Encrypted = 0x80,
+
+            // Optional, present if delay included flag is set
+            // Not fully implemented. Specifies the delay in seconds.
+            Delay = 0x10 
+        }
 
         public I2NPMessage Message;
         public byte Flag;

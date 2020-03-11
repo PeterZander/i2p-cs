@@ -212,7 +212,13 @@ namespace I2PCore.Data
 
         public static bool DoVerifyEdDSASHA512Ed25519( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )
         {
-            return Chaos.NaCl.Ed25519.Verify( signed.Sig.ToByteArray(), bufs.SelectMany( b => b.ToByteArray() ).ToArray(), key.ToByteArray() );
+            return Chaos.NaCl.Ed25519.Verify( 
+                        signed.Sig.ToByteArray(), 
+                        bufs.SelectMany( b => 
+                                b
+                                    .ToByteArray() )
+                                    .ToArray(),
+                        key.ToByteArray() );
         }
 
         public static bool DoVerifyDsaSha1( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )

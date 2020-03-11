@@ -33,7 +33,7 @@ namespace I2PTests
             Assert.IsTrue( start.DeltaToNowMilliseconds > 0 );
             Assert.IsTrue( start.DeltaToNow > TickSpan.Milliseconds( 0 ) );
 
-            Assert.IsTrue( (int)Math.Round( ( TickCounter.Now - start ).ToSeconds / 3f ) 
+            Assert.IsTrue( (int)Math.Round( ( TickCounter.Now - start ).ToSeconds / 3f )
                     == (int)Math.Round( start.DeltaToNowSeconds / 3f ) );
 
             Assert.IsTrue( (int)Math.Round( ( ( TickCounter.Now - start ) / 3f ).ToSeconds )
@@ -99,7 +99,7 @@ namespace I2PTests
         public void TestRoulette()
         {
             var l = BufUtils.Random( 10000 ).AsEnumerable();
-            var r = new I2PCore.Utils.RouletteSelection<byte,byte>( l, v => v, k => k == 42 ? 30f : 1f );
+            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => k == 42 ? 30f : 1f );
 
             int is42 = 0;
             int samples = 10000;
@@ -131,7 +131,7 @@ namespace I2PTests
         [Test]
         public void TestRoulette3()
         {
-            var populationcount = RouletteSelection<float,float>.IncludeTop;
+            var populationcount = RouletteSelection<float, float>.IncludeTop;
             var samplecount = 50000;
 
             var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), populationcount );
@@ -174,6 +174,29 @@ namespace I2PTests
             var enc = Encoding.ASCII.GetBytes( src );
             var encb32 = BufUtils.ToBase32String( enc );
             return encb32 == expected.ToLower();
+        }
+
+        [Test]
+        public void TestRandom()
+        {
+            var values = Enumerable
+                    .Range( 0, 21 )
+                    .Select( i => BufUtils.RandomDouble( 1.0 ) )
+                    .ToArray();
+
+            var bag = values.SelectMany( i1 => values.SelectMany( i2 => values ) )
+                    .Select( i3 => values.Random() );
+
+            Assert.IsTrue( bag.All( b => values.Any( i => i == b ) ) );
+        }
+
+        [Test]
+        public void TestShuffle()
+        {
+            var ints = Enumerable.Range( 0, 200 );
+            var bag = ints.Select( i => BufUtils.RandomDouble( 1 ) ).ToArray();
+            var shuffled = bag.Shuffle().ToArray();
+            Assert.IsTrue( bag.All( b => shuffled.Any( i => i == b ) ) );
         }
     }
 }

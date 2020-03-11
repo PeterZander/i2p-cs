@@ -14,7 +14,5 @@ namespace I2PCore.Data
         public I2PDestination( I2PPublicKey pubkey, I2PSigningPublicKey signkey ) : base( pubkey, signkey ) { }
 
         public I2PDestination( BufRef buf ) : base( buf ) { }
-
-        public I2PDestination( I2PDestinationInfo di ): base( di.PublicKey, di.PublicSigningKey ) { }
     }
 }

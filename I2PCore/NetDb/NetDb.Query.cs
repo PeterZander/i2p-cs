@@ -20,19 +20,16 @@ namespace I2PCore
 
             if ( exploratory )
             {
-                lock ( RouterInfos )
+                var subset = RouterInfos
+                        .Where( k => !exclude.Contains( k.Key ) );
+                do
                 {
-                    var subset = RouterInfos
-                            .Where( k => !exclude.Contains( k.Key ) );
-                    do
-                    {
-                        result = subset
-                            .Random()
-                            .Key;
-                    } while ( result == me );
+                    result = subset
+                        .Random()
+                        .Key;
+                } while ( result == me );
 
-                    return result;
-                }
+                return result;
             }
 
             var retries = 0;
@@ -115,7 +112,7 @@ namespace I2PCore
         }
 
         public IEnumerable<I2PIdentHash> GetClosestFloodfill(
-                I2PIdentHash reference,
+                I2PIdentHash dest,
                 int count,
                 ConcurrentBag<I2PIdentHash> exclude,
                 bool nextset )
@@ -133,11 +130,12 @@ namespace I2PCore
                     : subset;
 
                 var refkey = nextset
-                    ? reference.NextRoutingKey
-                    : reference.RoutingKey;
+                    ? dest.NextRoutingKey
+                    : dest.RoutingKey;
 
                 return subset
-                    .OrderBy( p => p.Id ^ refkey )
+                    .Select( p => new { p.Id, Dist = p.Id ^ refkey } )
+                    .OrderBy( p => p.Dist )
                     .Take( count )
                     .Select( p => p.Id )
                     .ToArray();

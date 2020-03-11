@@ -10,6 +10,7 @@ using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 using I2P.I2CP.Messages;
+using I2PCore;
 
 namespace I2P.I2CP.States
 {
@@ -28,57 +29,26 @@ namespace I2P.I2CP.States
         protected I2CPState( I2CPSession sess ) 
         { 
             Session = sess; 
-            ReceiveWriter = new BufRefLen( ReceiveMessageBuffer );
         }
 
         protected bool Timeout( TickSpan timeout ) { return LastAction.DeltaToNow > timeout; }
         protected void DataSent() { LastAction.SetNow(); }
 
-        internal abstract I2CPState Run();
+        internal virtual I2CPState Run()
+        {
+            if ( Timeout( HandshakeTimeout ) )
+            {
+                throw new FailedToConnectException( $"{this} WaitProtVer {Session.DebugId} Failed to connect. Timeout." );
+            }
 
-        BufLen ReceiveMessageBuffer = new BufLen( new byte[65536] );
-        BufRefLen ReceiveWriter;
+            return this;
+        }
 
         internal abstract I2CPState MessageReceived( I2CPMessage msg );
 
-        internal virtual I2CPState DataReceived( BufLen recv )
+        public override string ToString()
         {
-            I2CPState ns = this;
-            BufRefLen recvreader = new BufRefLen( recv );
-
-            while ( recvreader.Length > 0 )
-            {
-                var recvlen = ReceiveWriter - ReceiveMessageBuffer;
-                if ( recvlen > 4 )
-                {
-                    var msglen = (int)ReceiveMessageBuffer.PeekFlip32( 0 );
-                check_msg_ok:
-                    if ( msglen <= recvlen )
-                    {
-                        var data = new BufRefLen( ReceiveMessageBuffer, 0, msglen );
-                        Logging.LogDebug( () => string.Format( "I2CPState: Message received. {0} bytes, message {1} {2}.",
-                            msglen, data[4], (I2CPMessage.ProtocolMessageType)data[4] ) );
-                        ns = MessageReceived( I2CPMessage.GetMessage( data ) );
-                        ReceiveWriter = new BufRefLen( ReceiveMessageBuffer );
-                    }
-                    else
-                    {
-                        var readlen = Math.Min( msglen - recvlen, recvreader.Length );
-                        ReceiveWriter.Write( new BufLen( recvreader, 0, readlen ) );
-                        recvreader.Seek( readlen );
-                        recvlen = ReceiveWriter - ReceiveMessageBuffer;
-                        goto check_msg_ok;
-                    }
-                }
-                else
-                {
-                    var readlen = Math.Min( 5 - recvlen, recvreader.Length );
-                    ReceiveWriter.Write( new BufLen( recvreader, 0, readlen ) );
-                    recvreader.Seek( readlen );
-                }
-            }
-
-            return ns;
+            return $"{Session} {GetType().Name}";
         }
     }
 }

@@ -49,7 +49,18 @@ namespace I2PCore.TunnelLayer
 
         internal void AttachClient( IClient client )
         {
-            Clients.Add( client );
+            lock ( Clients )
+            {
+                Clients.Add( client );
+            }
+        }
+
+        internal void DetachClient( IClient client )
+        {
+            lock ( Clients )
+            {
+                Clients.Remove( client );
+            }
         }
 
         TunnelInfo CreateOutgoingTunnelChain( IClient dest )
@@ -121,7 +132,7 @@ namespace I2PCore.TunnelLayer
         PeriodicAction TunnelBuild = new PeriodicAction( TickSpan.Seconds( 1 ) );
         PeriodicAction DestinationExecute = new PeriodicAction( TickSpan.Seconds( 1 ) );
         PeriodicAction ReplaceTunnels = new PeriodicAction( TickSpan.Seconds( 5 ) );
-        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 10 ) );
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 20 ) );
 
         public void Execute()
         {

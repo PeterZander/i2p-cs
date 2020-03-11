@@ -47,15 +47,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.AppendLine( "I2PLease" );
-
-            result.AppendLine( "TunnelGw         : " + TunnelGw.ToString() );
-            result.AppendLine( "TunnelId         : " + TunnelId.ToString() );
-            result.AppendLine( "EndDate          : " + EndDate.ToString() );
-
-            return result.ToString();
+            return $"I2PLease GW {TunnelGw.Id32Short}, Id {TunnelId}, Exp {EndDate}";
         }
     }
 }

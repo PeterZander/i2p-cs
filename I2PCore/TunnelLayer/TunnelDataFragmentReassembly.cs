@@ -6,6 +6,8 @@ using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
 using I2PCore.Data;
+using System.Collections.Concurrent;
+using System.Collections;
 
 namespace I2PCore.TunnelLayer
 {
@@ -13,17 +15,53 @@ namespace I2PCore.TunnelLayer
     {
         public static readonly TickSpan RememberUnmatchedFragmentsFor = TickSpan.Minutes( 10 );
 
-        class TunnelDataFragmentList
+        class TunnelDataFragmentList: IEnumerable<TunnelDataFragment>
         {
             public readonly TickCounter Created = new TickCounter();
-            public readonly List<TunnelDataFragment> List;
+            readonly List<TunnelDataFragment> List;
+
+            public TunnelDataFragmentList()
+            {
+                List = new List<TunnelDataFragment>();
+            }
 
             public TunnelDataFragmentList( List<TunnelDataFragment> list )
             {
                 List = list;
             }
+
+            public int Count { get => List.Count; }
+
+            public TunnelDataFragment this[int ix]
+            {
+                get
+                {
+                    return List[ix];
+                }
+                set
+                {
+                    if ( Count <= ix )
+                    {
+                        List.AddRange( new TunnelDataFragment[ix - Count + 1] );
+                    }
+
+                    List[ix] = value;
+                }
+            }
+
+            public IEnumerator<TunnelDataFragment> GetEnumerator()
+            {
+                return List.GetEnumerator();
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return List.GetEnumerator();
+            }
         }
-        Dictionary<uint, TunnelDataFragmentList> MessageFragments = new Dictionary<uint, TunnelDataFragmentList>();
+
+        ConcurrentDictionary<uint, TunnelDataFragmentList> MessageFragments = 
+                new ConcurrentDictionary<uint, TunnelDataFragmentList>();
 
         public int BufferedFragmentCount
         {
@@ -31,7 +69,7 @@ namespace I2PCore.TunnelLayer
             {
                 lock ( MessageFragments )
                 {
-                    return MessageFragments.Sum( mid => mid.Value.List.Count( fr => fr != null ) );
+                    return MessageFragments.Sum( mid => mid.Value.Count( fr => fr != null ) );
                 }
             }
         }
@@ -56,7 +94,7 @@ namespace I2PCore.TunnelLayer
                     foreach ( var key in remove )
                     {
                         Logging.LogDebug( $"TunnelDataFragmentReassembly: Removing old unmatched fragment for {key}" );
-                        MessageFragments.Remove( key );
+                        MessageFragments.TryRemove( key, out _ );
                     }
                 }
             } );
@@ -80,22 +118,8 @@ namespace I2PCore.TunnelLayer
 
                     if ( frag.FollowOnFragment )
                     {
-                        List<TunnelDataFragment> fragments;
-
-                        if ( !MessageFragments.ContainsKey( frag.MessageId ) )
-                        {
-                            fragments = new List<TunnelDataFragment>();
-                            MessageFragments[frag.MessageId] = new TunnelDataFragmentList( fragments );
-                        }
-                        else
-                        {
-                            fragments = MessageFragments[frag.MessageId].List;
-                        }
-
-                        if ( fragments.Count <= frag.FragmentNumber )
-                        {
-                            fragments.AddRange( new TunnelDataFragment[frag.FragmentNumber - fragments.Count + 1] );
-                        }
+                        var fragments = MessageFragments.GetOrAdd( frag.MessageId,
+                                id => new TunnelDataFragmentList() );
 
                         fragments[frag.FragmentNumber] = frag;
 
@@ -105,19 +129,9 @@ namespace I2PCore.TunnelLayer
                     {
                         if ( frag.Fragmented )
                         {
-                            List<TunnelDataFragment> fragments;
+                            var fragments = MessageFragments.GetOrAdd( frag.MessageId,
+                                    id => new TunnelDataFragmentList() );
 
-                            if ( !MessageFragments.ContainsKey( frag.MessageId ) )
-                            {
-                                fragments = new List<TunnelDataFragment>();
-                                MessageFragments[frag.MessageId] = new TunnelDataFragmentList( fragments );
-                            }
-                            else
-                            {
-                                fragments = MessageFragments[frag.MessageId].List;
-                            }
-
-                            if ( fragments.Count == 0 ) fragments.AddRange( new TunnelDataFragment[1] );
                             fragments[0] = frag;
 
                             CheckForAllFragmentsFound( result, frag.MessageId, fragments );
@@ -133,7 +147,7 @@ namespace I2PCore.TunnelLayer
             return result;
         }
 
-        private void CheckForAllFragmentsFound( List<TunnelMessage> result, uint msgid, List<TunnelDataFragment> fragments )
+        private void CheckForAllFragmentsFound( List<TunnelMessage> result, uint msgid, TunnelDataFragmentList fragments )
         {
             var lastfound = fragments.Count > 1 && fragments[fragments.Count - 1].LastFragment;
             if ( lastfound && !fragments.Any( f => f == null ) )
@@ -144,7 +158,7 @@ namespace I2PCore.TunnelLayer
                     s.Write( fragments[i].Payload );
                 }
                 AddTunnelMessage( result, fragments[0], new BufRefLen( s.ToByteArray() ) );
-                MessageFragments.Remove( msgid );
+                MessageFragments.TryRemove( msgid, out _ );
             }
         }
 

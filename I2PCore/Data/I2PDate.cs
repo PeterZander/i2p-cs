@@ -7,7 +7,7 @@ using System.IO;
 
 namespace I2PCore.Data
 {
-    public class I2PDate : I2PType
+    public class I2PDate : I2PType, IComparable, IComparable<I2PDate>
     {
         public static readonly I2PDate Zero = new I2PDate( 0 );
 
@@ -85,6 +85,22 @@ namespace I2PCore.Data
 
             // From I2Pd I2NPProtocol.h I2NP_MESSAGE_EXPIRATION_TIMEOUT
             //return new I2PDate( DateTime.UtcNow.AddSeconds( 8 ) ); 
+        }
+
+        public int CompareTo( object obj )
+        {
+            if ( obj is null ) return 1;
+            var other = obj as I2PDate;
+            if ( other is null ) return 1;
+            if ( DateMilliseconds == other.DateMilliseconds ) return 0;
+            return DateMilliseconds > other.DateMilliseconds ? 1 : -1;
+        }
+
+        public int CompareTo( I2PDate other )
+        {
+            if ( other is null ) return 1;
+            if ( DateMilliseconds == other.DateMilliseconds ) return 0;
+            return DateMilliseconds > other.DateMilliseconds ? 1 : -1;
         }
 
         public static I2PDate Now

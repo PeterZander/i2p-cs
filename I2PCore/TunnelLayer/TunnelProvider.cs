@@ -80,11 +80,10 @@ namespace I2PCore.TunnelLayer
             Inst = new TunnelProvider();
         }
 
-        PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 10 ) );
+        PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 30 ) );
         PeriodicAction TunnelBandwidthLog = new PeriodicAction( TickSpan.Minutes( 8 ) );
 
         PeriodicAction CheckTunnelTimeouts = new PeriodicAction( Tunnel.MeassuredTunnelBuildTimePerHop );
-        PeriodicAction RunDestinationEncyption = new PeriodicAction( TickSpan.Seconds( 3 ) );
 
         bool Terminated = false;
         private void Run()
@@ -903,6 +902,9 @@ namespace I2PCore.TunnelLayer
                 var result = (T)tunnels.RandomWeighted(
                     GenerateTunnelWeight, true, TunnelSelectionElitism );
 
+#if LOG_ALL_TUNNEL_TRANSFER
+                Logging.LogDebug( $"SelectTunnel<{result.GetType().Name}>: {result}" );
+#endif
                 return result;
             }
 

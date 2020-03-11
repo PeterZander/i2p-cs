@@ -29,7 +29,8 @@ namespace I2P.I2CP.Messages
 
         public override void Write( BufRefStream dest )
         {
-            WriteMessage( dest, Date, Version );
+            Date.Write( dest );
+            Version.Write( dest );
         }
     }
 }

@@ -17,7 +17,7 @@ namespace I2PCore.Data
         {
             get
             {
-                if ( Payload.Length < 4 ) throw new InvalidDataException( "Cert payload not 4 bytes for Key cert!" );
+                if ( Payload.Length < 4 ) return I2PSigningKey.SigningKeyTypes.Invalid;
                 return (I2PSigningKey.SigningKeyTypes)Payload.PeekFlip16( 0 );
             }
             protected set
@@ -31,7 +31,7 @@ namespace I2PCore.Data
         {
             get
             {
-                if ( Payload.Length < 4 ) throw new InvalidDataException( "Cert payload not 4 bytes for Key cert!" );
+                if ( Payload.Length < 4 ) return I2PKeyType.KeyTypes.Invalid;
                 return (I2PSigningKey.KeyTypes)Payload.PeekFlip16( 2 );
             }
             protected set
@@ -331,28 +331,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.AppendLine( "I2PCertificate" );
-            result.AppendLine( "CType            : " + CType.ToString() );
-            result.AppendLine( "SignatureType    : " + SignatureType.ToString() );
-
-            if ( Payload != null )
-            {
-                result.AppendLine( "Payload          : " + Payload.Length + " bytes" );
-            }
-            else
-            {
-                result.AppendLine( "Payload          : (null)" );
-            }
-
-            if ( PayloadLength >= 4 )
-            {
-                result.AppendLine( "KEYSignatureType : " + KEYSignatureType.ToString() );
-                result.AppendLine( "KEYPublicKeyType : " + KEYPublicKeyType.ToString() );
-            }
-
-            return result.ToString();
+            return $"{CType} {KEYPublicKeyType} {SignatureType}";
         }
     }
 }

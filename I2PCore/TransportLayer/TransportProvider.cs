@@ -294,11 +294,11 @@ namespace I2PCore.TransportLayer
 
         private void AddTransport( ITransport transport )
         {
-            transport.ConnectionShutDown += transport_ConnectionShutDown;
-            transport.ConnectionEstablished += transport_ConnectionEstablished;
+            transport.ConnectionShutDown += Transport_ConnectionShutDown;
+            transport.ConnectionEstablished += Transport_ConnectionEstablished;
 
-            transport.DataBlockReceived += transport_DataBlockReceived;
-            transport.ConnectionException += transport_ConnectionException;
+            transport.DataBlockReceived += Transport_DataBlockReceived;
+            transport.ConnectionException += Transport_ConnectionException;
 
             AddToRunningTransports( transport );
         }
@@ -345,7 +345,7 @@ namespace I2PCore.TransportLayer
             AddTransport( transport );
         }
 
-        void transport_ConnectionException( ITransport instance, Exception exinfo )
+        void Transport_ConnectionException( ITransport instance, Exception exinfo )
         {
             if ( instance.RemoteAddress == null ) return;
 
@@ -364,11 +364,12 @@ namespace I2PCore.TransportLayer
             }
             catch ( Exception ex )
             {
-                Logging.Log( ex );
+                Logging.LogTransport(
+                    $"TransportProvider: exception in {instance.DebugId} {ex.GetType().Name}" );
             }
         }
 
-        void transport_DataBlockReceived( ITransport instance, II2NPHeader msg )
+        void Transport_DataBlockReceived( ITransport instance, II2NPHeader msg )
         {
             try
             {
@@ -380,7 +381,7 @@ namespace I2PCore.TransportLayer
             }
         }
 
-        void transport_ConnectionEstablished( ITransport instance, I2PIdentHash hash )
+        void Transport_ConnectionEstablished( ITransport instance, I2PIdentHash hash )
         {
             if ( hash is null )
             {
@@ -393,7 +394,7 @@ namespace I2PCore.TransportLayer
             AddToEstablishedTransports( hash, instance );
         }
 
-        void transport_ConnectionShutDown( ITransport instance )
+        void Transport_ConnectionShutDown( ITransport instance )
         {
             Logging.LogTransport(
                 $"TransportProvider: transport_ConnectionShutDown: {instance.DebugId}" );

@@ -385,13 +385,32 @@ namespace I2PCore.Utils
         {
             byte[] buf = new byte[bytes];
             Rnd.NextBytes( buf );
-            for ( int i = 0; i < buf.Length; ++i ) if ( buf[i] == 0 ) buf[i] = (byte)( ( RandomUint() | 0x01 ) & 0xFF );
+            for ( int i = 0; i < buf.Length; ++i )
+            {
+                if ( buf[i] == 0 )
+                {
+                    buf[i] = (byte)( ( RandomUint() | 0x01 ) & 0xFF );
+                }
+            }
             return buf;
         }
 
         public static uint RandomUint()
         {
             return (uint)Rnd.Next();
+        }
+
+        public static uint RandomUintNZ()
+        {
+            uint result;
+
+            do
+            {
+                result = BufUtils.RandomUint();
+
+            } while ( result == 0 );
+
+            return result;
         }
 
         public static int RandomInt( int max )
@@ -436,7 +455,7 @@ namespace I2PCore.Utils
                 select accseq.Concat( new[] { item } ) );
         }
 
-        public static void Shuffle<T>( this IList<T> list )
+        public static void ShuffleList<T>( this IList<T> list )
         {
             for ( int i = 0; i < list.Count; i++ )
             {
@@ -449,10 +468,10 @@ namespace I2PCore.Utils
 
         public static IEnumerable<T> Shuffle<T>( this IEnumerable<T> source )
         {
-            var list = source.ToList();
-            for ( int i = 0; i < list.Count; ++i )
+            var list = source.ToArray();
+            for ( int i = 0; i < list.Length; ++i )
             {
-                var ix = i + RandomInt( list.Count - i );
+                var ix = i + RandomInt( list.Length - i );
                 yield return list[ix];
                 list[ix] = list[i];
             }
@@ -619,6 +638,22 @@ namespace I2PCore.Utils
 
                 one = next;
             }
+        }
+
+        public static IEnumerable<IEnumerable<T>> Chunk<T>( this IEnumerable<T> source, Func<IEnumerable<T>, int> chunksize )
+        {
+            while ( source.Any() )
+            {
+                var c = chunksize( source );
+                yield return source.Take( c );
+                source = source.Skip( c );
+            }
+        }
+
+        public static IEnumerable<string> Chunks( this string str, int chunksize )
+        {
+            for ( int i = 0; i < str.Length; i += chunksize )
+                yield return str.Substring( i, Math.Min( chunksize, str.Length - i ) );
         }
 
         #endregion

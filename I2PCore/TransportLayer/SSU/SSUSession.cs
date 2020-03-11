@@ -446,6 +446,11 @@ namespace I2PCore.TransportLayer.SSU
                     Logging.LogTransport( $"SSUSession {DebugId}: RunCurrentState FailedToConnectException. Terminating." );
                     return SessionTerminated();
                 }
+                catch ( SignatureCheckFailureException )
+                {
+                    Logging.LogTransport( $"SSUSession {DebugId}: RunCurrentState SignatureCheckFailureException. Terminating." );
+                    return SessionTerminated();
+                }
                 catch ( Exception ex )
                 {
                     Logging.Log( ex );

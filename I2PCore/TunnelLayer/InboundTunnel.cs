@@ -135,11 +135,9 @@ namespace I2PCore.TunnelLayer
 
             switch ( msg.MessageType )
             {
+                case I2NPMessage.MessageTypes.TunnelBuildReply:
                 case I2NPMessage.MessageTypes.TunnelData:
                     throw new NotImplementedException( $"Should not happen {TunnelDebugTrace}" );
-
-                case I2NPMessage.MessageTypes.TunnelBuildReply:
-                    throw new NotImplementedException( "TunnelBuildReply not implemented" );
 
                 case I2NPMessage.MessageTypes.VariableTunnelBuildReply:
                     ThreadPool.QueueUserWorkItem( cb =>
@@ -167,6 +165,14 @@ namespace I2PCore.TunnelLayer
                     ThreadPool.QueueUserWorkItem( cb =>
                     {
                         Router.HandleDatabaseStore( ds );
+                    } );
+                    break;
+
+                case I2NPMessage.MessageTypes.DatabaseSearchReply:
+                    var dsr = (DatabaseSearchReplyMessage)msg;
+                    ThreadPool.QueueUserWorkItem( cb =>
+                    {
+                        NetDb.Inst.AddDatabaseSearchReply( dsr );
                     } );
                     break;
 
@@ -269,7 +275,7 @@ namespace I2PCore.TunnelLayer
 
         public override string ToString()
         {
-            return $"{base.ToString()} {Destination.Id32Short}";
+            return $"{base.ToString()} {Destination.Id32Short} {GatewayTunnelId}";
         }
     }
 }

@@ -183,7 +183,7 @@ namespace I2PCore.SessionLayer
             return Path.Combine( RouterPath, filename );
         }
 
-        const string RouterSettingsFile = "Router.bin";
+        public static string RouterSettingsFile = "Router.bin";
 
         static RouterContext StaticInstance;
         public static RouterContext Inst
@@ -193,6 +193,15 @@ namespace I2PCore.SessionLayer
                 if ( StaticInstance != null ) return StaticInstance;
                 StaticInstance = new RouterContext( RouterSettingsFile );
                 return StaticInstance;
+            }
+            set
+            {
+                if ( StaticInstance != null )
+                {
+                    throw new InvalidOperationException( "Router context already establshed" );
+                }
+
+                StaticInstance = value;
             }
         }
 

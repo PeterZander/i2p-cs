@@ -129,7 +129,7 @@ namespace I2PCore.TunnelLayer
         }
 
         PeriodicAction TunnelBuild = new PeriodicAction( TimeBetweenTunnelBuilds );
-        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 10 ) );
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 30 ) );
 
         public void Execute()
         {

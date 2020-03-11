@@ -12,63 +12,60 @@ namespace I2PCore
     {
         private void ShowDebugDatabaseInfo()
         {
-            lock ( RouterInfos )
-            {
-                Logging.LogDebug( $"NetDb: Router count: {RouterInfos.Count}" );
+            Logging.LogDebug( $"NetDb: Router count: {RouterInfos.Count}" );
 
-                var nohost = RouterInfos
-                    .Where( ri => !ri.Value.Key.Adresses.Any( a =>
-                        a.Options.TryGet( "host" ) != null ) );
-                Logging.LogDebug( $"NetDb: No host: {nohost.Count()}" );
+            var nohost = RouterInfos
+                .Where( ri => !ri.Value.Key.Adresses.Any( a =>
+                    a.Options.TryGet( "host" ) != null ) );
+            Logging.LogDebug( $"NetDb: No host: {nohost.Count()}" );
 
-                var ipv4 = RouterInfos
-                    .Where( ri => ri.Value.Key.Adresses.Any( a =>
-                        a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
-                Logging.LogDebug( $"NetDb: IPV4: {ipv4.Count()}" );
+            var ipv4 = RouterInfos
+                .Where( ri => ri.Value.Key.Adresses.Any( a =>
+                    a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
+            Logging.LogDebug( $"NetDb: IPV4: {ipv4.Count()}" );
 
-                var ipv6 = RouterInfos
-                    .Where( ri => ri.Value.Key.Adresses.Any( a =>
+            var ipv6 = RouterInfos
+                .Where( ri => ri.Value.Key.Adresses.Any( a =>
+                    a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false ) );
+            Logging.LogDebug( $"NetDb: IPV6: {ipv6.Count()}" );
+
+            var onlyipv4 = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a =>
+                        a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false )
+                    && !ri.Value.Key.Adresses.Any( a =>
                         a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false ) );
-                Logging.LogDebug( $"NetDb: IPV6: {ipv6.Count()}" );
+            Logging.LogDebug( $"NetDb: Only IPV4: {onlyipv4.Count()}" );
 
-                var onlyipv4 = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a =>
-                            a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false )
-                        && !ri.Value.Key.Adresses.Any( a =>
-                            a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false ) );
-                Logging.LogDebug( $"NetDb: Only IPV4: {onlyipv4.Count()}" );
+            var onlyipv6 = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a =>
+                        a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false )
+                    && !ri.Value.Key.Adresses.Any( a =>
+                        a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
+            Logging.LogDebug( $"NetDb: Only IPV6: {onlyipv6.Count()}" );
 
-                var onlyipv6 = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a =>
-                            a.Options.TryGet( "host" )?.ToString().Contains( ":" ) ?? false )
-                        && !ri.Value.Key.Adresses.Any( a =>
-                            a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
-                Logging.LogDebug( $"NetDb: Only IPV6: {onlyipv6.Count()}" );
+            var ntcp = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
+            Logging.LogDebug( $"NetDb: NTCP: {ntcp.Count()}" );
 
-                var ntcp = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
-                Logging.LogDebug( $"NetDb: NTCP: {ntcp.Count()}" );
+            var ssu = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
+            Logging.LogDebug( $"NetDb: SSU: {ssu.Count()}" );
 
-                var ssu = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
-                Logging.LogDebug( $"NetDb: SSU: {ssu.Count()}" );
+            var onlyntcp = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" )
+                        && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
+            Logging.LogDebug( $"NetDb: Only NTCP: {onlyntcp.Count()}" );
 
-                var onlyntcp = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" )
-                            && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" ) );
-                Logging.LogDebug( $"NetDb: Only NTCP: {onlyntcp.Count()}" );
-
-                var onlyssu = RouterInfos
-                    .Where( ri =>
-                        ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" )
-                            && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
-                Logging.LogDebug( $"NetDb: Only SSU: {onlyssu.Count()}" );
-            }
+            var onlyssu = RouterInfos
+                .Where( ri =>
+                    ri.Value.Key.Adresses.Any( a => a.TransportStyle == "SSU" )
+                        && !ri.Value.Key.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
+            Logging.LogDebug( $"NetDb: Only SSU: {onlyssu.Count()}" );
         }
 
         private void ShowProbabilityProfile()

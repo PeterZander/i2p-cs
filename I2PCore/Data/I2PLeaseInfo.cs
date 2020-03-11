@@ -29,10 +29,10 @@ namespace I2PCore.Data
 
         public I2PLeaseInfo( I2PDestinationInfo di )
         {
-            PublicKey = di.PublicKey;
+            PublicKey = di.Destination.PublicKey;
             PrivateKey = di.PrivateKey;
             PrivateSigningKey = di.PrivateSigningKey;
-            PublicSigningKey = di.PublicSigningKey;
+            PublicSigningKey = di.Destination.SigningPublicKey;
         }
     }
 }

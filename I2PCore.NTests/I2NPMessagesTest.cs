@@ -131,7 +131,7 @@ namespace I2PTests
                             rdsmlsar[i].ToByteArray() ) );
             }
 
-            Assert.IsTrue( rdsm.LeaseSet.VerifySignature() );
+            Assert.IsTrue( rdsm.LeaseSet.VerifySignature( PublicSigning ) );
         }
 
         [Test]
@@ -162,7 +162,7 @@ namespace I2PTests
             for ( int i = 0; i < 5; ++i )
                 Assert.IsTrue( BufUtils.Equal( lsar[i].ToByteArray(), rdsmlsar[i].ToByteArray() ) );
 
-            Assert.IsTrue( rdsm.LeaseSet.VerifySignature() );
+            Assert.IsTrue( rdsm.LeaseSet.VerifySignature( PublicSigningEd25519 ) );
         }
 
         [Test]

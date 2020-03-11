@@ -10,7 +10,7 @@ namespace I2P.I2CP.Messages
     {
         public ushort SessionId;
 
-        public enum SessionStates : byte { Destroyed = 0, Created = 1, Updated = 2, Invalid = 3, Refused = 4 }
+        public enum SessionStates : byte { Destroyed = 0, Created = 1, Updated = 2, Invalid = 3, Refused = 4, NoLeaseSet = 21 }
         public SessionStates SessionState;
 
         public SessionStatusMessage( ushort sessid, SessionStates state )
@@ -23,18 +23,17 @@ namespace I2P.I2CP.Messages
         public SessionStatusMessage( BufRef reader )
             : base( ProtocolMessageType.SessionStatus )
         {
-            reader.Seek( 4 );
-            if ( (ProtocolMessageType)reader.Read8() != MessageType ) throw new ArgumentException( "SessionStatusMessage( reader ) Wrong message type." );
-            SessionId = reader.Read16();
+            SessionId = reader.ReadFlip16();
             SessionState = (SessionStates)reader.Read8();
         }
 
         public override void Write( BufRefStream dest )
         {
-            dest.Write( BufUtils.Flip32B( 3 ) );
-            dest.Write( (byte)MessageType );
-            dest.Write( BitConverter.GetBytes( SessionId ) );
-            dest.Write( (byte)SessionState );
+            var header = new byte[3];
+            var writer = new BufRefLen( header );
+            writer.WriteFlip16( SessionId );
+            writer.Write8( (byte)SessionState );
+            dest.Write( header );
         }
     }
 }

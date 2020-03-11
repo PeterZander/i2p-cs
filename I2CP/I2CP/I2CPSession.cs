@@ -8,132 +8,455 @@ using Org.BouncyCastle.Utilities.Encoders;
 using I2PCore.Utils;
 using System.Net.Sockets;
 using I2P.I2CP.States;
+using System.Threading.Tasks;
+using I2PCore;
+using System.Collections.Concurrent;
+using static I2P.I2CP.Messages.I2CPMessage;
+using I2PCore.SessionLayer;
+using static I2P.I2CP.Messages.SessionStatusMessage;
+using static I2PCore.SessionLayer.ClientDestination;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace I2P.I2CP
 {
+    public class SessionInfo
+    {
+        public SessionInfo( ushort id ) { SessionId = id; }
+
+        public ushort SessionId { get; private set; }
+
+        private uint MessageIdField = 0;
+        public uint MessageId { get => ++MessageIdField; }
+
+        public I2PSessionConfig Config { get; set; }
+        public I2PPrivateKey PrivateKey { get; internal set; }
+        public I2PLeaseInfo LeaseInfo { get; internal set; }
+
+        public ClientDestination MyDestination { get; internal set; }
+    }
+
     public class I2CPSession
     {
-        I2CPHost Host;
-        Socket MySocket;
+        internal readonly I2CPHost Host;
+        internal TcpClient MyTcpClient;
 
-        public ushort SessionId;
+        public ushort SessionId = 1;
         public bool Terminated = false;
-
-        public I2PLeaseInfo MyLeaseInfo;
-        public I2PDestination MyDestination;
 
         public Dictionary<uint, I2PLease> Tunnels = new Dictionary<uint, I2PLease>();
         public Dictionary<uint, I2PLeaseInfo> TunnelsLeaseInfo = new Dictionary<uint, I2PLeaseInfo>();
 
-        public string DebugId { get { return "---id---"; } }
+        static int InstanceCounter;
+        readonly string InstanceInfo;
+        public string DebugId { get { return $"--{InstanceInfo}:{SessionId}--"; } }
 
-        I2CPState CurrentState;
+        internal ConcurrentDictionary<ushort, SessionInfo> SessionIds =
+            new ConcurrentDictionary<ushort, SessionInfo>();
 
-        public I2CPSession( SessionStatusMessage msg, I2PDestination mydest )
-        {
-            SessionId = msg.SessionId;
+        internal I2CPState CurrentState;
+        private NetworkStream MyStream;
 
-            //MyLeaseInfo = new I2PLeaseInfo( I2PSigningKey.SigningKeyTypes.DSA_SHA1 );
-            MyDestination = mydest;
-        }
-
-        byte[] RecvBuf = new byte[8192];
+        readonly byte[] RecvBuf = new byte[8192];
 
         // We are host
-        public I2CPSession( I2CPHost host, Socket socket )
+        public I2CPSession( I2CPHost host, TcpClient client )
         {
             Host = host;
-            MySocket = socket;
+            MyTcpClient = client;
 
-            CurrentState = new WaitProtVer( this );
-            MySocket.BeginReceive( RecvBuf, 0, RecvBuf.Length, SocketFlags.None, new AsyncCallback( ReceiveCallback ), this );
+            CurrentState = new WaitGetDateState( this );
+            MyStream = MyTcpClient.GetStream();
+
+            InstanceInfo = $"{++InstanceCounter}";
         }
 
-        internal void Run()
+        readonly CancellationTokenSource CTSource = new CancellationTokenSource();
+
+        internal async Task Run()
         {
-            if ( CurrentState == null )
+            try
+            {
+                var recvbuf = new BufLen( RecvBuf );
+
+                var readlen = await MyStream.ReadAsync( RecvBuf, 0, 1, CTSource.Token );
+                if ( readlen != 1 )
+                {
+                    throw new FailedToConnectException( $"I2CPSession. Failed to read protocol version" );
+                }
+
+                if ( RecvBuf[0] != I2PConstants.PROTOCOL_BYTE )
+                {
+                    throw new FailedToConnectException( $"I2CPSession. Wrong protocol version {RecvBuf[0]}" );
+                }
+
+                while ( !( CurrentState is null ) )
+                {
+                    readlen = await MyStream.ReadAsync( RecvBuf, 0, 5, CTSource.Token );
+                    if ( readlen != 5 )
+                    {
+                        Logging.LogDebug( $"{this}: Failed to read message header 5. Got {readlen} bytes." );
+                        break;
+                    }
+
+                    var msglen = recvbuf.PeekFlip32( 0 );
+                    var msgtype = recvbuf[4];
+
+                    if ( msglen > 0 )
+                    {
+                        readlen = await MyStream.ReadAsync( RecvBuf, 5, (int)msglen, CTSource.Token );
+                        if ( readlen != msglen )
+                        {
+                            Logging.LogDebug( $"{this}: Failed to read message {msglen}. Got {readlen} bytes." );
+                            break;
+                        }
+
+                        var nextstate = CurrentState.MessageReceived(
+                            GetMessage(
+                                new BufRefLen( recvbuf, 0, readlen + 5 ).Clone() ) );
+
+                        if ( nextstate != CurrentState )
+                        {
+                            Logging.LogDebug( $"{this}: Changed state from {CurrentState} to {nextstate}" );
+                            CurrentState = nextstate;
+                        }
+                    }
+                }
+                Terminate();
+            }
+            catch( Exception ex )
+            {
+                Logging.LogDebug( $"{this} {ex}" );
+            }
+            finally
+            {
+                var s = Host.Sessions.Where( p => p.Value == this );
+                foreach ( var one in s ) Host.Sessions.TryRemove( one.Key, out _ );
+            }
+        }
+
+        internal void AttachDestination( ClientDestination dest )
+        {
+            dest.DataReceived += MyDestination_DataReceived;
+            dest.SignLeasesRequest += MyDestination_SignLeasesRequest;
+            dest.ClientStateChanged += MyDestination_ClientStateChanged;
+        }
+
+        internal void Terminate()
+        {
+            if ( Terminated ) return;
+            Terminated = true;
+
+            MyStream.Flush();
+            CTSource.Cancel();
+
+            Logging.LogDebug( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint}." );
+
+            foreach ( var destsid in SessionIds )
+            {
+                var dest = destsid.Value.MyDestination;
+
+                if ( dest != null )
+                {
+                    dest.DataReceived -= MyDestination_DataReceived;
+                    dest.SignLeasesRequest -= MyDestination_SignLeasesRequest;
+                    dest.ClientStateChanged -= MyDestination_ClientStateChanged;
+
+                    dest.Shutdown();
+                }
+            }
+
+            CurrentState = null;
+            MyTcpClient.Close();
+        }
+
+        ushort PrevSessionId = 0;
+        internal SessionInfo GenerateNewSessionId()
+        {
+            var newid = ++PrevSessionId;
+            if ( PrevSessionId > 15000 ) PrevSessionId = 0;
+
+            var result = new SessionInfo( newid );
+
+            SessionIds[newid] = result;
+            return result;
+        }
+
+        internal void Send( I2CPMessage msg )
+        {
+            try
+            {
+                lock ( MyStream )
+                {
+                    var header = new byte[5];
+                    var writer = new BufRefLen( header );
+                    var data = msg.ToByteArray();
+                    writer.WriteFlip32( (uint)data.Length );
+                    writer.Write8( (byte)msg.MessageType );
+
+                    Logging.LogDebug( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
+
+                    MyStream.Write( header, 0, 5 );
+                    MyStream.Write( data, 0, data.Length );
+                    MyStream.Flush();
+                }
+            }
+            catch( Exception ex )
+            {
+                Logging.LogDebug( $"{this} {ex}" );
+                Terminate();
+            }
+        }
+
+        internal void MyDestination_ClientStateChanged( ClientDestination dest, ClientStates state )
+        {
+            if ( Terminated ) return;
+
+            var sessid = SessionIds
+                    .FirstOrDefault( s => s.Value.MyDestination == dest );
+            if ( Equals( sessid, default( KeyValuePair<ushort, SessionInfo> ) ) ) return;
+
+            Logging.LogDebug( $"{this} MyDestination_ClientStateChanged: {sessid.Key}, {state}" );
+
+            if ( sessid.Value.MyDestination.Terminated )
+            {
+                Terminate();
+                return;
+            }
+        }
+
+        SessionInfo FindSession( ClientDestination dest, [CallerMemberName] string caller = "NA" )
+        {
+            var sessid = SessionIds
+                    .SingleOrDefault( s => s.Value.MyDestination == dest );
+            if ( Equals( sessid, default( KeyValuePair<ushort, SessionInfo> ) ) )
+            {
+                Logging.LogWarning( $"{this} FindSession {caller}: Cannot find session id of {dest}" );
+                return null;
+            }
+
+            return sessid.Value;
+        }
+
+        SessionInfo FindSession( I2PDestination dest, [CallerMemberName] string caller = "NA" )
+        {
+            var sessid = SessionIds
+                    .SingleOrDefault( s => s.Value.MyDestination.Destination.IdentHash == dest.IdentHash );
+            if ( Equals( sessid, default( KeyValuePair<ushort, SessionInfo> ) ) )
+            {
+                Logging.LogWarning( $"{this} FindSession {caller}: Cannot find session id of destination {dest}" );
+                return null;
+            }
+
+            return sessid.Value;
+        }
+
+        internal void MyDestination_DataReceived( ClientDestination dest, BufLen data )
+        {
+            if ( Terminated ) return;
+
+            var ldata = data.Clone();
+
+            var sessid = FindSession( dest );
+
+            Logging.LogDebug( $"{this} MyDestination_DataReceived: Received message {sessid.SessionId} {dest} {(PayloadFormat)ldata[9]}, {ldata}" );
+
+            if ( sessid.MyDestination.Terminated )
             {
                 Terminate();
                 return;
             }
 
-            var os = CurrentState;
-            var ns = CurrentState.Run();
-            if ( os != ns && ns != null ) ns = ns.Run();
-            CurrentState = ns;
+            Send( new MessagePayloadMessage(
+                    sessid.SessionId,
+                    sessid.MessageId,
+                    ldata ) );
         }
 
-        void ReceiveCallback( IAsyncResult ar )
+        readonly PendingLeaseUpdateInfo PendingLeaseUpdate = new PendingLeaseUpdateInfo();
+
+        class PendingLeaseUpdateInfo
         {
-            try
+            public TickCounter LockedAt = TickCounter.Now;
+            private bool UpdateInProgressField = false;
+            public bool UpdateInProgress
             {
-                var len = MySocket.EndReceive( ar );
+                get
+                {
+                    if ( LockedAt.DeltaToNow > TickSpan.Minutes( 1 ) )
+                    {
+                        UpdateInProgressField = false;
+                    }
 
-                var cs = CurrentState;
-                if ( cs == null ) return;
+                    return UpdateInProgressField;
+                }
+                set
+                {
+                    UpdateInProgressField = value;
+                    if ( UpdateInProgressField )
+                    {
+                        LockedAt = TickCounter.Now;
+                    }
+                }
+            }
 
-                cs.DataReceived( new BufLen( RecvBuf, 0, len ) );
-            }
-            catch ( Exception ex )
+            public ushort PendingSessionUpdate = 0;
+            public I2PLeaseSet PendingUpdate = null;
+        }
+
+        internal void MyDestination_SignLeasesRequest( I2PLeaseSet ls )
+        {
+            Logging.LogDebug( $"{this} MyDestination_SignLeasesRequest: Received signed leases {ls}" );
+
+            lock ( PendingLeaseUpdate )
             {
-                Logging.Log( ex );
-            }
-            finally
-            {
-                MySocket.BeginReceive( RecvBuf, 0, RecvBuf.Length, SocketFlags.None, new AsyncCallback( ReceiveCallback ), this );
+                var sessid = FindSession( ls.Destination );
+                if ( sessid == null )
+                {
+                    PendingLeaseUpdate.PendingUpdate = ls;
+                    PendingLeaseUpdate.PendingSessionUpdate = 0;
+                    return;
+                }
+
+                if ( sessid.MyDestination.Terminated )
+                {
+                    Terminate();
+                    return;
+                }
+
+                if ( PendingLeaseUpdate.UpdateInProgress )
+                {
+                    PendingLeaseUpdate.PendingUpdate = ls;
+                    PendingLeaseUpdate.PendingSessionUpdate = sessid.SessionId;
+                    return;
+                }
+
+                Send( new RequestVariableLeaseSetMessage(
+                        sessid.SessionId,
+                        sessid.MyDestination.EstablishedLeases.Leases ) );
+
+                PendingLeaseUpdate.UpdateInProgress = true;
             }
         }
 
-        void Connection_ReceivedRequestVariableLeaseSetMessage( RequestVariableLeaseSetMessage msg )
+        internal void SendPendingLeaseUpdates( bool nooutstanding = false )
         {
-            /*
-            var response = new CreateLeaseSetMessage(
-                MyDestination,
-                SessionId,
-                new I2PLeaseInfo( I2PSigningKey.SigningKeyTypes.DSA_SHA1 ),
-                msg.Leases );
-            Connection.Send( response );
-             */
-
-            foreach ( var lease in msg.Leases )
+            lock ( PendingLeaseUpdate )
             {
-                Tunnels[lease.TunnelId] = lease;
+                if ( nooutstanding )
+                {
+                    PendingLeaseUpdate.UpdateInProgress = false;
+                    PendingLeaseUpdate.PendingUpdate = null;
+                }
 
-                Logging.Log( lease.TunnelId.ToString() + ": " + lease.TunnelGw.Id64 );
+                if ( PendingLeaseUpdate.UpdateInProgress 
+                        || PendingLeaseUpdate.PendingUpdate is null )
+                {
+                    return;
+                }
+
+                var ls = PendingLeaseUpdate.PendingUpdate;
+                var sessionid = PendingLeaseUpdate.PendingSessionUpdate;
+                if ( sessionid == 0 ) sessionid = SessionIds.First().Key;
+
+                Logging.LogDebug( $"{this} SendPendingLeaseUpdates: Sending leases {ls}" );
+
+                Send( new RequestVariableLeaseSetMessage(
+                        sessionid,
+                        ls.Leases ) );
+
+                PendingLeaseUpdate.UpdateInProgress = true;
             }
-            Logging.Log( "Tunnels: " + Tunnels.Count.ToString() );
         }
 
-        void Connection_ReceivedSessionStatusMessage( SessionStatusMessage msg )
+        public I2CPMessage GetMessage( BufRefLen data )
         {
-        }
+            var pmt = (ProtocolMessageType)data[4];
+            data.Seek( 5 );
 
-        internal void Terminate()
-        {
-            Terminated = true;
-        }
+            Logging.LogDebug( $"{this} GetMessage: Received message {pmt}, {data.Length} bytes." );
 
-        internal void Send( I2CPMessage msg )
-        {
-            var data = msg.ToByteArray();
-            MySocket.BeginSend( data, 0, data.Length, SocketFlags.None, new AsyncCallback( SendCompleted ), null );
-        }
-
-        void SendCompleted( IAsyncResult ar )
-        {
-            try
+            switch ( pmt )
             {
-                var cd = MySocket.EndSend( ar );
-#if LOG_ALL_I2CP
-                Logging.LogDebug( string.Format( "I2CP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
-#endif
+                case ProtocolMessageType.CreateSession:
+                    return new CreateSessionMessage( data );
+
+                case ProtocolMessageType.ReconfigSession:
+                    return new ReconfigureSessionMessage( data );
+
+                case ProtocolMessageType.DestroySession:
+                    return new DestroySessionMessage( data );
+
+                case ProtocolMessageType.CreateLS:
+                    return new CreateLeaseSetMessage( data, this );
+
+                case ProtocolMessageType.SendMessage:
+                    break;
+
+                case ProtocolMessageType.RecvMessageBegin:
+                    break;
+
+                case ProtocolMessageType.RecvMessageEnd:
+                    return new ReceiveMessageEndMessage( data );
+
+                case ProtocolMessageType.GetBWLimits:
+                    break;
+
+                case ProtocolMessageType.SessionStatus:
+                    break;
+
+                case ProtocolMessageType.RequestLS:
+                    break;
+
+                case ProtocolMessageType.MessageStatus:
+                    break;
+
+                case ProtocolMessageType.BWLimits:
+                    break;
+
+                case ProtocolMessageType.ReportAbuse:
+                    break;
+
+                case ProtocolMessageType.Disconnect:
+                    break;
+
+                case ProtocolMessageType.MessagePayload:
+                    break;
+
+                case ProtocolMessageType.GetDate:
+                    return new GetDateMessage( data );
+
+                case ProtocolMessageType.SetDate:
+                    break;
+
+                case ProtocolMessageType.DestLookup:
+                    return new DestLookupMessage( data );
+
+                case ProtocolMessageType.DestReply:
+                    break;
+
+                case ProtocolMessageType.SendMessageExpires:
+                    return new SendMessageExpiresMessage( data );
+
+                case ProtocolMessageType.RequestVarLS:
+                    break;
+
+                case ProtocolMessageType.HostLookup:
+                    return new HostLookupMessage( data );
+
+                case ProtocolMessageType.HostLookupReply:
+                    break;
+
+                default:
+                    throw new ArgumentException( $"I2CPMessage:GetMessage I2CP message of type {data[4]} is unknown" );
             }
 
-            catch ( Exception ex )
-            {
-                Logging.Log( "I2CP SendCompleted", ex );
-                Terminated = true;
-            }
+            throw new NotImplementedException();
+        }
+
+        public override string ToString()
+        {
+            return $"{GetType().Name} {DebugId}";
         }
     }
 }

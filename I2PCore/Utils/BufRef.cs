@@ -770,7 +770,7 @@ namespace I2PCore.Utils
     {
         public BufLen( byte[] data ) : base( data ) { LengthDef = data.Length; }
         public BufLen( byte[] data, int startix ) : base( data, startix ) { LengthDef = data.Length - startix; }
-        public BufLen( byte[] data, int startix, int len ) : base( data, startix ) { LengthDef = len; }
+        public BufLen( byte[] data, int startix, int len ) : base( data, startix ) { LengthDef = Math.Min( len, data.Length - startix ); }
 
         public BufLen( BufBase src, int offset, int len )
             : base( src, offset )
@@ -1035,9 +1035,9 @@ namespace I2PCore.Utils
         public static int Compare( BufLen b1, BufLen b2 )
         {
             if ( b1 is null && b2 is null ) return 0;
+            if ( Object.ReferenceEquals( b1, b2 ) ) return 0;
             if ( b1 is null ) return -1;
             if ( b2 is null ) return 1;
-            if ( Object.ReferenceEquals( b1, b2 ) ) return 0;
 
             for ( int i = 0; i < b1.Length; ++i )
             {

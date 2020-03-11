@@ -47,26 +47,26 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return "I2PTunnelId: " + Id.ToString();
+            return $"I2PTunnelId: {Id}";
         }
 
         public static bool operator ==( I2PTunnelId left, I2PTunnelId right )
         {
-            if ( ReferenceEquals( left, null ) && ReferenceEquals( right, null ) ) return true;
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return false;
+            if ( left is null && right is null ) return true;
+            if ( left is null || right is null ) return false;
             return left.Id == right.Id;
         }
 
         public static bool operator !=( I2PTunnelId left, I2PTunnelId right )
         {
-            if ( ReferenceEquals( left, null ) && ReferenceEquals( right, null ) ) return true;
-            if ( ReferenceEquals( left, null ) || ReferenceEquals( right, null ) ) return false;
+            if ( left is null && right is null ) return true;
+            if ( left is null || right is null ) return false;
             return left.Id != right.Id;
         }
 
         public override bool Equals( object obj )
         {
-            if ( ReferenceEquals( obj, null ) ) return false;
+            if ( obj is null ) return false;
             if ( !( obj is I2PTunnelId ) ) return false;
             return this == (I2PTunnelId)obj;
         }

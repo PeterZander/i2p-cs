@@ -7,6 +7,7 @@ using I2PCore.SessionLayer;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
+using System.Collections.Concurrent;
 
 namespace I2P.I2CP
 {
@@ -18,13 +19,16 @@ namespace I2P.I2CP
         public const int DefaultI2CPPort = 7654;
         static bool UseIpV6 = false;
 
-        List<I2CPSession> Sessions = new List<I2CPSession>();
+        internal ConcurrentDictionary<IPEndPoint, I2CPSession> Sessions = 
+                new ConcurrentDictionary<IPEndPoint, I2CPSession>();
 
         public I2CPHost()
         {
-            Worker = new Thread( () => Run() );
-            Worker.Name = "NTCPHost";
-            Worker.IsBackground = true;
+            Worker = new Thread( Run )
+            {
+                Name = "NTCPHost",
+                IsBackground = true
+            };
             Worker.Start();
         }
 
@@ -34,60 +38,39 @@ namespace I2P.I2CP
             {
                 while ( !Terminated )
                 {
-                    var listener = CreateListener();
+                    var listener = new TcpListener( IPAddress.Any, DefaultI2CPPort );
+                    listener.Start();
 
                     try
                     {
-                        listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
+                        listener.BeginAcceptTcpClient( HandleListenerAsyncCallback, listener );
 
                         while ( !Terminated )
                         {
                             Thread.Sleep( 200 );
 
-                            I2CPSession[] sessions;
+                            /*
+                            var terminated = Sessions
+                                        .Where( c => c.Value.Terminated )
+                                        .ToArray();
 
-                            lock ( Sessions )
+                            foreach ( var one in terminated )
                             {
-                                var terminated = Sessions.Where( c => c.Terminated ).ToArray();
-                                foreach ( var one in terminated )
-                                {
-                                    Sessions.Remove( one );
-                                }
-
-                                sessions = Sessions.ToArray();
+                                Sessions.TryRemove( one.Key, out _ );
                             }
-
-                            foreach ( var one in sessions )
+                            
+                            foreach ( var one in Sessions.ToArray() )
                             {
                                 try
                                 {
-                                    one.Run();
+                                    one.Value.Run();
                                 }
                                 catch ( Exception ex )
                                 {
-                                    one.Terminate();
+                                    one.Value.Terminate();
                                     Logging.Log( ex );
                                 }
-                            }
-
-                            /*
-                            if ( SettingsChanged )
-                            {
-                                SettingsChanged = false;
-
-                                listener.Shutdown( SocketShutdown.Both );
-                                listener.Close();
-
-                                Thread.Sleep( 3000 );
-
-                                listener = CreateListener();
-                                listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
-
-                                Logging.LogInformation( "NTCPHost: Running with new network settings. " +
-                                    listener.LocalEndPoint.ToString() + ":" + RouterContext.Inst.TCPPort.ToString() + 
-                                    " (" + RouterContext.Inst.ExtAddress.ToString() + ")" );
-                            }
-                             */
+                            }*/
                         }
                     }
                     catch ( ThreadAbortException ex )
@@ -98,6 +81,10 @@ namespace I2P.I2CP
                     {
                         Logging.Log( ex );
                     }
+                    finally 
+                    {
+                        listener.Stop();
+                    }
                 }
             }
             finally
@@ -107,70 +94,26 @@ namespace I2P.I2CP
             }
         }
 
-        private static Socket CreateListener()
-        {
-            Socket listener;
-            IPAddress ipaddr;
-
-            if ( UseIpV6 )
-            {
-                ipaddr = Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetworkV6 ).First();
-            }
-            else
-            {
-                ipaddr = Dns.GetHostEntry( Dns.GetHostName() ).AddressList.Where( a => a.AddressFamily == AddressFamily.InterNetwork ).First();
-            }
-
-            listener = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
-            listener.Bind( new IPEndPoint( ipaddr, DefaultI2CPPort ) );
-            listener.Listen( 3 );
-            return listener;
-        }
-
-        /*
-        bool SettingsChanged = false;
-
-        public void NetworkSettingsChanged()
-        {
-            SettingsChanged = true;
-        }*/
-
-        void DoAcceptTcpClientCallback( IAsyncResult ar )
+        void HandleListenerAsyncCallback( IAsyncResult ar )
         {
             if ( !ar.IsCompleted ) return;
-            bool docontinue = true;
 
-            var listener = (Socket)ar.AsyncState;
+            var listener = (TcpListener)ar.AsyncState;
+            var tcpclient = listener.EndAcceptTcpClient( ar );
 
-            try
-            {
-                var socket = listener.EndAccept( ar );
+            var i2cpc = new I2CPSession( this, tcpclient );
+            Logging.LogDebug( $"{this}: incoming connection ${i2cpc.DebugId} from {tcpclient.Client.RemoteEndPoint} created." );
 
-                var i2cpc = new I2CPSession( this, socket );
-                Logging.LogDebug( "I2CPHost: incoming connection " + i2cpc.DebugId + " from " + socket.RemoteEndPoint.ToString() + " created." );
+            Sessions[(IPEndPoint)tcpclient.Client.RemoteEndPoint] = i2cpc;
 
-                lock ( Sessions )
-                {
-                    Sessions.Add( i2cpc );
-                }
-            }
-            catch ( ObjectDisposedException )
-            {
-                docontinue = false;
-            }
-            catch ( Exception ex )
-            {
-                Logging.Log( ex );
-            }
+            _ = i2cpc.Run();
 
-            try
-            {
-                if ( docontinue ) listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
-            }
-            catch ( Exception ex )
-            {
-                Logging.Log( ex );
-            }
+            listener.BeginAcceptTcpClient( HandleListenerAsyncCallback, listener );
+        }
+
+        public override string ToString()
+        {
+            return GetType().Name;
         }
     }
 }

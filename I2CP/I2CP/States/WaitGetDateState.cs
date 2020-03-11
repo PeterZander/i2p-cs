@@ -14,22 +14,13 @@ namespace I2P.I2CP.States
     {
         internal WaitGetDateState( I2CPSession sess ): base( sess ) { }
 
-        internal override I2CPState Run()
-        {
-            if ( Timeout( HandshakeTimeout ) )
-            {
-                throw new FailedToConnectException( "I2CP WaitGetDateState " + Session.DebugId + " Failed to connect. Timeout." );
-            }
-            return this;
-        }
-
         internal override I2CPState MessageReceived( I2CPMessage msg )
         {
-            if ( msg.MessageType == I2CPMessage.ProtocolMessageType.GetDate )
+            if ( msg is GetDateMessage gdm )
             {
-                var reply = new SetDateMessage( I2PDate.Now, new I2PString( "0.1" ) );
+                var reply = new SetDateMessage( I2PDate.Now, gdm.Version ); // new I2PString( "0.1" ) ); // 
                 Session.Send( reply );
-                return new WaitForCreateSessionState( Session );
+                return new EstablishedState( Session );
             }
             return this;
         }

@@ -12,7 +12,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
     {
         public override MessageTypes MessageType { get { return MessageTypes.Garlic; } }
 
-        public EGGarlic CachedGarlic;
+        private EGGarlic CachedGarlic;
         public EGGarlic Garlic
         {
             get

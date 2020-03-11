@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using I2PCore.Data;
 using I2PCore.TransportLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
@@ -17,7 +18,11 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         public readonly DeliveryTypes Delivery;
         public readonly I2NPMessage Message;
 
-        protected TunnelMessage( I2NPMessage message, DeliveryTypes dt ) { Message = message; Delivery = dt; }
+        protected TunnelMessage( I2NPMessage message, DeliveryTypes dt ) 
+        {
+            Message = message; 
+            Delivery = dt; 
+        }
 
         public abstract void Distribute( Tunnel tunnel );
 

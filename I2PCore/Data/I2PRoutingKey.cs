@@ -9,8 +9,8 @@ namespace I2PCore.Data
 {
     public class I2PRoutingKey: I2PType
     {
-        bool NextDay;
-        I2PIdentHash Identity;
+        private readonly bool NextDay;
+        private readonly I2PIdentHash Identity;
 
         public I2PRoutingKey( I2PIdentHash ident, bool nextday )
         {
@@ -47,10 +47,10 @@ namespace I2PCore.Data
             var daynow = DateTime.UtcNow.Day;
             if ( cachecopy != null && DTBufCacheDay == daynow ) return next ? nextcachecopy : cachecopy;
 
-            var dtbuf = Encoding.ASCII.GetBytes( String.Format( "{0:yyyyMMdd}", DateTime.UtcNow ) );
+            var dtbuf = Encoding.ASCII.GetBytes( $"{DateTime.UtcNow:yyyyMMdd}" );
             DTBufCache = dtbuf;
 
-            var nextdtbuf = Encoding.ASCII.GetBytes( String.Format( "{0:yyyyMMdd}", DateTime.UtcNow.AddDays( 1 ) ) );
+            var nextdtbuf = Encoding.ASCII.GetBytes( $"{DateTime.UtcNow.AddDays( 1 ):yyyyMMdd}" );
             DTNextBufCache = nextdtbuf;
 
             DTBufCacheDay = daynow;
@@ -66,7 +66,7 @@ namespace I2PCore.Data
         public override string ToString()
         {
             var hc = HashCache != null ? FreenetBase64.Encode( new BufLen( HashCache ) ): "<null>";
-            return string.Format( "I2PRoutingKey: HashCacheDay {0}, HashCache: {1}.", HashCacheDay, hc );
+            return $"I2PRoutingKey: HashCacheDay {HashCacheDay}, HashCache: {hc}.";
         }
 
         public byte this[int ix]
