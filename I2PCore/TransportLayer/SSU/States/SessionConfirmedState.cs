@@ -79,7 +79,7 @@ namespace I2PCore.TransportLayer.SSU
                     Session.SignOnTimeA = BufUtils.Flip32( SSUHost.SSUTime( DateTime.UtcNow ) );
                     writer.Write32( Session.SignOnTimeA );
                     var padding = BufUtils.Get16BytePadding( Session.MyRouterContext.Certificate.SignatureLength + ( writer - start ) );
-                    writer.Write( BufUtils.Random( padding ) );
+                    writer.Write( BufUtils.RandomBytes( padding ) );
 
                     var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
                     var bport = BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port );
@@ -148,7 +148,7 @@ namespace I2PCore.TransportLayer.SSU
                     Session.SignOnTimeA = BufUtils.Flip32( SSUHost.SSUTime( DateTime.UtcNow ) );
                     writer.Write32( Session.SignOnTimeA );
                     var padding = BufUtils.Get16BytePadding( Session.MyRouterContext.Certificate.SignatureLength + ( writer - start ) );
-                    writer.Write( BufUtils.Random( padding ) );
+                    writer.Write( BufUtils.RandomBytes( padding ) );
 
                     var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
 

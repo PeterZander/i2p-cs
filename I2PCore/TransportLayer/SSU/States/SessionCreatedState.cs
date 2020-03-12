@@ -145,7 +145,7 @@ namespace I2PCore.TransportLayer.SSU
                     var signstart = new BufLen( writer );
                     writer.Write( sign );
                     var padding = BufUtils.Get16BytePadding( writer - signstart );
-                    writer.Write( BufUtils.Random( padding ) );
+                    writer.Write( BufUtils.RandomBytes( padding ) );
 
                     var cipher = new CbcBlockCipher( new AesEngine() ); 
                     var signcryptbuf = new BufLen( signstart, 0, writer - signstart );

@@ -13,8 +13,8 @@ namespace I2PTests
         public void TestBufLen()
         {
             BufLen b1null = null;
-            var b1 = new BufLen( BufUtils.Random( 70 ) );
-            var b2 = new BufLen( BufUtils.Random( 70 ) );
+            var b1 = new BufLen( BufUtils.RandomBytes( 70 ) );
+            var b2 = new BufLen( BufUtils.RandomBytes( 70 ) );
             b1[0] = 2;
             b2[0] = 1;
 

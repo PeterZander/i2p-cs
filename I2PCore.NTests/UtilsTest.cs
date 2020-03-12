@@ -59,8 +59,8 @@ namespace I2PTests
         [Test]
         public void TestGZip()
         {
-            var smalldata = BufUtils.Random( 200 );
-            var bigdata = BufUtils.Random( 2 * 1024 * 1024 );
+            var smalldata = BufUtils.RandomBytes( 200 );
+            var bigdata = BufUtils.RandomBytes( 2 * 1024 * 1024 );
 
             var smalldata_zero = new byte[200];
             var bigdata_zero = new byte[2 * 1024 * 1024];
@@ -98,7 +98,7 @@ namespace I2PTests
         [Test]
         public void TestRoulette()
         {
-            var l = BufUtils.Random( 10000 ).AsEnumerable();
+            var l = BufUtils.RandomBytes( 10000 ).AsEnumerable();
             var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => k == 42 ? 30f : 1f );
 
             int is42 = 0;
@@ -114,7 +114,7 @@ namespace I2PTests
         [Test]
         public void TestRoulette2()
         {
-            var l = BufUtils.Random( 10000 ).AsEnumerable();
+            var l = BufUtils.RandomBytes( 10000 ).AsEnumerable();
             l = l.Concat( BufUtils.Populate<byte>( 42, 10000 ) );
             var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f );
 

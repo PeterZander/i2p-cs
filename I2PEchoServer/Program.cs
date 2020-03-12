@@ -149,7 +149,7 @@ namespace I2PEchoServer
                     ReceiveStreamId = packet.ReceiveStreamId,
                     SendStreamId = SendId,
                     NACKs = new List<uint>(),
-                    Payload = new BufLen( BufUtils.Random( 30 ) ),
+                    Payload = new BufLen( BufUtils.RandomBytes( 30 ) ),
                 };
 
                 sh.Write( s );

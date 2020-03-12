@@ -17,7 +17,7 @@ namespace I2PCore.Data
 
         public I2PSessionTag()
         {
-            Value = new BufLen( BufUtils.Random( TagLength ) );
+            Value = new BufLen( BufUtils.RandomBytes( TagLength ) );
         }
 
         public I2PSessionTag( BufRef buf )

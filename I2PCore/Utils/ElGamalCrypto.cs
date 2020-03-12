@@ -50,7 +50,7 @@ namespace I2PCore.Utils
 
             while ( true )
             {
-                var nz = BufUtils.Random( 1 );
+                var nz = BufUtils.RandomBytes( 1 );
                 if ( nz[0] != 0 )
                 {
                     hashbuf.Write8( nz[0] );

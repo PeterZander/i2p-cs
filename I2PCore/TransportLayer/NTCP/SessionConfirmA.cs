@@ -29,7 +29,7 @@ namespace I2PCore.TransportLayer.NTCP
                 BufUtils.Flip32BL( context.TimestampB ) );
 
             var padsize = BufUtils.Get16BytePadding( (int)( sign.Length + cleartext.Length ) );
-            cleartext.Write( BufUtils.Random( padsize ) );
+            cleartext.Write( BufUtils.RandomBytes( padsize ) );
 
             cleartext.Write( sign );
 

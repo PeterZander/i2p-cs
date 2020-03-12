@@ -47,7 +47,7 @@ namespace I2PCore.TransportLayer.NTCP
                     BufUtils.Flip32BL( context.TimestampB ) );
 
             writer.Write( SigBuf );
-            writer.Write( BufUtils.Random( writer.Length ) );
+            writer.Write( BufUtils.RandomBytes( writer.Length ) );
 
             writer.Reset();
             context.Encryptor.ProcessBytes( (BufLen)writer );

@@ -19,7 +19,7 @@ namespace I2PTests
         [Test]
         public void TestSimpleTunnelDataCreation()
         {
-            var smalldata = BufUtils.Random( 38 );
+            var smalldata = BufUtils.RandomBytes( 38 );
 
             var srcmsgs = new List<TunnelMessage>();
             srcmsgs.Add( new TunnelMessageLocal( new DeliveryStatusMessage( 1234 ) ) );
@@ -50,7 +50,7 @@ namespace I2PTests
         [Test]
         public void TestSingleLargeTunnelDataCreation()
         {
-            var sourcedata = new BufLen( BufUtils.Random( 9000 ) );
+            var sourcedata = new BufLen( BufUtils.RandomBytes( 9000 ) );
 
             var srcmsgs = new List<TunnelMessage>();
             srcmsgs.Add( new TunnelMessageTunnel( new DataMessage( sourcedata ), new I2PIdentHash( true ), 4242 ) );

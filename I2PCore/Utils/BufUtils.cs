@@ -411,7 +411,7 @@ namespace I2PCore.Utils
         }
 
         static readonly byte[] ZeroArray = new byte[0];
-        public static byte[] Random( int bytes )
+        public static byte[] RandomBytes( int bytes )
         {
             if ( bytes == 0 ) return ZeroArray;
 

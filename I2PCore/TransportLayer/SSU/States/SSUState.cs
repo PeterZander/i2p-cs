@@ -222,7 +222,7 @@ namespace I2PCore.TransportLayer.SSU
 
             // Do not cut to datalen & ~0xf as that might make data at the end unencrypted
             var datapadding = BufUtils.Get16BytePadding( writer - start );
-            writer.Write( BufUtils.Random( datapadding ) ); 
+            writer.Write( BufUtils.RandomBytes( datapadding ) ); 
             var datalen = writer - start;
 
             var encryptedbuf = new BufLen( start, 32, datalen - 32 );
@@ -259,7 +259,7 @@ namespace I2PCore.TransportLayer.SSU
 
         bool RandomExtraPadding( BufLen start, BufRefLen writer )
         {
-            writer.Write( BufUtils.Random( BufUtils.RandomInt( 16 ) ) );
+            writer.Write( BufUtils.RandomBytes( BufUtils.RandomInt( 16 ) ) );
             return true;
         }
 

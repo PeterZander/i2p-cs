@@ -58,7 +58,7 @@ namespace I2PTests
                 var buf = new BufLen( new byte[30000] );
                 var writer = new BufRefLen( buf );
 
-                var data = BufUtils.Random( 1 + BufUtils.RandomInt( 45 ) );
+                var data = BufUtils.RandomBytes( 1 + BufUtils.RandomInt( 45 ) );
                 var datar = new BufRefLen( data );
                 var tags = new List<I2PSessionTag>();
                 for ( int i = 0; i < BufUtils.RandomInt( 5 ); ++i )
@@ -94,7 +94,7 @@ namespace I2PTests
             var ls = new I2PDate( DateTime.Now + TimeSpan.FromMinutes( 5 ) );
 
             var origmessage = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
-            var bigmessage = new DataMessage( new BufLen( BufUtils.Random( 14 * 1024 ) ) );
+            var bigmessage = new DataMessage( new BufLen( BufUtils.RandomBytes( 14 * 1024 ) ) );
 
             var garlic = new Garlic(
                 new GarlicClove(
@@ -338,7 +338,7 @@ namespace I2PTests
                         Destination.IdentHash ) ),
                 new GarlicClove(
                     new GarlicCloveDeliveryLocal(
-                        new DataMessage( new BufLen( BufUtils.Random( 3000 ) ) ) ) ),
+                        new DataMessage( new BufLen( BufUtils.RandomBytes( 3000 ) ) ) ) ),
                 new GarlicClove(
                     new GarlicCloveDeliveryLocal(
                         new TunnelGatewayMessage( m1, new I2PTunnelId() ) ) ),
@@ -436,7 +436,7 @@ namespace I2PTests
 
                 cloves.Add( new GarlicClove(
                     new GarlicCloveDeliveryLocal(
-                        new DataMessage( new BufLen( BufUtils.Random( 3000 ) ) ) ) ) );
+                        new DataMessage( new BufLen( BufUtils.RandomBytes( 3000 ) ) ) ) ) );
             }
         }
 
@@ -479,7 +479,7 @@ namespace I2PTests
             var recv = new DecryptReceivedSessions( this, Private );
 
             var origdsmessage = new DeliveryStatusMessage( 0x425c );
-            var datamessage = new DataMessage( new BufLen( BufUtils.Random( 16000 ) ) );
+            var datamessage = new DataMessage( new BufLen( BufUtils.RandomBytes( 16000 ) ) );
             var origmessage1 = CreateDatabaseStoreMessage();
             var origmessage2 = CreateDatabaseStoreMessage();
             var origmessage3 = CreateDatabaseStoreMessage();

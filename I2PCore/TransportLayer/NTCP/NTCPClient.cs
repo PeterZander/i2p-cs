@@ -235,7 +235,7 @@ namespace I2PCore.TransportLayer.NTCP
             }
 
             // Pad
-            writer.Write( BufUtils.Random( writer.Length - 4 ) );
+            writer.Write( BufUtils.RandomBytes( writer.Length - 4 ) );
 
             // Checksum
             var checkbuf = new BufLen( buf, 0, writer - buf );
