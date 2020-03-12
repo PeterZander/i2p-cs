@@ -36,7 +36,7 @@ namespace I2PCore.SessionLayer
             var egdata = message.EGData;
 
             var (aesblock,sessionkey) = Garlic.RetrieveAESBlock( 
-                    egdata, 
+                    message, 
                     PrivateKey, 
                     ( stag ) =>
                     {
