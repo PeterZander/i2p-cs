@@ -43,8 +43,8 @@ namespace I2PCore.TransportLayer.NTCP
                     context.XBuf,
                     context.YBuf,
                     context.RemoteRI.IdentHash.Hash,
-                    (BufLen)BufUtils.Flip32( context.TimestampA ),
-                    (BufLen)BufUtils.Flip32( context.TimestampB ) );
+                    BufUtils.Flip32BL( context.TimestampA ),
+                    BufUtils.Flip32BL( context.TimestampB ) );
 
             writer.Write( SigBuf );
             writer.Write( BufUtils.Random( writer.Length ) );

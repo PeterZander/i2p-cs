@@ -19,7 +19,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         {
             Delivery = GarlicCloveDelivery.CreateGarlicCloveDelivery( reader );
             Message = I2NPMessage.ReadHeader16( reader ).Message;
-            CloveId = reader.Read32();
+            CloveId = reader.ReadFlip32();
             Expiration = new I2PDate( reader );
             reader.Seek( 3 ); // Cert
         }
@@ -45,7 +45,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         public void Write( BufRefStream dest )
         {
             Delivery.Write( dest );
-            dest.Write( (BufRefLen)(BufLen)CloveId );
+            dest.Write( (BufRefLen)BufUtils.Flip32BL( CloveId ) );
             Expiration.Write( dest );
             dest.Write( ThreeZero );
         }

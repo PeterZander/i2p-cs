@@ -137,7 +137,7 @@ namespace I2PCore.Data
                 new BufLen( Destination.ToByteArray() ),
                 PublicKey.Key,
                 PublicSigningKey.Key,
-                (BufLen)(byte)LeasesField.Count
+                BufUtils.To8BL( (byte)LeasesField.Count )
             };
 
             foreach ( var lease in LeasesField )
@@ -182,7 +182,7 @@ namespace I2PCore.Data
                 new BufLen( Destination.ToByteArray() ),
                 PublicKey.Key,
                 PublicSigningKey.Key,
-                (BufLen)cnt
+                BufUtils.To8BL( cnt )
             };
 
             foreach ( var lease in LeasesField )

@@ -879,28 +879,6 @@ namespace I2PCore.Utils
             return new BufRefLen( buf, 0, buf.Length );
         }
 
-        public static explicit operator BufLen( int value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( uint value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( ushort value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( byte value )
-        {
-            return new BufLen( new byte[] { value } );
-        }
         #endregion
 
         #region IEnumerable<byte> Members

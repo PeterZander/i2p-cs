@@ -95,7 +95,7 @@ namespace I2PCore.TransportLayer.SSU
                             Request.X.Key, Request.Y.Key, 
                             Request.SCMessage.Address, Request.SCMessage.Port,
                             baddr, bport, 
-                            Request.SCMessage.RelayTag, (BufLen)Session.SignOnTimeA
+                            Request.SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
                         );
                     writer.Write( sign );
 
@@ -156,7 +156,7 @@ namespace I2PCore.TransportLayer.SSU
                             Request.X.Key, Request.Y.Key, 
                             Request.SCMessage.Address, Request.SCMessage.Port,
                             baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
-                            Request.SCMessage.RelayTag, (BufLen)Session.SignOnTimeA
+                            Request.SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
                        );
                     writer.Write( sign );
 

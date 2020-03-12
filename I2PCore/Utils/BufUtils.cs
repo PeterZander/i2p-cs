@@ -46,7 +46,6 @@ namespace I2PCore.Utils
             return Flip32( BitConverter.ToUInt32( buf, offset ) );
         }
 
-
         public static ushort Flip16( ushort src )
         {
             return (ushort)( ( ( src & 0xff ) << 8 ) | ( src >> 8 ) );
@@ -80,6 +79,46 @@ namespace I2PCore.Utils
         public static BufLen Flip16BL( ushort src )
         {
             return new BufLen( Flip16B( src ) );
+        }
+
+        public static byte[] To64B( ulong src )
+        {
+            return BitConverter.GetBytes( src );
+        }
+
+        public static BufLen To64BL( ulong src )
+        {
+            return new BufLen( To64B( src ) );
+        }
+
+        public static byte[] To32B( uint src )
+        {
+            return BitConverter.GetBytes( src );
+        }
+
+        public static BufLen To32BL( uint src )
+        {
+            return new BufLen( To32B( src ) );
+        }
+
+        public static byte[] To16B( ushort src )
+        {
+            return BitConverter.GetBytes( src );
+        }
+
+        public static BufLen To16BL( ushort src )
+        {
+            return new BufLen( To16B( src ) );
+        }
+
+        public static byte[] To8B( byte src )
+        {
+            return new byte[] { src };
+        }
+
+        public static BufLen To8BL( byte src )
+        {
+            return new BufLen( To8B( src ) );
         }
         #endregion
 

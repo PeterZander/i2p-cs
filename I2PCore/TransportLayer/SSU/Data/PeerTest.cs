@@ -28,7 +28,7 @@ namespace I2PCore.TransportLayer.SSU
         {
             TestNonce = nonce;
             var ab = aliceip.GetAddressBytes();
-            AliceIPAddrSize = (BufLen)(byte)ab.Length;
+            AliceIPAddrSize = BufUtils.To8BL( (byte)ab.Length );
             AliceIPAddr = new BufLen( ab );
             AlicePort = BufUtils.Flip16BL( (ushort)aliceport );
             IntroKey = introkey;
@@ -37,7 +37,7 @@ namespace I2PCore.TransportLayer.SSU
         public PeerTest( BufLen nonce, BufLen aliceip, BufLen aliceport, BufLen introkey )
         {
             TestNonce = nonce;
-            AliceIPAddrSize = (BufLen)(byte)aliceip.Length;
+            AliceIPAddrSize = BufUtils.To8BL( (byte)aliceip.Length );
             AliceIPAddr = aliceip;
             AlicePort = aliceport;
             IntroKey = introkey;
