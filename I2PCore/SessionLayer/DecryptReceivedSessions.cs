@@ -31,7 +31,7 @@ namespace I2PCore.SessionLayer
             PrivateKey = key;
         }
 
-        public Garlic DecryptMessage( EGGarlic message )
+        public Garlic DecryptMessage( GarlicMessage message )
         {
             var egdata = message.EGData;
 

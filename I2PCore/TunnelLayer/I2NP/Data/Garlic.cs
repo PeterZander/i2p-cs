@@ -6,6 +6,8 @@ using I2PCore.Utils;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using System.Diagnostics;
+using I2PCore.TunnelLayer.I2NP.Messages;
+using static I2PCore.TunnelLayer.I2NP.Messages.I2NPMessage;
 
 namespace I2PCore.TunnelLayer.I2NP.Data
 {
@@ -81,7 +83,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             return $"Garlic: {Cloves?.Count} cloves. {string.Join( ", ", Cloves )}";
         }
 
-        public static EGGarlic EGEncryptGarlic(
+        public static GarlicMessage EGEncryptGarlic(
                 Garlic msg,
                 I2PPublicKey pubkey,
                 I2PSessionKey sessionkey,
@@ -91,7 +93,8 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             var payload = msg.ToByteArray();
             var dest = new BufLen( new byte[65536] );
-            var writer = new BufRefLen( dest, 4 ); // Reserve 4 bytes for GarlicMessageLength
+            // Reserve header + 4 bytes for GarlicMessageLength
+            var writer = new BufRefLen( dest, I2NPMaxHeaderSize + 4 );
 
             // ElGamal block
             var egbuf = new BufLen( writer, 0, 222 );
@@ -117,13 +120,13 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             cipher.ProcessBytes( aesblock.DataBuf );
 
             var length = writer - dest;
-            dest.PokeFlip32( (uint)( length - 4 ), 0 );
+            dest.PokeFlip32( (uint)( length - 4 ), I2NPMaxHeaderSize );
 
-            return new EGGarlic( new BufRefLen( dest, 0, length ) );
+            return new GarlicMessage( new BufRefLen( dest, I2NPMaxHeaderSize, length ) );
         }
 
         public static (GarlicAESBlock,I2PSessionKey) EGDecryptGarlic( 
-                    EGGarlic garlic, 
+                    GarlicMessage garlic, 
                     I2PPrivateKey privkey )
         {
             var cipher = new CbcBlockCipher( new AesEngine() );
@@ -154,7 +157,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         }
 
 
-        public static EGGarlic AESEncryptGarlic(
+        public static GarlicMessage AESEncryptGarlic(
                 Garlic msg,
                 I2PSessionKey sessionkey,
                 I2PSessionTag tag,
@@ -164,7 +167,8 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             var payload = msg.ToByteArray();
             var dest = new BufLen( new byte[65536] );
-            var writer = new BufRefLen( dest, 4 ); // Reserve 4 bytes for GarlicMessageLength
+            // Reserve header + 4 bytes for GarlicMessageLength
+            var writer = new BufRefLen( dest, I2NPMaxHeaderSize + 4 );
 
             // Tag as header
             writer.Write( tag.Value );
@@ -179,13 +183,13 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             cipher.ProcessBytes( aesblock.DataBuf );
 
             var length = writer - dest;
-            dest.PokeFlip32( (uint)( length - 4 ), 0 );
+            dest.PokeFlip32( (uint)( length - 4 ), I2NPMaxHeaderSize );
 
-            return new EGGarlic( new BufRefLen( dest, 0, length ) );
+            return new GarlicMessage( new BufRefLen( dest, I2NPMaxHeaderSize, length ) );
         }
 
         public static (GarlicAESBlock,I2PSessionKey) RetrieveAESBlock(
-                EGGarlic garlic,
+                GarlicMessage garlic,
                 I2PPrivateKey privatekey,
                 Func<I2PSessionTag,I2PSessionKey> findsessionkey )
         {

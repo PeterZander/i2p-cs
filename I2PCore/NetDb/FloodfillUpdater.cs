@@ -237,7 +237,7 @@ namespace I2PCore
 
             outtunnel.Send(
                 new TunnelMessageRouter(
-                    new GarlicMessage( egmsg ),
+                    egmsg,
                     ffdest ) );
         }
 

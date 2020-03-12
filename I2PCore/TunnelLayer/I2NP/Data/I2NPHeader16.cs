@@ -18,9 +18,10 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
     public partial class I2NPMessage
     {
+        public const int I2NPMaxHeaderSize = 16;
+
         protected sealed class I2NPHeader16 : II2NPHeader16
         {
-            public const int I2NPMaxHeaderSize = 16;
             const int HeaderLength = 16;
 
             private BufLen Buf;

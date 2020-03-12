@@ -12,34 +12,20 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
     {
         public override MessageTypes MessageType { get { return MessageTypes.Garlic; } }
 
-        private EGGarlic CachedGarlic;
-        public EGGarlic Garlic
+        public BufLen EGData
         {
             get
             {
-                if ( CachedGarlic == null ) UpdateCachedFields( new BufRefLen( Payload ) );
-                return CachedGarlic;
+                return new BufLen( Payload, 4 );
             }
         }
 
         public GarlicMessage( BufRef reader )
         {
             var start = new BufRef( reader );
-            UpdateCachedFields( reader );
+            var len = (int)reader.PeekFlip32( 0 );
+            reader.Seek( len + 4 );
             SetBuffer( start, reader );
-        }
-
-        public GarlicMessage( EGGarlic garlic )
-        {
-            // TODO: remove memory copying
-            CachedGarlic = garlic;
-            AllocateBuffer( garlic.Data.Length );
-            Payload.Poke( garlic.Data, 0 );
-        }
-
-        void UpdateCachedFields( BufRef reader )
-        {
-            CachedGarlic = new EGGarlic( reader );
         }
     }
 }

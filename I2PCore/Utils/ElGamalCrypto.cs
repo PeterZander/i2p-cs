@@ -27,7 +27,6 @@ namespace I2PCore.Utils
             if ( k.CompareTo( BigInteger.Zero ) == 0 ) k = BigInteger.One;
 
             a = I2PConstants.ElGamalG.ModPow( k, I2PConstants.ElGamalP );
-
             b1 = key.ToBigInteger().ModPow( k, I2PConstants.ElGamalP );
         }
 

@@ -104,8 +104,8 @@ namespace I2PTests
                     new I2PSessionKey(),
                     null );
 
-            var origegdata = new EGGarlic( new BufRefLen( egmsg.Data.Clone() ) );
-            var origegdata2 = new EGGarlic( new BufRefLen( egmsg.Data.Clone() ) );
+            var origegdata = I2NPMessage.Clone( egmsg );
+            var origegdata2 = I2NPMessage.Clone( egmsg );
 
             // Decrypt
 
@@ -117,6 +117,7 @@ namespace I2PTests
             var g2 = new BufLen( newgarlic.ToByteArray() );
 
             Assert.IsTrue( g1 == g2 );
+            Assert.IsTrue( g2 == new BufLen( garlic.ToByteArray() ) );
 
             // Retrieve
 
@@ -129,6 +130,7 @@ namespace I2PTests
 
             Assert.IsTrue( g1 == g2 );
             Assert.IsTrue( sessionkey1 == sessionkey2 );
+            Assert.IsTrue( g2 == new BufLen( garlic.ToByteArray() ) );
         }
 
         [Test]
@@ -154,8 +156,8 @@ namespace I2PTests
                     new I2PSessionKey(),
                     null );
 
-            var origegdata = new EGGarlic( new BufRefLen( egmsg.Data.Clone() ) );
-            var origegdata2 = new EGGarlic( new BufRefLen( egmsg.Data.Clone() ) );
+            var origegdata = I2NPMessage.Clone( egmsg );
+            var origegdata2 = I2NPMessage.Clone( egmsg );
 
             // Decrypt
 
@@ -253,7 +255,7 @@ namespace I2PTests
             // No tags
 
             var cg = Garlic.EGEncryptGarlic( garlic, Public, new I2PSessionKey(), null );
-            var egdata = new EGGarlic( new BufRefLen( cg.Data.Clone() ) );
+            var egdata = I2NPMessage.Clone( cg );
 
             var (aesblock,sk) = Garlic.EGDecryptGarlic( egdata, Private );
             var g2 = new Garlic( (BufRefLen)aesblock.Payload );
@@ -268,7 +270,7 @@ namespace I2PTests
             }
 
             cg = Garlic.EGEncryptGarlic( garlic, Public, new I2PSessionKey(), tags );
-            egdata = new EGGarlic( new BufRefLen( cg.Data.Clone() ) );
+            egdata = I2NPMessage.Clone( cg );
 
             (aesblock, sk) = Garlic.EGDecryptGarlic( egdata, Private );
             g2 = new Garlic( (BufRefLen)aesblock.Payload );
@@ -299,7 +301,7 @@ namespace I2PTests
             var sessiontag = new I2PSessionTag();
 
             var cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
-            var egdata = new EGGarlic( new BufRefLen( cg.Data.Clone() ) );
+            var egdata = I2NPMessage.Clone( cg );
 
             var (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, (t) => sessionkey );
             var g2 = new Garlic( (BufRefLen)aesblock.Payload );
@@ -314,7 +316,7 @@ namespace I2PTests
             }
 
             cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
-            egdata = new EGGarlic( new BufRefLen( cg.Data.Clone() ) );
+            egdata = I2NPMessage.Clone( cg );
 
             (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, ( t ) => sessionkey );
             g2 = new Garlic( (BufRefLen)aesblock.Payload );
@@ -444,7 +446,7 @@ namespace I2PTests
                         cloves.ToArray() );
 
                 Assert.IsTrue( outtunnel.SendQueueAccess.TryDequeue( out var tmsg ) );
-                var recgarlic = recv.DecryptMessage( ( (GarlicMessage)tmsg.Message ).Garlic );
+                var recgarlic = recv.DecryptMessage( (GarlicMessage)tmsg.Message );
 
                 Assert.IsTrue( 
                         cloves.All( origclove => 
