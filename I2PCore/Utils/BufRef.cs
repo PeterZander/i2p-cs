@@ -1073,6 +1073,23 @@ namespace I2PCore.Utils
             }
         }
 
+        public string ToHexDump( int width = 16 )
+        {
+            var result = new StringBuilder();
+            var lines = this.Chunk( a => width );
+            var linestart = 0;
+            _ = lines
+                .Select( line => line.Count() < width 
+                        ? line.Select( b => (int)b ).Concat( Enumerable.Range( 1, width - line.Count() ).Select( c => (int)-1 ) )
+                        : line.Select( b => (int)b ) )
+                .Select( line => $"{linestart:X4} : " +
+                        $"{string.Join( " ", line.Select( b => ( b < 0 ? "   " : $"{b:X2} " ) ) )} | " +
+                        $"{string.Join( "", line.Select( b => $"{( b < 0 ? ' ' : ( b > 30 ? (char)(byte)b : '.' ) )}" ) )}" )
+                            .Select( line => { result.AppendLine( line ); linestart += width; return ""; } )
+                            .ToArray();
+            return result.ToString();
+        }
+
         #endregion
     }
 
