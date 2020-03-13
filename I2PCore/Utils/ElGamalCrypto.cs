@@ -55,6 +55,7 @@ namespace I2PCore.Utils
                     break;
                 }
             }
+
             writer.Write( I2PHashSHA256.GetHash( data ) );
             writer.Write( data );
             var egblock = new BufLen( start, 0, writer - start );

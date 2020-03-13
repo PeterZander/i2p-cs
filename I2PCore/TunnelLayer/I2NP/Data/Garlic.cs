@@ -100,7 +100,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var egbuf = new BufLen( writer, 0, 222 );
             var sessionkeybuf = new BufLen( egbuf, 0, 32 );
             var preivbuf = new BufLen( egbuf, 32, 32 );
-            var egpadding = new BufLen( egbuf, 158 );
+            var egpadding = new BufLen( egbuf, 64, 158 );
 
             Debug.Assert( sessionkey.Key.Length == 32 );
             sessionkeybuf.Poke( sessionkey.Key, 0 );
@@ -110,6 +110,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var iv = new BufLen( I2PHashSHA256.GetHash( preivbuf ), 0, 16 );
 
             var eg = new ElGamalCrypto( pubkey );
+            Debug.Assert( egbuf.Length == 222 );
             eg.Encrypt( writer, egbuf, true );
 
             // AES block
@@ -137,7 +138,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             var sessionkey = new I2PSessionKey( new BufLen( egheader, 0, 32 ) );
             var preiv = new BufLen( egheader, 32, 32 );
-            var egpadding = new BufLen( egheader, 158 );
+            var egpadding = new BufLen( egheader, 64, 158 );
             var aesbuf = new BufLen( egdata, 514 );
 
             var pivh = I2PHashSHA256.GetHash( preiv );

@@ -4,22 +4,21 @@ using I2PCore.Utils;
 using Org.BouncyCastle.Math;
 using I2PCore.TunnelLayer.I2NP.Data;
 using System.Text;
+using System.Linq;
+using System.Globalization;
 
 namespace I2PTests
 {
     [TestFixture]
     public class ElGamalTest
     {
-        I2PPrivateKey Private;
-        I2PPublicKey Public;
-        I2PRouterIdentity Me;
+        readonly I2PPrivateKey Private;
+        readonly I2PPublicKey Public;
 
         public ElGamalTest()
         {
             Private = new I2PPrivateKey( I2PKeyType.DefaultAsymetricKeyCert );
             Public = new I2PPublicKey( Private );
-
-            Me = new I2PRouterIdentity( Public, new I2PSigningPublicKey( new BigInteger( "12" ), I2PKeyType.DefaultSigningKeyCert ) );
         }
 
         [Test]
@@ -27,17 +26,13 @@ namespace I2PTests
         {
             for ( int i = 0; i < 20; ++i )
             {
-                var egdata = new BufLen( new byte[514] );
-                var writer = new BufRefLen( egdata );
-                var data = new BufLen( egdata, 0, 222 );
-
-                data.Randomize();
+                var data = new BufLen( BufUtils.RandomBytes( 222 ) );
                 var origdata = data.Clone();
 
                 var eg = new ElGamalCrypto( Public );
-                eg.Encrypt( writer, data, true );
+                var enc = new BufLen( eg.Encrypt( data, true ) );
 
-                var decryptdata = ElGamalCrypto.Decrypt( egdata, Private, true );
+                var decryptdata = ElGamalCrypto.Decrypt( enc, Private, true );
 
                 Assert.IsTrue( decryptdata == origdata );
             }
@@ -369,5 +364,11 @@ namespace I2PTests
                 "\x0000x00\x0000x00\x0000x00",
                 "\x0000x00\x0000x01\x0000x02\x0000x00",
             };
+
+        byte[] FromHex( string hex )
+        {
+            var b = hex.Split( ',' );
+            return b.Select( s => byte.Parse( s.Substring( 2 ), NumberStyles.AllowHexSpecifier ) ).ToArray();
+        }
     }
 }
