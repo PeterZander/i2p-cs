@@ -17,7 +17,14 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
     {
         public override MessageTypes MessageType { get { return MessageTypes.DatabaseStore; } }
 
-        public enum MessageContent: byte { RouterInfo = 0, LeaseSet = 1 }
+        public enum MessageContent: byte 
+        { 
+            RouterInfo = 0, 
+            LeaseSet = 1, 
+            LeaseSet2 = 3, 
+            EncryptedLeaseSet = 5, 
+            MetaLeaseSet = 7 
+        }
 
         public DatabaseStoreMessage( 
             I2PRouterInfo info, 
@@ -191,32 +198,46 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 CachedReplyGateway = new I2PIdentHash( reader );
             }
 
-            if ( CachedContent == MessageContent.RouterInfo )
+            switch ( CachedContent )
             {
-                var length = reader.ReadFlip16();
+                case MessageContent.RouterInfo:
+                    var length = reader.ReadFlip16();
 
 #if USE_BC_GZIP
-                CachedRouterInfo = new I2PRouterInfo( 
-                    new BufRefLen( LZUtils.BCGZipDecompressNew( new BufLen( reader, 0, length ) ) ), true );
+                    CachedRouterInfo = new I2PRouterInfo(
+                        new BufRefLen( LZUtils.BCGZipDecompressNew( new BufLen( reader, 0, length ) ) ), true );
 #else
-                using ( var ms = new MemoryStream() )
-                {
-                    ms.Write( reader.BaseArray, reader.BaseArrayOffset, length );
-                    ms.Position = 0;
-
-                    using ( var gzs = new GZipStream( ms, CompressionMode.Decompress ) )
+                    using ( var ms = new MemoryStream() )
                     {
-                        var gzdata = StreamUtils.Read( gzs );
-                        CachedRouterInfo = new I2PRouterInfo( new BufRefLen( gzdata ), true );
+                        ms.Write( reader.BaseArray, reader.BaseArrayOffset, length );
+                        ms.Position = 0;
+
+                        using ( var gzs = new GZipStream( ms, CompressionMode.Decompress ) )
+                        {
+                            var gzdata = StreamUtils.Read( gzs );
+                            CachedRouterInfo = new I2PRouterInfo( new BufRefLen( gzdata ), true );
+                        }
                     }
-                }
 #endif
 
-                reader.Seek( length );
-            }
-            else
-            {
-                CachedLeaseSet = new I2PLeaseSet( reader );
+                    reader.Seek( length );
+                    break;
+
+                case MessageContent.LeaseSet:
+                    CachedLeaseSet = new I2PLeaseSet( reader );
+                    break;
+                    /*
+                case MessageContent.LeaseSet2:
+                    break;
+
+                case MessageContent.EncryptedLeaseSet:
+                    break;
+
+                case MessageContent.MetaLeaseSet:
+                    break;
+                    */
+                default:
+                    throw new InvalidDataException( $"DatabaseStoreMessage: {CachedContent} not supported" );
             }
         }
 
@@ -227,27 +248,30 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             result.AppendLine( $"DatabaseStore {Content}, key {Key.Id32Short}" );
             result.AppendLine( $"Reply token {ReplyToken}, tunnel {ReplyTunnelId}, GW {ReplyGateway}" );
 
-            if ( Content == MessageContent.RouterInfo )
+            switch ( CachedContent )
             {
-                if ( RouterInfo == null )
-                {
-                    result.AppendLine( "RouterInfo == null!" );
-                }
-                else
-                {
-                    result.AppendLine( RouterInfo.ToString() );
-                }
-            }
-            else
-            {
-                if ( LeaseSet == null )
-                {
-                    result.AppendLine( "LeaseSet == null!" );
-                }
-                else
-                {
-                    result.AppendLine( LeaseSet.ToString() );
-                }
+                case MessageContent.RouterInfo:
+                    result.AppendLine( $"{RouterInfo}" );
+                    break;
+
+                case MessageContent.LeaseSet:
+                    result.AppendLine( $"{LeaseSet}" );
+                    break;
+                case MessageContent.LeaseSet2:
+                    result.AppendLine( $"LeaseSet2" );
+                    break;
+
+                case MessageContent.EncryptedLeaseSet:
+                    result.AppendLine( $"EncryptedLeaseSet" );
+                    break;
+
+                case MessageContent.MetaLeaseSet:
+                    result.AppendLine( $"MetaLeaseSet" );
+                    break;
+
+                default:
+                    result.AppendLine( $"Unknown content type" );
+                    break;
             }
 
             return result.ToString();

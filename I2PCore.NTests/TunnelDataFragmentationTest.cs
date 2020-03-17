@@ -30,7 +30,33 @@ namespace I2PTests
                 BufUtils.RandomUint() );
 
             var mkmsg = new TunnelDataFragmentReassembly();
-            var recvtmsgs = mkmsg.Process( fragments.Reverse(), out var _ );
+            var recvtmsgs = mkmsg.Process( fragments.Shuffle().ToArray(), out var _ );
+
+            foreach ( var rmsg in recvtmsgs )
+            {
+                var rmsgdata = rmsg.Message.CreateHeader16.HeaderAndPayload;
+                Assert.IsTrue( msg.Delivery == rmsg.Delivery );
+                Assert.IsTrue( refmsgdata == rmsgdata );
+            }
+        }
+
+        [Test]
+        public void MakeAndReadFragmentLarge()
+        {
+            var arec = new DataMessage( new BufLen( BufUtils.RandomBytes( 2048 ) ) );
+
+            var msg = new TunnelMessageRouter(
+                arec,
+                new I2PIdentHash( true ) );
+
+            var refmsgdata = msg.Message.CreateHeader16.HeaderAndPayload;
+
+            var fragments = TunnelDataMessage.MakeFragments(
+                new TunnelMessage[] { msg },
+                BufUtils.RandomUint() );
+
+            var mkmsg = new TunnelDataFragmentReassembly();
+            var recvtmsgs = mkmsg.Process( fragments.Shuffle().ToArray(), out var _ );
 
             foreach ( var rmsg in recvtmsgs )
             {
@@ -47,7 +73,7 @@ namespace I2PTests
             
             for ( int i = 0; i < 5; ++i )
             {
-                var adatarec = new DataMessage( new BufLen( BufUtils.RandomBytes( 2048 ) ) );
+                var adatarec = new DataMessage( new BufLen( BufUtils.RandomBytes( 12 ) ) );
 
                 var amsg = new TunnelMessageRouter(
                     adatarec,

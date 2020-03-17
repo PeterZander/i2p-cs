@@ -76,6 +76,7 @@
     <Reference Include="Mono.Security" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChecksumFailureException.cs" />

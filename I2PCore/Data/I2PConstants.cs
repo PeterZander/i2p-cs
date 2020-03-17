@@ -63,9 +63,12 @@ namespace I2PCore.Data
 		    0x15, 0x72, 0x8E, 0x5A, 0x8A, 0xAC, 0xAA, 0x68, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 	    };
 
-        public static readonly BigInteger ElGamalP = new BigInteger( 1, ELGP, 0, 256 );
+        public const int ElGamalFullExponentBits = 2048;
+        public const int ElGamalShortExponentBits = 226;
+
+        public static readonly BigInteger ElGamalP = new BigInteger( 1, ELGP );
         public static readonly BigInteger ElGamalPMinusOne = ElGamalP.Subtract( BigInteger.One );
-        public static BigInteger ElGamalG = new BigInteger( "2", 10 );
+        public static readonly BigInteger ElGamalG = new BigInteger( "2", 10 );
 
         public const int I2P_NETWORK_ID = 0x02;
 

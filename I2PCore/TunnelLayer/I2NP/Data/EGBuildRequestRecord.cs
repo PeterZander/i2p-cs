@@ -38,8 +38,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             writer.Write( topeer.Hash16 );
 
             var datastart = new BufLen( writer );
-            var crypto = new ElGamalCrypto( key );
-            crypto.Encrypt( writer, src.Data, false );
+            ElGamalCrypto.Encrypt( writer, src.Data, key, false );
         }
 
         public EGBuildRequestRecord( BuildRequestRecord src, I2PIdentHash topeer, I2PPublicKey key ):

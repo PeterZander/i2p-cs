@@ -10,10 +10,12 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace I2PCore.Utils
 {
-    public class ElGamalCrypto
+    public static class ElGamalCrypto
     {
-        BigInteger a;
-        BigInteger b1;
+        public const int ClearTextLength = 222;
+        public const int EncryptedPaddedLength = 514;
+        public const int EncryptedShortLength = 512;
+        public const int EGBlockLength = 255;
 
         static readonly SecureRandom Rnd = new SecureRandom();
 
@@ -21,80 +23,89 @@ namespace I2PCore.Utils
         {
         }
 
-        public ElGamalCrypto( I2PPublicKey key )
+        public static byte[] Encrypt( BufLen data, I2PPublicKey key, bool zeropad )
         {
-            var k = new BigInteger( I2PConstants.ElGamalP.BitLength, Rnd );
-            if ( k.CompareTo( BigInteger.Zero ) == 0 ) k = BigInteger.One;
-
-            a = I2PConstants.ElGamalG.ModPow( k, I2PConstants.ElGamalP );
-            b1 = key.ToBigInteger().ModPow( k, I2PConstants.ElGamalP );
-        }
-
-        public byte[] Encrypt( BufLen data, bool zeropad )
-        {
-            var result = new byte[zeropad ? 514 : 512];
-            Encrypt( new BufRefLen( result ), data, zeropad );
+            var result = new byte[zeropad ? EncryptedPaddedLength : EncryptedShortLength];
+            Encrypt( new BufRefLen( result ), data, key, zeropad );
             return result;
         }
 
-        public void Encrypt( BufRef dest, BufLen data, bool zeropad )
+        public static void Encrypt( BufRef dest, BufLen data, I2PPublicKey key, bool zeropad )
         {
-            if ( data == null || data.Length > 222 )
+            if ( data == null || data.Length > ClearTextLength )
             {
-                throw new InvalidParameterException( "ElGamal data must be 222 bytes or less!" );
+                throw new InvalidParameterException( $"ElGamal data must be {ClearTextLength} bytes or less!" );
             }
 
-            var start = new BufLen( new byte[255] );
+            var k = new BigInteger( I2PConstants.ElGamalFullExponentBits, Rnd );
+            var a = I2PConstants.ElGamalG.ModPow( k, I2PConstants.ElGamalP );
+            var b1 = key.ToBigInteger().ModPow( k, I2PConstants.ElGamalP );
+
+            var start = new BufLen( new byte[EGBlockLength] );
             var writer = new BufRefLen( start, 1 );
 
-            while ( true )
-            {
-                start[0] = BufUtils.RandomBytes( 1 )[0];
-                if ( start[0] != 0 )
-                {
-                    break;
-                }
-            }
+            start[0] = 0xFF;
 
             writer.Write( I2PHashSHA256.GetHash( data ) );
             writer.Write( data );
             var egblock = new BufLen( start, 0, writer - start );
+            var egint = egblock.ToBigInteger();
 
-            var b = b1
-                    .Multiply( 
-                        new BigInteger( 
-                                1,
-                                egblock.BaseArray,
-                                egblock.BaseArrayOffset,
-                                egblock.Length ) )
-                    .Mod( I2PConstants.ElGamalP );
+            var b = b1.Multiply( egint ).Mod( I2PConstants.ElGamalP );
 
-            dest.Write( new BufLen( a.ToByteArray( 257 ), zeropad ? 0 : 1 ) );
-            dest.Write( new BufLen( b.ToByteArray( 257 ), zeropad ? 0 : 1 ) );
+            var targetlen = zeropad
+                    ? EncryptedPaddedLength / 2
+                    : EncryptedShortLength / 2;
+
+            WriteToDest( dest, a, targetlen );
+            WriteToDest( dest, b, targetlen );
+        }
+
+        private static void WriteToDest( BufRef dest, BigInteger v, int targetlen )
+        {
+            var vba = v.ToByteArray();
+            if ( vba.Length < targetlen )
+            {
+                dest.Write( new byte[targetlen - vba.Length] );
+            }
+
+            if ( vba.Length > targetlen )
+            {
+                dest.Write( new BufLen( vba, vba.Length - targetlen ) );
+            }
+            else
+            {
+                dest.Write( vba );
+            }
         }
 
         public static BufLen Decrypt( BufLen data, I2PPrivateKey pkey, bool zeropad )
         {
-            if ( data == null || zeropad && data.Length != 514 )
+            if ( data == null || zeropad && data.Length != EncryptedPaddedLength )
             {
-                throw new ArgumentException( "ElGamal padded data to decrypt must be exactly 514 bytes!" );
+                throw new ArgumentException( $"ElGamal padded data to decrypt must be exactly {EncryptedPaddedLength} bytes!" );
             }
 
-            if ( !zeropad && data.Length != 512 )
+            if ( !zeropad && data.Length != EncryptedShortLength )
             {
-                throw new ArgumentException( "ElGamal data to decrypt must be exactly 512 bytes!" );
+                throw new ArgumentException( $"ElGamal data to decrypt must be exactly {EncryptedShortLength} bytes!" );
             }
 
             var x = I2PConstants.ElGamalPMinusOne.Subtract( pkey.ToBigInteger() );
 
             var reader = new BufRefLen( data );
-            var a = reader.ReadBigInteger( zeropad ? 257 : 256 );
-            var b = reader.ReadBigInteger( zeropad ? 257 : 256 );
+
+            var readlen = zeropad
+                        ? EncryptedPaddedLength / 2
+                        : EncryptedShortLength / 2;
+
+            var a = reader.ReadBigInteger( readlen );
+            var b = reader.ReadBigInteger( readlen );
 
             var m2 = b.Multiply( a.ModPow( x, I2PConstants.ElGamalP ) );
             var m1 = m2.Mod( I2PConstants.ElGamalP );
             var m = m1.ToByteArrayUnsigned();
-            var payload = new BufLen( m, 33, 222 );
+            var payload = new BufLen( m, 33, ClearTextLength );
             var hash = I2PHashSHA256.GetHash( payload );
             if ( !BufUtils.Equal( m, 1, hash, 0, 32 ) )
             {

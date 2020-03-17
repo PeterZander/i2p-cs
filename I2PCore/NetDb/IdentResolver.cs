@@ -163,6 +163,7 @@ namespace I2PCore
 
             Logging.Log( string.Format( "IdentResolver: Lookup of LeaseSet {0} succeeded. {1}", 
                 ls.Destination.IdentHash.Id32Short, info.Start.DeltaToNow ) );
+
             if ( LeaseSetReceived != null ) ThreadPool.QueueUserWorkItem( a => LeaseSetReceived( ls ) );
         }
 

@@ -868,6 +868,11 @@ namespace I2PCore.Utils
             return PeekB( 0, Length );
         }
 
+        public BigInteger ToBigInteger()
+        {
+            return new BigInteger( 1, Data, Position, Length );
+        }
+
         #region Operators
         public static explicit operator BufRef( BufLen buf )
         {

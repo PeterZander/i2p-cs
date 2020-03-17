@@ -97,21 +97,18 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var writer = new BufRefLen( dest, I2NPMaxHeaderSize + 4 );
 
             // ElGamal block
-            var egbuf = new BufLen( writer, 0, 222 );
+            var egbuf = new BufLen( new byte[222] );
             var sessionkeybuf = new BufLen( egbuf, 0, 32 );
             var preivbuf = new BufLen( egbuf, 32, 32 );
             var egpadding = new BufLen( egbuf, 64, 158 );
 
-            Debug.Assert( sessionkey.Key.Length == 32 );
-            sessionkeybuf.Poke( sessionkey.Key, 0 );
-            preivbuf.Randomize();
             egpadding.Randomize();
+            preivbuf.Randomize();
+            sessionkeybuf.Poke( sessionkey.Key, 0 );
 
             var iv = new BufLen( I2PHashSHA256.GetHash( preivbuf ), 0, 16 );
 
-            var eg = new ElGamalCrypto( pubkey );
-            Debug.Assert( egbuf.Length == 222 );
-            eg.Encrypt( writer, egbuf, true );
+            ElGamalCrypto.Encrypt( writer, egbuf, pubkey, true );
 
             // AES block
             var aesstart = new BufLen( writer );

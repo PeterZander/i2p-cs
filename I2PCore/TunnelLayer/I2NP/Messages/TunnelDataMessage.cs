@@ -38,9 +38,6 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             var start = new BufRef( reader );
             reader.Seek( 4 + DataLength );
             SetBuffer( start, reader );
-
-            // The message is encrypted at this stage
-            //UpdateFirstDeliveryInstructionPosition();
         }
 
         public void UpdateFirstDeliveryInstructionPosition()
@@ -139,13 +136,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         public override string ToString()
         {
-            var result = new StringBuilder();
-
-            result.AppendLine( $"TunnelData {GetType().Name}" );
-            result.AppendLine( $"TunnelId         : {TunnelId}" );
-            if ( FirstDeliveryInstruction != null ) result.AppendLine( $"TunnelDataPayload: {TunnelDataPayload}" );
-
-            return result.ToString();
+            return $"{GetType().Name}: {TunnelId}";
         }
 
         public static IEnumerable<TunnelDataMessage> MakeFragments( IEnumerable<TunnelMessage> messages, I2PTunnelId desttunnel )
