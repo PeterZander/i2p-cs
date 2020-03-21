@@ -1,15 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Net;
-using System.Net.Sockets;
 using I2PCore.Utils;
 using System.Threading;
-using I2PCore.Data;
 using I2PCore.SessionLayer;
-using I2PCore.TransportLayer.SSU.Data;
-using System.Diagnostics;
 
 namespace I2PCore.TransportLayer.SSU
 {

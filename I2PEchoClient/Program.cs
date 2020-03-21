@@ -1,6 +1,4 @@
-﻿#define NO_MANUAL_SIGN
-
-using System;
+﻿using System;
 using I2PCore.Data;
 using System.Net.Sockets;
 using System.IO;
@@ -30,9 +28,9 @@ namespace I2PEchoClient
             Logging.LogToConsole = true;
 
             RouterContext.RouterSettingsFile = "EchoClientRouter.bin";
-            //RouterContext.Inst = new RouterContext(
-                        //new I2PCertificate(
-                                //I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 ) );
+            RouterContext.Inst = new RouterContext(
+                        new I2PCertificate(
+                                I2PSigningKey.SigningKeyTypes.DSA_SHA1 ) );
 
             for ( int i = 0; i < args.Length; ++i )
             {
@@ -117,14 +115,16 @@ namespace I2PEchoClient
                                     return;
                                 }
 
-                                Logging.LogInformation( $"Program {UnpublishedDestination}: Found {remotedest}." );
+                                var test = new I2PIdentHash( ls.Destination );
+                                Logging.LogInformation( $"Program {UnpublishedDestination}: Found {remotedest}, test: {test.Id32Short}." );
 
                                 var s = new BufRefStream();
                                 var sh = new StreamingPacket(
                                         PacketFlags.SYNCHRONIZE
                                         | PacketFlags.FROM_INCLUDED
                                         | PacketFlags.SIGNATURE_INCLUDED
-                                        | PacketFlags.MAX_PACKET_SIZE_INCLUDED )
+                                        | PacketFlags.MAX_PACKET_SIZE_INCLUDED
+                                        | PacketFlags.NO_ACK )
                                 {
                                     From = UnpublishedDestination.Destination,
                                     SigningKey = MyDestinationInfo.PrivateSigningKey,

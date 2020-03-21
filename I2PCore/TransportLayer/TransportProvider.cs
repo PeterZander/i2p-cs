@@ -100,15 +100,15 @@ namespace I2PCore.TransportLayer
                         {
                             var ntcprunning = RunningTransports.Where( t => t.Protocol == "NTCP" ).ToArray();
                             var ssurunning = RunningTransports.Where( t => t.Protocol == "SSU" ).ToArray();
-                            var ntcpestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Protocol == "NTCP" ) ).ToArray();
-                            var ssuestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Protocol == "SSU" ) ).ToArray();
+                            var ntcpestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "NTCP" ) ).ToArray();
+                            var ssuestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "SSU" ) ).ToArray();
 
                             Logging.LogDebug(
                                 $"TransportProvider: Established out/in " +
-                                $"({ssuestablished.Count( t => t.Outgoing )}/{ssurunning.Count( t => t.Outgoing )})/" +
-                                $"({ssuestablished.Count( t => !t.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
-                                $"({ntcpestablished.Count( t => t.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
-                                $"({ntcpestablished.Count( t => !t.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
+                                $"({ssuestablished.Count( t => t.Key.Outgoing )}/{ssurunning.Count( t => t.Outgoing )})/" +
+                                $"({ssuestablished.Count( t => !t.Key.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
+                                $"({ntcpestablished.Count( t => t.Key.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
+                                $"({ntcpestablished.Count( t => !t.Key.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
 
                             var ntcpsent = ntcprunning.Sum( t => t.BytesSent );
                             var ntcprecv = ntcprunning.Sum( t => t.BytesReceived );
@@ -154,8 +154,8 @@ namespace I2PCore.TransportLayer
 
             foreach( var one in EstablishedTransports.ToArray() )
             {
-                one.Value.Remove( instance );
-                if ( !one.Value.Any() )
+                one.Value.TryRemove( instance, out _ );
+                if ( one.Value.IsEmpty )
                 {
                     EstablishedTransports.TryRemove( one.Key, out _ );
                 }
@@ -171,8 +171,8 @@ namespace I2PCore.TransportLayer
 
         List<ITransport> RunningTransports = new List<ITransport>();
 
-        ConcurrentDictionary<I2PIdentHash, HashSet<ITransport>> EstablishedTransports = 
-            new ConcurrentDictionary<I2PIdentHash, HashSet<ITransport>>();
+        ConcurrentDictionary<I2PIdentHash, ConcurrentDictionary<ITransport,byte>> EstablishedTransports = 
+            new ConcurrentDictionary<I2PIdentHash, ConcurrentDictionary<ITransport,byte>>();
 
         public void Disconnect( I2PIdentHash dest )
         {
@@ -196,7 +196,7 @@ namespace I2PCore.TransportLayer
                             $"TransportProvider: GetEstablishedTransport: WARNING! " +
                             $"EstablishedTransports contains null ref for {dest.Id32Short}!" );
                     }
-                    return result.FirstOrDefault();
+                    return result.FirstOrDefault().Key;
                 }
 
                 if ( create )
@@ -317,12 +317,12 @@ namespace I2PCore.TransportLayer
             {
                 if ( EstablishedTransports.TryGetValue( ih, out var tr ) )
                 {
-                    tr.Add( transport );
+                    tr[transport] = 1;
                 }
                 else
                 {
-                    EstablishedTransports[ih] = new HashSet<ITransport>(
-                        new ITransport[] { transport } );
+                    EstablishedTransports[ih] = new ConcurrentDictionary<ITransport, byte>(
+                        new KeyValuePair<ITransport,byte>[] { new KeyValuePair<ITransport, byte>( transport, 1)  } );
                 }
             }
         }
@@ -471,7 +471,7 @@ namespace I2PCore.TransportLayer
                 Logging.LogTransport( $"TransportProvider.Send: {( transp == null ? "<>" : transp.DebugId )}" +
                     $" Exception {ex.GetType()}" );
 
-                throw;
+                return false;
             }
             catch ( EndOfStreamEncounteredException ex )
             {
@@ -489,9 +489,9 @@ namespace I2PCore.TransportLayer
             catch ( RouterUnresolvableException ex )
             {
                 if ( dest != null ) NetDb.Inst.Statistics.DestinationInformationFaulty( dest );
-                Logging.LogTransport( "TransportProvider.Send: Unresolvable router: " + ex.Message );
+                Logging.LogTransport( $"TransportProvider.Send: Unresolvable router: {ex.Message}" );
 
-                throw;
+                return false;
             }
             catch ( Exception ex )
             {

@@ -20,8 +20,11 @@ namespace I2PCore
 
         const int RouterInfoCountLowWaterMark = 100;
 
-        ConcurrentDictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>> RouterInfos = 
-                new ConcurrentDictionary<I2PIdentHash, KeyValuePair<I2PRouterInfo, RouterInfoMeta>>();
+        ConcurrentDictionary<I2PIdentHash, RouterEntry> RouterInfos = 
+                new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
+
+        ConcurrentDictionary<I2PIdentHash, RouterEntry> FloodfillInfos =
+                new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
 
         TimeWindowDictionary<I2PIdentHash, I2PLeaseSet> LeaseSets =
             new TimeWindowDictionary<I2PIdentHash, I2PLeaseSet>( I2PLease.LeaseLifetime * 2 );
@@ -136,21 +139,24 @@ namespace I2PCore
             Statistics.UpdateScore();
 
             var havehost = RouterInfos.Values.Where( rp =>
-                rp.Key.Adresses.Any( a =>
+                rp.Router.Adresses.Any( a =>
                     a.Options.Contains( "host" ) ) );
 
-            Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( havehost.Select( p => p.Key ),
-                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+            Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( 
+                    havehost.Select( p => p.Router ),
+                    ih => ih.Identity.IdentHash, 
+                    i => Statistics[i].Score );
 
             RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                havehost.Where( p => p.Key.Options["caps"].Contains( 'f' ) )
-                    .Select( rp => rp.Key ),
-                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+                    FloodfillInfos.Select( rp => rp.Value.Router ),
+                    ih => ih.Identity.IdentHash,
+                    i => Statistics[i].Score );
 
             RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
-                havehost.Where( ri => !ri.Key.Options["caps"].Contains( 'f' ) )
-                    .Select( ri => ri.Key ),
-                ih => ih.Identity.IdentHash, i => Statistics[i].Score );
+                    havehost.Where( ri => !ri.IsFloodfill )
+                        .Select( ri => ri.Router ),
+                    ih => ih.Identity.IdentHash, 
+                    i => Statistics[i].Score );
 
             Logging.LogInformation( "All routers" );
             ShowRouletteStatistics( Roulette );
@@ -182,7 +188,7 @@ namespace I2PCore
 
             if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
             {
-                if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Key.PublishedDate ).TotalSeconds > 2 )
+                if ( ( (DateTime)info.PublishedDate - (DateTime)indb.Router.PublishedDate ).TotalSeconds > 2 )
                 {
                     if ( !info.VerifySignature() )
                     {
@@ -190,10 +196,12 @@ namespace I2PCore
                         return false;
                     }
 
-                    var meta = indb.Value;
+                    var meta = indb.Meta;
                     meta.Deleted = false;
                     meta.Updated = true;
-                    RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo,RouterInfoMeta>( info, meta );
+                    var re = new RouterEntry( info, meta );
+                    RouterInfos[info.Identity.IdentHash] = re;
+                    if ( re.IsFloodfill ) FloodfillInfos[info.Identity.IdentHash] = re;
                     Logging.LogDebugData( $"NetDb: Updated RouterInfo for: {info.Identity.IdentHash}" );
                 }
                 else
@@ -218,11 +226,13 @@ namespace I2PCore
                     }
                 }
 
-                var meta = new RouterInfoMeta
+                var meta = new RouterInfoMeta( info.Identity.IdentHash )
                 {
                     Updated = true
                 };
-                RouterInfos[info.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>( info, meta );
+                var re = new RouterEntry( info, meta );
+                RouterInfos[info.Identity.IdentHash] = re;
+                if ( re.IsFloodfill ) FloodfillInfos[info.Identity.IdentHash] = re;
                 Logging.LogDebugData( $"NetDb: Added RouterInfo for: {info.Identity.IdentHash}" );
 
                 Statistics.IsFirewalledUpdate( 
@@ -260,7 +270,7 @@ namespace I2PCore
             {
                 if ( RouterInfos.TryGetValue( key, out var pair ) )
                 {
-                    return !pair.Value.Deleted;
+                    return !pair.Meta.Deleted;
                 }
             }
             return false;
@@ -274,8 +284,8 @@ namespace I2PCore
                 {
                     if ( RouterInfos.TryGetValue( key, out var pair ) )
                     {
-                        if ( pair.Value.Deleted ) return null;
-                        return pair.Key;
+                        if ( pair.Meta.Deleted ) return null;
+                        return pair.Router;
                     }
                 }
                 return null;
@@ -290,7 +300,16 @@ namespace I2PCore
                 return;
             }
 
+            if ( LeaseSets.TryGetValue( leaseset.Destination.IdentHash, out var extls ) )
+            {
+                if ( extls.EndOfLife > leaseset.EndOfLife )
+                {
+                    return;
+                }
+            }
+
             LeaseSets[leaseset.Destination.IdentHash] = leaseset;
+
             if ( LeaseSetUpdates != null ) ThreadPool.QueueUserWorkItem( a => LeaseSetUpdates( leaseset ) );
         }
 
@@ -305,33 +324,29 @@ namespace I2PCore
             {
                 lock ( RouterInfos )
                 {
-                    if ( RouterInfos.TryGetValue( key, out var result ) ) yield return result.Key;
+                    if ( RouterInfos.TryGetValue( key, out var result ) ) yield return result.Router;
                 }
             }
         }
 
         public void RemoveRouterInfo( I2PIdentHash hash )
         {
-            lock ( RouterInfos )
+            if ( RouterInfos.TryGetValue( hash, out var p ) )
             {
-                if ( RouterInfos.TryGetValue( hash, out var p ) )
-                {
-                    p.Value.Deleted = true;
-                }
+                p.Meta.Deleted = true;
             }
+            FloodfillInfos.TryRemove( hash, out _ );
         }
 
         public void RemoveRouterInfo( IEnumerable<I2PIdentHash> hashes )
         {
-            lock ( RouterInfos )
+            foreach ( var hash in hashes )
             {
-                foreach ( var hash in hashes )
+                if ( RouterInfos.TryGetValue( hash, out var p ) )
                 {
-                    if ( RouterInfos.TryGetValue( hash, out var p ) )
-                    {
-                        p.Value.Deleted = true;
-                    }
+                    p.Meta.Deleted = true;
                 }
+                FloodfillInfos.TryRemove( hash, out _ );
             }
         }
 
@@ -359,14 +374,10 @@ namespace I2PCore
 
         public IEnumerable<I2PRouterInfo> FindRouterInfo( Func<I2PIdentHash,I2PRouterInfo,bool> filter )
         {
-            lock ( RouterInfos )
-            {
-                return RouterInfos
-                    .Where( ri => filter( ri.Key, ri.Value.Key ) )
-                    .Select( ri => ri.Value.Key )
-                    .ToArray();
-            }
+            return RouterInfos
+                .Where( ri => filter( ri.Key, ri.Value.Router ) )
+                .Select( ri => ri.Value.Router )
+                .ToArray();
         }
-
     }
 }

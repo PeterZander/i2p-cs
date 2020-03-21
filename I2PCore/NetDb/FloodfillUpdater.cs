@@ -358,7 +358,7 @@ namespace I2PCore
                 {
                     Id = i,
                     NetDb.Inst.Statistics[i].Score
-                } );
+                } ).ToArray();
 
             var scores = p.Select( wr => wr.Score );
             var pmin = scores.Min();

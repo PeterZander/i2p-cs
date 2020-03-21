@@ -57,6 +57,8 @@ namespace I2P.I2CP
         internal I2CPState CurrentState;
         private NetworkStream MyStream;
 
+        internal TickCounter LastReception = TickCounter.Now;
+
         readonly byte[] RecvBuf = new byte[8192];
 
         // We are host
@@ -110,6 +112,8 @@ namespace I2P.I2CP
                             Logging.LogDebug( $"{this}: Failed to read message {msglen}. Got {readlen} bytes." );
                             break;
                         }
+
+                        LastReception.SetNow();
 
                         var nextstate = CurrentState.MessageReceived(
                             GetMessage(

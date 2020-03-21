@@ -43,7 +43,7 @@ namespace I2PCore.TransportLayer.SSU
 
             foreach ( var one in introducers )
             {
-                Logging.LogInformation( $"RelayRequestState {Session.DebugId} " +
+                Logging.LogTransport( $"RelayRequestState {Session.DebugId} " +
                     $"Trying {one.Key.EndPoint} to reach " +
                     $"{Session.RemoteAddr.Options.TryGet( "host" )?.ToString() ?? Session.RemoteAddr.Options.ToString()}" );
             }

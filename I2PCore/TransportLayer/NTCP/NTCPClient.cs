@@ -171,7 +171,7 @@ namespace I2PCore.TransportLayer.NTCP
                     data.BaseArrayOffset, 
                     data.Length, 
                     SocketFlags.None, 
-                    new AsyncCallback( SendCompleted ), 
+                    SendCompleted,
                     null );
         }
 
@@ -183,6 +183,12 @@ namespace I2PCore.TransportLayer.NTCP
 #if LOG_MUCH_TRANSPORT
                 //Logging.LogTransport( string.Format( "NTCP {1} Async complete: {0} bytes [0x{0:X}]", cd, DebugId ) );
 #endif
+            }
+            catch ( SocketException )
+            {
+                Logging.LogTransport( $"NTCP {DebugId} SendCompleted SocketException" );
+                Terminated = true;
+                return;
             }
             catch ( Exception ex )
             {
@@ -200,7 +206,7 @@ namespace I2PCore.TransportLayer.NTCP
             }
             catch ( Exception ex )
             {
-                Logging.Log( "NTCP SendCompleted TryInitiateSend", ex );
+                Logging.LogDebug( "NTCP SendCompleted TryInitiateSend", ex );
                 Terminated = true;
             }
         }
@@ -210,7 +216,7 @@ namespace I2PCore.TransportLayer.NTCP
             if ( NTCPContext == null ) throw new Exception( "NTCP Session not negotiated!" );
             if ( NTCPContext.Encryptor == null ) throw new Exception( "NTCP encryptor not available" );
 
-            var data = msg != null ? msg.CreateHeader16.HeaderAndPayload: null;
+            var data = msg?.CreateHeader16.HeaderAndPayload;
 
             var datalength = msg == null ? 4 : data.Length;
             var buflen = 2 + datalength + 4;

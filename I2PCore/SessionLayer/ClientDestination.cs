@@ -18,6 +18,8 @@ namespace I2PCore.SessionLayer
 {
     public class ClientDestination: IClient
     {
+        static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 2 );
+
         public static readonly TickSpan InitiatorInactivityLimit = TickSpan.Minutes( 5 );
 
         public int LowWatermarkForNewTags { get; set; } = 7;
@@ -30,6 +32,13 @@ namespace I2PCore.SessionLayer
         public event DestinationDataReceived DataReceived;
 
         public string Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this <see cref="T:I2PCore.SessionLayer.ClientDestination"/>
+        /// automatic idle update remotes with the latest published leases.
+        /// </summary>
+        /// <value><c>true</c> if automatic idle update remotes; otherwise, <c>false</c>.</value>
+        public bool AutomaticIdleUpdateRemotes { get; set; } = false;
 
         /// <summary>
         /// New inbound tunnels was established. To be able to publish them
@@ -76,8 +85,12 @@ namespace I2PCore.SessionLayer
 #endif
 
                 SignedLeasesField = value;
-                ThreadPool.QueueUserWorkItem( a => 
-                    UpdateNetworkWithPublishedLeases() );
+                MyRemoteDestinations.LeaseSetIsUpdated();
+
+                if ( PublishDestination )
+                {
+                    NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
+                }
             }
         }
         public I2PLeaseSet SignedLeasesField = null;
@@ -87,6 +100,8 @@ namespace I2PCore.SessionLayer
         /// </summary>
         /// <value>The destination.</value>
         public I2PDestination Destination { get; private set; }
+
+        readonly I2PLeaseInfo DestinationLeaseInfo;
 
         readonly bool PublishDestination;
 
@@ -186,7 +201,17 @@ namespace I2PCore.SessionLayer
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
 
             IncommingSessions = new DecryptReceivedSessions( this, ThisDestinationInfo.PrivateKey );
-            EstablishedLeases = new I2PLeaseSet( Destination, null, null );
+
+            // TODO: Use separate keys
+            DestinationLeaseInfo = new I2PLeaseInfo(
+                                    Destination.PublicKey,
+                                    Destination.SigningPublicKey,
+                                    null, 
+                                    ThisDestinationInfo.PrivateSigningKey );
+            EstablishedLeases = new I2PLeaseSet(
+                    Destination,
+                    null,
+                    DestinationLeaseInfo );
 
             ReadAppConfig();
         }
@@ -205,7 +230,16 @@ namespace I2PCore.SessionLayer
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
 
             IncommingSessions = new DecryptReceivedSessions( this, privkey );
-            EstablishedLeases = new I2PLeaseSet( Destination, null, null );
+
+            // TODO: Use separate keys
+            DestinationLeaseInfo = new I2PLeaseInfo(
+                                    Destination.PublicKey,
+                                    Destination.SigningPublicKey,
+                                    null, null );
+            EstablishedLeases = new I2PLeaseSet(
+                    Destination,
+                    null,
+                    DestinationLeaseInfo );
 
             ReadAppConfig();
         }
@@ -323,14 +357,14 @@ namespace I2PCore.SessionLayer
         {
             if ( Terminated ) return;
 
-            KeepRemotesUpdated.Do( () =>
+            if ( AutomaticIdleUpdateRemotes )
             {
-                if ( MyRemoteDestinations.LastUpdate.DeltaToNow > TickSpan.Minutes( 5 ) )
+                KeepRemotesUpdated.Do( () =>
                 {
                     UpdateNetworkWithPublishedLeases();
                     UpdateClientState();
-                }
-            } );
+                } );
+            }
 
             QueueStatusLog.Do( () =>
             {
@@ -532,12 +566,7 @@ namespace I2PCore.SessionLayer
                 return;
             }
 
-            if ( PublishDestination )
-            {
-                NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
-            }
-
-            var lsl = MyRemoteDestinations.DestinationsToUpdate;
+            var lsl = MyRemoteDestinations.DestinationsToUpdate( 2 );
             foreach( var dest in lsl )
             {
                 UpdateRemoteDestinationWithLeases( dest.Value );
@@ -599,6 +628,7 @@ namespace I2PCore.SessionLayer
                     lsinfo.LeaseSet,
                     SignedLeases,
                     SelectInboundTunnel,
+                    false,
                     new GarlicClove(
                         new GarlicCloveDeliveryDestination(
                             lsupdate,
@@ -778,7 +808,7 @@ namespace I2PCore.SessionLayer
         {
             if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );
 
-            var result = CheckSendPreconditions( dest.IdentHash, out var outtunnel, out var remotelease );
+            var result = CheckSendPreconditions( dest.IdentHash, out var outtunnel, out var remoteleases );
 
             if ( result != ClientStates.Established )
             {
@@ -809,11 +839,24 @@ namespace I2PCore.SessionLayer
                                 Destination, 
                                 dest ) );
 
+            var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
+
+            var newestlease = remoteleases.EndOfLife;
+            var leasehorizon = newestlease - DateTime.UtcNow;
+            if ( leasehorizon < MinLeaseLifetime )
+            {
+#if !LOG_ALL_LEASE_MGMT
+                Logging.LogDebug( $"{this} Send: Leases for {dest.IdentHash.Id32Short} is getting old ({leasehorizon}). Looking up." );
+#endif
+                LookupDestination( dest.IdentHash, ( h, ls, t ) => { }, null );
+            }
+
             return sk.Send(
                     outtunnel,
-                    remotelease,
+                    remoteleases,
                     SignedLeases,
                     SelectInboundTunnel,
+                    needsleaseupdate,
                     clove );
         }
 
@@ -829,12 +872,23 @@ namespace I2PCore.SessionLayer
 
             foreach( var msg in msgs.Data )
             {
-                ThreadPool.QueueUserWorkItem( a => Send( msgs.Destination, msg ) );
+                ThreadPool.QueueUserWorkItem( a =>
+                {
+                    try
+                    {
+                        Send( msgs.Destination, msg );
+                    }
+                    catch ( Exception ex )
+                    {
+                        Logging.LogDebug( ex );
+                    }
+                } );
             }
         }
 
         void NetDb_LeaseSetUpdates( I2PLeaseSet ls )
         {
+            MyRemoteDestinations.PassiveLeaseSetUpdate( ls );
             SendUnsentMessages( ls.Destination.IdentHash );
         }
 

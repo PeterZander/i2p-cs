@@ -409,7 +409,7 @@ namespace I2PTests
 
             var origko = new TestSessionKeyOrigin( null, origdest, destdest );
 
-            var recv = new DecryptReceivedSessions( "recv", destinfo.PrivateKey );
+            var recv = new DecryptReceivedSessions( "recv", originfo.PrivateKey );
 
             CaptureOutTunnel outtunnel = new CaptureOutTunnel( 
                     new TunnelOwner(), 
@@ -441,6 +441,7 @@ namespace I2PTests
                         publishedleases,
                         publishedleases,
                         () => replytunnel,
+                        false,
                         cloves.ToArray() );
 
                 Assert.IsTrue( outtunnel.SendQueueAccess.TryDequeue( out var tmsg ) );

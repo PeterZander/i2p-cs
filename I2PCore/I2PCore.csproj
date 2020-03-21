@@ -261,6 +261,7 @@
     <Compile Include="SessionLayer\DecryptReceivedSessions.cs" />
     <Compile Include="SessionLayer\RemoteDestinationsLeasesUpdates.cs" />
     <Compile Include="SessionLayer\SessionKeyOrigin.cs" />
+    <Compile Include="NetDb\NetDb.RouterEntry.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">

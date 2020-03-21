@@ -375,7 +375,7 @@ namespace I2PCore.Utils
             {
                 obj = s,
                 weight = weight( s )
-            } );
+            } ).ToArray();
 
 #if DEBUG
             if ( wsrc.Any( w => w.weight <= 0.0 ) )

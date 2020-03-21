@@ -24,9 +24,6 @@ namespace I2PCore.Data
         {
             Destination = dest;
 
-            PublicKey = info?.PublicKey;
-            PublicSigningKey = info?.PublicSigningKey;
-
             if ( leases != null && leases.Any() )
             {
                 foreach ( var lease in leases )
@@ -40,10 +37,13 @@ namespace I2PCore.Data
                 PublicKey = info.PublicKey;
                 PublicSigningKey = info.PublicSigningKey;
 
-                Signature = new I2PSignature( 
-                    new BufRefLen( 
-                        CreateSignature( info.PrivateSigningKey ) ),
-                    info.PrivateSigningKey.Certificate );
+                if ( info.PrivateSigningKey != null )
+                {
+                    Signature = new I2PSignature(
+                        new BufRefLen(
+                            CreateSignature( info.PrivateSigningKey ) ),
+                        info.PrivateSigningKey.Certificate );
+                }
             }
         }
 
@@ -123,16 +123,18 @@ namespace I2PCore.Data
 
         public bool VerifySignature( I2PSigningPublicKey spkey )
         {
-            var versig = I2PSignature.SupportedSignatureType( spkey.Certificate.SignatureType );
-
-            if ( !versig )
+            try
             {
-                Logging.LogDebug( $"I2PLeaseSet: VerifySignature false. Not supported: " +
-                    $"{spkey.Certificate.SignatureType}" );
-                return false;
-            }
+                var versig = I2PSignature.SupportedSignatureType( spkey.Certificate.SignatureType );
 
-            var signfields = new List<BufLen>
+                if ( !versig )
+                {
+                    Logging.LogDebug( $"I2PLeaseSet: VerifySignature false. Not supported: " +
+                        $"{spkey.Certificate.SignatureType}" );
+                    return false;
+                }
+
+                var signfields = new List<BufLen>
             {
                 new BufLen( Destination.ToByteArray() ),
                 PublicKey.Key,
@@ -140,19 +142,25 @@ namespace I2PCore.Data
                 BufUtils.To8BL( (byte)LeasesField.Count )
             };
 
-            foreach ( var lease in LeasesField )
-            {
-                signfields.Add( new BufLen( lease.ToByteArray() ) );
-            }
+                foreach ( var lease in LeasesField )
+                {
+                    signfields.Add( new BufLen( lease.ToByteArray() ) );
+                }
 
-            versig = I2PSignature.DoVerify( spkey, Signature, signfields.ToArray() );
-            if ( !versig )
+                versig = I2PSignature.DoVerify( spkey, Signature, signfields.ToArray() );
+                if ( !versig )
+                {
+                    Logging.LogDebug( $"I2PLeaseSet: I2PSignature.DoVerify failed: {spkey.Certificate.SignatureType}" );
+                    return false;
+                }
+
+                return true;
+            }
+            catch ( Exception ex )
             {
-                Logging.LogDebug( $"I2PLeaseSet: I2PSignature.DoVerify failed: {spkey.Certificate.SignatureType}" );
+                Logging.LogDebug( ex );
                 return false;
             }
-
-            return true;
         }
 
         public void Write( BufRefStream dest )
@@ -192,6 +200,19 @@ namespace I2PCore.Data
             }
 
             return I2PSignature.DoSign( privsignkey, signfields.ToArray() );
+        }
+
+        /// <summary>
+        /// UTC of the largest EndDate for a lease
+        /// </summary>
+        /// <value>The end of life.</value>
+        public DateTime EndOfLife
+        {
+            get
+            {
+                if ( !Leases?.Any() ?? true ) return DateTime.UtcNow;
+                return (DateTime)Leases.Max( l => l.EndDate );
+            }
         }
 
         public override string ToString()

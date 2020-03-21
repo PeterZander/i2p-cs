@@ -1,6 +1,4 @@
-﻿#define NO_MANUAL_SIGN
-
-using System;
+﻿using System;
 using I2PCore.Data;
 using System.Net.Sockets;
 using System.IO;
@@ -127,7 +125,7 @@ namespace I2PEchoServer
             var unzip = LZUtils.BCGZipDecompressNew( (BufLen)reader );
             var packet = new StreamingPacket( (BufRefLen)unzip );
 
-            Logging.LogInformation( $"Program {PublishedDestination}: {packet}" );
+            Logging.LogInformation( $"Program {PublishedDestination}: {packet} {packet.Payload}" );
 
             PublishedDestination.LookupDestination( packet?.From.IdentHash, ( hash, ls, tag ) =>
             {
@@ -142,7 +140,8 @@ namespace I2PEchoServer
                         PacketFlags.SYNCHRONIZE
                         | PacketFlags.FROM_INCLUDED
                         | PacketFlags.SIGNATURE_INCLUDED
-                        | PacketFlags.MAX_PACKET_SIZE_INCLUDED )
+                        | PacketFlags.MAX_PACKET_SIZE_INCLUDED
+                        | PacketFlags.NO_ACK )
                 {
                     From = PublishedDestination.Destination,
                     SigningKey = MyDestinationInfo.PrivateSigningKey,

@@ -117,29 +117,35 @@ namespace I2PCore
                 ConcurrentBag<I2PIdentHash> exclude,
                 bool nextset )
         {
-            lock ( RouletteFloodFill.Wheel )
-            {
-                var minfit = RouletteFloodFill.AverageFit -
-                        Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
+            var minfit = RouletteFloodFill.AverageFit -
+                    Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
 
-                var subset = RouletteFloodFill.Wheel
-                        .Where( inf => inf.Fit > minfit );
+            var subset = ( exclude != null && exclude.Any() )
+                ? FloodfillInfos.Where( inf => !exclude.Contains( inf.Key ) )
+                : FloodfillInfos;
 
-                subset = ( exclude != null && exclude.Any() )
-                    ? subset.Where( inf => !exclude.Contains( inf.Id ) )
-                    : subset;
+            var refkey = nextset
+                ? dest.NextRoutingKey
+                : dest.RoutingKey;
 
-                var refkey = nextset
-                    ? dest.NextRoutingKey
-                    : dest.RoutingKey;
+            var qlist = subset
+                    .Select( ri => new
+                    {
+                        Id = ri.Key,
+                        Q = ri.Value.CachedStatistics
+                    } )
+                    .Where( inf => ( inf.Q?.Score ?? 0f ) > minfit );
 
-                return subset
-                    .Select( p => new { p.Id, Dist = p.Id ^ refkey } )
-                    .OrderBy( p => p.Dist )
-                    .Take( count )
-                    .Select( p => p.Id )
-                    .ToArray();
-            }
+            return qlist
+                .Select( p => new
+                {
+                    p.Id,
+                    Dist = p.Id ^ refkey
+                } )
+                .OrderBy( p => p.Dist )
+                .Take( count )
+                .Select( p => p.Id )
+                .ToArray();
         }
 
         public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo(

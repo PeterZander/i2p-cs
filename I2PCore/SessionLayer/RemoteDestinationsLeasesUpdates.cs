@@ -17,24 +17,29 @@ namespace I2PCore.SessionLayer
     /// </summary>
     public class RemoteDestinationsLeasesUpdates
     {
+        public TickSpan TimeBetweenLeasesUpdates = TickSpan.Minutes( 3 );
+
         public class DestLeaseInfo
         {
             public int LookupFailures = 0;
             public I2PLeaseSet LeaseSet;
             internal TickCounter LastUse = TickCounter.Now;
+            internal TickCounter LastUpdate = new TickCounter();
         }
 
         ConcurrentDictionary<I2PIdentHash, DestLeaseInfo> Subscribers =
                 new ConcurrentDictionary<I2PIdentHash, DestLeaseInfo>();
         private readonly object Owner;
 
-        public TickCounter LastUpdate { get; private set; } = new TickCounter();
-
         public RemoteDestinationsLeasesUpdates( object owner )
         {
             Owner = owner;
         }
 
+        /// <summary>
+        /// This is used for destinations we have actively looked up.
+        /// </summary>
+        /// <param name="ls">Ls.</param>
         public void LeaseSetReceived( I2PLeaseSet ls )
         {
             if ( !Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
@@ -54,6 +59,21 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        /// <summary>
+        /// This is for any received lease update
+        /// </summary>
+        /// <param name="ls">Ls.</param>
+        internal void PassiveLeaseSetUpdate( I2PLeaseSet ls )
+        {
+            if ( Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
+            {
+                Logging.LogDebug(
+                    $"{Owner} RemoteDestinations: updating {ls.Destination} (passive)" );
+
+                info.LeaseSet = ls;
+            }
+        }
+
         public void PurgeExpired()
         {
             foreach( var dest in Subscribers )
@@ -62,14 +82,17 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public IEnumerable<KeyValuePair<I2PIdentHash, DestLeaseInfo>> DestinationsToUpdate
+        public IEnumerable<KeyValuePair<I2PIdentHash, DestLeaseInfo>> DestinationsToUpdate( int maxcount )
         {
-            get
-            {
-                PurgeExpired();
-                LastUpdate.SetNow();
-                return Subscribers;
-            }
+            PurgeExpired();
+            var result = Subscribers
+                    .Where( s => s.Value.LastUpdate.DeltaToNow > TimeBetweenLeasesUpdates )
+                    .OrderByDescending( s => s.Value.LastUpdate.DeltaToNow )
+                    .Take( maxcount )
+                    .Select( s => { s.Value.LastUpdate.SetNow(); return s; } )
+                    .ToArray();
+
+            return result;
         }
 
         public bool IsEmpty
@@ -87,10 +110,35 @@ namespace I2PCore.SessionLayer
 
             if ( result != null && updateactivity )
             {
-                result.LastUse = TickCounter.Now;
+                result.LastUse.SetNow();
+                result.LastUpdate.SetNow();
             }
 
             return result;
+        }
+
+        public bool NeedsLeasesUpdate( I2PIdentHash d, bool updateactivity = true )
+        {
+            var remote = Subscribers.TryGetValue( d, out var ls ) ? ls : null;
+            if ( remote is null ) return false;
+
+            var result = remote.LastUpdate.DeltaToNow > TimeBetweenLeasesUpdates;
+            if ( result && updateactivity )
+            {
+                remote.LastUse.SetNow();
+                remote.LastUpdate.SetNow();
+            }
+
+            return result;
+        }
+
+        internal void LeaseSetIsUpdated()
+        {
+            var t = TickCounter.Now - TickSpan.Minutes( 10 );
+            foreach ( var s in Subscribers )
+            {
+                s.Value.LastUpdate = t;
+            }
         }
 
         internal void Remove( I2PIdentHash d )

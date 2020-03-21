@@ -47,30 +47,22 @@ namespace I2P.I2CP
 
                         while ( !Terminated )
                         {
-                            Thread.Sleep( 200 );
+                            Thread.Sleep( 10000 );
 
-                            /*
-                            var terminated = Sessions
-                                        .Where( c => c.Value.Terminated )
-                                        .ToArray();
+                            var stuck = Sessions.Where( s =>
+                                    s.Value.LastReception.DeltaToNow > TickSpan.Minutes( 5 ) );
 
-                            foreach ( var one in terminated )
-                            {
-                                Sessions.TryRemove( one.Key, out _ );
-                            }
-                            
-                            foreach ( var one in Sessions.ToArray() )
+                            foreach ( var one in stuck )
                             {
                                 try
                                 {
-                                    one.Value.Run();
+                                    one.Value.Terminate();
                                 }
                                 catch ( Exception ex )
                                 {
-                                    one.Value.Terminate();
                                     Logging.Log( ex );
                                 }
-                            }*/
+                            }
                         }
                     }
                     catch ( ThreadAbortException ex )

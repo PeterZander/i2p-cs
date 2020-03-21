@@ -6,7 +6,7 @@ using System.IO;
 using I2PCore.Utils;
 using System.Diagnostics;
 using I2PCore.SessionLayer;
-using CM = System.Configuration.ConfigurationManager;
+using static System.Configuration.ConfigurationManager;
 
 namespace I2PCore
 {
@@ -15,14 +15,16 @@ namespace I2PCore
         const int DefaultStoreChunkSize = 512;
         enum StoreRecordId : int { StoreIdRouterInfo = 1, StoreIdLeaseSet = 2, StoreIdConfig = 3 };
 
-        class RouterInfoMeta
+        protected class RouterInfoMeta
         {
             public int StoreIx;
             public bool Updated;
             public bool Deleted;
+            public I2PIdentHash Id;
 
-            public RouterInfoMeta()
+            public RouterInfoMeta( I2PIdentHash id )
             {
+                Id = id;
                 StoreIx = -1;
             }
 
@@ -95,6 +97,7 @@ namespace I2PCore
                                 {
                                     s.Delete( ix );
                                     RouterInfos.TryRemove( one.Identity.IdentHash, out _ );
+                                    FloodfillInfos.TryRemove( one.Identity.IdentHash, out _ );
                                     Statistics.DestinationInformationFaulty( one.Identity.IdentHash );
 
                                     continue;
@@ -111,9 +114,11 @@ namespace I2PCore
                                     }
                                 }
 
-                                RouterInfos[one.Identity.IdentHash] = new KeyValuePair<I2PRouterInfo, RouterInfoMeta>(
+                                var re = new RouterEntry(
                                     one,
                                     new RouterInfoMeta( ix ) );
+                                RouterInfos[one.Identity.IdentHash] = re;
+                                if ( re.IsFloodfill ) FloodfillInfos[one.Identity.IdentHash] = re;
                                 break;
 
                             case StoreRecordId.StoreIdConfig:
@@ -179,39 +184,40 @@ namespace I2PCore
                 {
                     try
                     {
-                        if ( one.Value.Value.Deleted )
+                        if ( one.Value.Meta.Deleted )
                         {
-                            if ( one.Value.Value.StoreIx > 0 ) s.Delete( one.Value.Value.StoreIx );
+                            if ( one.Value.Meta.StoreIx > 0 ) s.Delete( one.Value.Meta.StoreIx );
                             RouterInfos.TryRemove( one.Key, out _ );
+                            FloodfillInfos.TryRemove( one.Key, out _ );
                             ++deleted;
                             continue;
                         }
 
-                        if ( !onlyupdated || ( onlyupdated && one.Value.Value.Updated ) )
+                        if ( !onlyupdated || ( onlyupdated && one.Value.Meta.Updated ) )
                         {
                             var rec = new BufLen[] 
                             { 
                                 BufUtils.To32BL( (int)StoreRecordId.StoreIdRouterInfo ), 
-                                new BufLen( one.Value.Key.ToByteArray() ) 
+                                new BufLen( one.Value.Router.ToByteArray() ) 
                             };
 
-                            if ( one.Value.Value.StoreIx > 0 )
+                            if ( one.Value.Meta.StoreIx > 0 )
                             {
-                                s.Write( rec, one.Value.Value.StoreIx );
+                                s.Write( rec, one.Value.Meta.StoreIx );
                                 ++updated;
                             }
                             else
                             {
-                                one.Value.Value.StoreIx = s.Write( rec );
+                                one.Value.Meta.StoreIx = s.Write( rec );
                                 ++created;
                             }
-                            one.Value.Value.Updated = false;
+                            one.Value.Meta.Updated = false;
                         }
                     }
                     catch ( Exception ex )
                     {
                         Logging.LogDebug( "NetDb: Save: Store exception: " + ex.ToString() );
-                        one.Value.Value.StoreIx = -1;
+                        one.Value.Meta.StoreIx = -1;
                     }
                 }
 
@@ -264,21 +270,19 @@ namespace I2PCore
         private void RemoveOldRouterInfos()
         {
             var inactive = Statistics.GetInactive();
-            lock ( RouterInfos )
-            {
-                var old = RouterInfos.Where( ri =>
-                    ( DateTime.Now - (DateTime)ri.Value.Key.PublishedDate ).TotalDays > 1 )
-                        .Select( p => p.Key );
 
-                inactive.UnionWith( old );
-            }
+            var old = RouterInfos.Where( ri =>
+                ( DateTime.Now - (DateTime)ri.Value.Router.PublishedDate ).TotalDays > 1 )
+                    .Select( p => p.Key );
+
+            inactive.UnionWith( old );
 
             if ( RouterInfos.Count - inactive.Count < 400 )
             {
                 inactive = new HashSet<I2PIdentHash>(
                     inactive
                         .Where( k => RouterInfos.ContainsKey( k ) )
-                        .OrderBy( k => (DateTime)RouterInfos[k].Key.PublishedDate )
+                        .OrderBy( k => (DateTime)RouterInfos[k].Router.PublishedDate )
                         .Take( RouterInfos.Count - 400 ) );
             }
 
@@ -301,17 +305,14 @@ namespace I2PCore
 
         private void IsFirewalledUpdate()
         {
-            lock ( RouterInfos )
-            {
-                var fw = RouterInfos.Where( ri =>
-                    ri.Value.Key.Adresses.Any( a =>
-                        a.Options.Any( o =>
-                            o.Key.ToString() == "ihost0" ) ) );
+            var fw = RouterInfos.Where( ri =>
+                ri.Value.Router.Adresses.Any( a =>
+                    a.Options.Any( o =>
+                        o.Key.ToString() == "ihost0" ) ) );
 
-                foreach ( var ri in fw )
-                {
-                    Statistics.IsFirewalledUpdate( ri.Key, true );
-                }
+            foreach ( var ri in fw )
+            {
+                Statistics.IsFirewalledUpdate( ri.Key, true );
             }
         }
 
@@ -319,9 +320,9 @@ namespace I2PCore
         {
             var imported = 0;
 
-            if ( !string.IsNullOrWhiteSpace( CM.AppSettings["ReseedFile"] ) )
+            if ( !string.IsNullOrWhiteSpace( AppSettings["ReseedFile"] ) )
             {
-                var filename = CM.AppSettings["ReseedFile"];
+                var filename = AppSettings["ReseedFile"];
                 imported += Bootstrap.FileBootstrap( filename );
             }
 

@@ -84,6 +84,7 @@ namespace I2PCore.SessionLayer
                     I2PLeaseSet remoteleases,
                     I2PLeaseSet publishedleases,
                     Func<InboundTunnel> replytunnelsel,
+                    bool needsleaseupdate,
                     params GarlicClove[] cloves )
         {
             var remotelease = ClientDestination.SelectLease( remoteleases );
@@ -125,17 +126,27 @@ namespace I2PCore.SessionLayer
 
                         var replytunnel = replytunnelsel();
 
+                        var newcloveslist = new List<GarlicClove>( cloves );
+
                         var ackstatus = new DeliveryStatusMessage( newtags.MessageId );
                         var ackclove = new GarlicClove(
                                         new GarlicCloveDeliveryTunnel(
                                             ackstatus,
                                             replytunnel.Destination, replytunnel.GatewayTunnelId ) );
+                        newcloveslist.Add( ackclove );
 
-                        newcloves = new List<GarlicClove>( cloves )
+                        if ( needsleaseupdate )
                         {
-                            ackclove
-                        }.ToArray();
+                            Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.IdentHash.Id32Short}." );
 
+                            var myleases = new DatabaseStoreMessage( publishedleases );
+                            newcloveslist.Add(
+                                    new GarlicClove(
+                                        new GarlicCloveDeliveryLocal(
+                                            myleases ) ) );
+                        }
+
+                        newcloves = newcloveslist.ToArray();
                     }
 #if NO_LOG_ALL_LEASE_MGMT
                     Logging.LogInformation( $"{this}: Encrypting with session key {session.SessionKey}" );
@@ -175,9 +186,8 @@ namespace I2PCore.SessionLayer
                 var newcloves = new List<GarlicClove>
                 {
                     new GarlicClove(
-                                new GarlicCloveDeliveryDestination(
-                                    myleases,
-                                    RemoteDestination.IdentHash ) ),
+                                new GarlicCloveDeliveryLocal(
+                                    myleases ) ),
                     new GarlicClove(
                                 new GarlicCloveDeliveryTunnel(
                                     ackstatus,
