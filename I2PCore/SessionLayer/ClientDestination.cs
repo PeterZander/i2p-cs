@@ -42,7 +42,7 @@ namespace I2PCore.SessionLayer
 
         /// <summary>
         /// New inbound tunnels was established. To be able to publish them
-        /// the user of the router must sign the leases and assign to PublishedLeases
+        /// the user of the router must sign the leases and assign to SignedLeases
         /// as no signing key is available to the router.
         /// </summary>
         public event Action<I2PLeaseSet> SignLeasesRequest;
