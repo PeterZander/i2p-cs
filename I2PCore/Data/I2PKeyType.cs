@@ -50,7 +50,7 @@ namespace I2PCore.Data
 
         public BigInteger ToBigInteger()
         {
-            return new BigInteger( 1, Key.ToByteArray() );
+            return Key.ToBigInteger();
         }
 
         public override string ToString()

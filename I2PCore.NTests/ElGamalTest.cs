@@ -29,8 +29,28 @@ namespace I2PTests
                 var data = new BufLen( BufUtils.RandomBytes( 222 ) );
                 var origdata = data.Clone();
 
-                var eg = new ElGamalCrypto( Public );
-                var enc = new BufLen( eg.Encrypt( data, true ) );
+                var enc = new BufLen( ElGamalCrypto.Encrypt( data, Public, true ) );
+
+                var decryptdata = ElGamalCrypto.Decrypt( enc, Private, true );
+
+                Assert.IsTrue( decryptdata == origdata );
+            }
+        }
+
+        [Test]
+        public void TestElGamal2()
+        {
+            var buf = new byte[514];
+
+            for ( int i = 0; i < 20; ++i )
+            {
+                var data = new BufLen( BufUtils.RandomBytes( 222 ) );
+                var origdata = data.Clone();
+
+                var start = new BufRefLen( buf );
+                var writer = new BufRefLen( buf );
+                ElGamalCrypto.Encrypt( writer, data, Public, true );
+                var enc = new BufLen( start, 0, writer - start );
 
                 var decryptdata = ElGamalCrypto.Decrypt( enc, Private, true );
 
@@ -50,8 +70,7 @@ namespace I2PTests
                 data.Randomize();
                 var origdata = data.Clone();
 
-                var eg = new ElGamalCrypto( Public );
-                eg.Encrypt( writer, data, false );
+                ElGamalCrypto.Encrypt( writer, data, Public, false );
 
                 var decryptdata = ElGamalCrypto.Decrypt( new BufLen( egdata, 0, 512 ), Private, false );
 
@@ -256,12 +275,10 @@ namespace I2PTests
                     new BufRefLen( FreenetBase64.Decode( PUBLIC_KEY ) ),
                     new I2PCertificate() );
 
-            var eg = new ElGamalCrypto( pub );
-
             for ( int i = 0; i < ENCRYPTED.Length; ++i )
             {
                 var clear = new BufLen( Encoding.UTF8.GetBytes( UNENCRYPTED[i] ) );
-                var encr = new BufLen( eg.Encrypt( clear, true ) );
+                var encr = new BufLen( ElGamalCrypto.Encrypt( clear, pub, true ) );
 
                 Assert.IsTrue( encr.Length == 514 );
 

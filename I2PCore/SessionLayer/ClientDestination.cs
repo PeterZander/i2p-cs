@@ -270,7 +270,7 @@ namespace I2PCore.SessionLayer
             return TunnelProvider.SelectTunnel<OutboundTunnel>( OutboundEstablishedPool.Keys );
         }
 
-        protected I2PLease SelectLease( I2PLeaseSet ls )
+        public static I2PLease SelectLease( I2PLeaseSet ls )
         {
             return ls
                     .Leases
@@ -581,14 +581,6 @@ namespace I2PCore.SessionLayer
                 return;
             }
 
-            var intunnel = SelectLease( lsinfo.LeaseSet );
-
-            if ( intunnel is null )
-            {
-                Logging.LogDebug( $"{this} UpdateRemoteDestinationWithLeases: No remote leases available." );
-                return;
-            }
-
             var lsupdate = new DatabaseStoreMessage( SignedLeases );
 
 #if LOG_ALL_LEASE_MGMT
@@ -604,7 +596,7 @@ namespace I2PCore.SessionLayer
 
             sk.Send(
                     outtunnel,
-                    intunnel,
+                    lsinfo.LeaseSet,
                     SignedLeases,
                     SelectInboundTunnel,
                     new GarlicClove(
@@ -613,7 +605,7 @@ namespace I2PCore.SessionLayer
                             lsinfo.LeaseSet.Destination.IdentHash ) ) );
 
             Logging.LogDebug( $"{this} UpdateRemoteDestinationWithLeases: " +
-                $"Sending LS Garlic to {lsinfo.LeaseSet.Destination} from tunnel {outtunnel} to {intunnel}" );
+                $"Sending LS Garlic to {lsinfo.LeaseSet.Destination} from tunnel {outtunnel}" );
 
             return;
         }
@@ -748,20 +740,19 @@ namespace I2PCore.SessionLayer
         ClientStates CheckSendPreconditions( 
                 I2PIdentHash dest, 
                 out OutboundTunnel outtunnel, 
-                out I2PLease remotelease )
+                out I2PLeaseSet leaseset )
         {
             if ( InboundEstablishedPool.IsEmpty )
             {
-                remotelease = null;
+                leaseset = null;
                 outtunnel = null;
                 return ClientStates.NoTunnels;
             }
 
-            var rl = MyRemoteDestinations.GetLeases( dest, false );
+            leaseset = MyRemoteDestinations.GetLeases( dest, false )?.LeaseSet;
 
-            if ( rl is null )
+            if ( leaseset is null )
             {
-                remotelease = null;
                 outtunnel = null;
                 return ClientStates.NoLeases;
             }
@@ -770,13 +761,12 @@ namespace I2PCore.SessionLayer
 
             if ( outtunnel is null )
             {
-                remotelease = null;
                 return ClientStates.NoTunnels;
             }
 
-            remotelease = SelectLease( rl.LeaseSet );
+            var l = SelectLease( leaseset );
 
-            if ( remotelease is null )
+            if ( l is null )
             {
                 return ClientStates.NoLeases;
             }

@@ -50,7 +50,7 @@ namespace I2PCore.SessionLayer
         {
             Owner = owner;
             MyDestination = mydest;
-            RemoteDestination = remotedest;
+            RemoteDestination = new I2PDestination( new BufRefLen( remotedest.ToByteArray() ) );
 
             InboundTunnel.DeliveryStatusReceived += InboundTunnel_DeliveryStatusReceived;
         }
@@ -81,12 +81,14 @@ namespace I2PCore.SessionLayer
 
         public ClientStates Send( 
                     OutboundTunnel outtunnel, 
-                    I2PLease remotelease,
+                    I2PLeaseSet remoteleases,
                     I2PLeaseSet publishedleases,
                     Func<InboundTunnel> replytunnelsel,
                     params GarlicClove[] cloves )
         {
-            if ( remotelease is null )
+            var remotelease = ClientDestination.SelectLease( remoteleases );
+
+            if ( remoteleases is null || remotelease is null )
             {
                 Logging.LogDebug( $"{this}: No remote lease available." );
                 return ClientStates.NoLeases;
@@ -188,7 +190,7 @@ namespace I2PCore.SessionLayer
 
                 egmsg = Garlic.EGEncryptGarlic(
                         garlic,
-                        RemoteDestination.PublicKey,
+                        remoteleases.PublicKey,
                         newtags.SessionKey,
                         new List<I2PSessionTag>( newtags.Tags.Select( t => t.Key ) ) );
             }

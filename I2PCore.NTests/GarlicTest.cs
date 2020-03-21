@@ -438,9 +438,7 @@ namespace I2PTests
             {
                 origko.Send( 
                         outtunnel, 
-                        new I2PLease(
-                            new I2PIdentHash( true ), 
-                            new I2PTunnelId() ),
+                        publishedleases,
                         publishedleases,
                         () => replytunnel,
                         cloves.ToArray() );

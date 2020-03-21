@@ -284,6 +284,12 @@ namespace I2PCore
 
         public void AddLeaseSet( I2PLeaseSet leaseset )
         {
+            if ( !leaseset.VerifySignature( leaseset.Destination.SigningPublicKey ) )
+            {
+                Logging.LogWarning( $"LeaseSet {0} signature verification failed." );
+                return;
+            }
+
             LeaseSets[leaseset.Destination.IdentHash] = leaseset;
             if ( LeaseSetUpdates != null ) ThreadPool.QueueUserWorkItem( a => LeaseSetUpdates( leaseset ) );
         }

@@ -12,9 +12,11 @@ namespace I2PCore.Data
 {
     public class I2PPrivateKey : I2PKeyType
     {
-        public I2PPrivateKey( I2PCertificate cert ): base( cert )
+        public I2PPrivateKey( I2PCertificate cert ) : base( cert )
         {
             Key = new BufLen( BufUtils.RandomBytes( KeySizeBytes ) );
+            Key[0] |= 0x80;
+            Key[Key.Length - 1] |= 0x01;
         }
 
         public I2PPrivateKey( BufRef reader, I2PCertificate cert ) : base( reader, cert ) { }
@@ -33,10 +35,12 @@ namespace I2PCore.Data
             {
                 PrecalculatedKeys = new LinkedList<I2PDHKeyPair>();
 
-                Worker = new Thread( () => Run() );
-                Worker.Name = "DH Key pair generator";
-                Worker.Priority = ThreadPriority.Lowest;
-                Worker.IsBackground = true;
+                Worker = new Thread( () => Run() )
+                {
+                    Name = "DH Key pair generator",
+                    Priority = ThreadPriority.Lowest,
+                    IsBackground = true
+                };
                 Worker.Start();
             }
 
