@@ -129,7 +129,7 @@ namespace I2PCore
 
                     var rec = new BufLen[] 
                     { 
-                        (BufLen)(int)StoreRecordId.RouterStatistics, 
+                        new BufLen( BitConverter.GetBytes( (int)StoreRecordId.RouterStatistics ) ),
                         new BufLen( one.Value.ToByteArray() ) 
                     };
 

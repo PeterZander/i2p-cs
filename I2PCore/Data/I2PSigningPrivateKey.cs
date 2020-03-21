@@ -13,7 +13,7 @@ namespace I2PCore.Data
         public override int KeySizeBytes { get { return Certificate.SigningPrivateKeyLength; } }
 
         public I2PSigningPrivateKey( I2PCertificate cert ) 
-            : base( new BufLen( BufUtils.Random( cert.SigningPrivateKeyLength ) ), cert ) 
+            : base( new BufLen( BufUtils.RandomBytes( cert.SigningPrivateKeyLength ) ), cert ) 
         {
             if ( cert.SignatureType == SigningKeyTypes.EdDSA_SHA512_Ed25519 )
             {

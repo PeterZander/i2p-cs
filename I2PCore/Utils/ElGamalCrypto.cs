@@ -27,7 +27,6 @@ namespace I2PCore.Utils
             if ( k.CompareTo( BigInteger.Zero ) == 0 ) k = BigInteger.One;
 
             a = I2PConstants.ElGamalG.ModPow( k, I2PConstants.ElGamalP );
-
             b1 = key.ToBigInteger().ModPow( k, I2PConstants.ElGamalP );
         }
 
@@ -46,27 +45,28 @@ namespace I2PCore.Utils
             }
 
             var start = new BufLen( new byte[255] );
-            var hashbuf = new BufRefLen( start );
+            var writer = new BufRefLen( start, 1 );
 
             while ( true )
             {
-                var nz = BufUtils.Random( 1 );
-                if ( nz[0] != 0 )
+                start[0] = BufUtils.RandomBytes( 1 )[0];
+                if ( start[0] != 0 )
                 {
-                    hashbuf.Write8( nz[0] );
                     break;
                 }
             }
-            hashbuf.Write( I2PHashSHA256.GetHash( data ) );
-            hashbuf.Write( data );
-            var egblock = new BufLen( start, 0, hashbuf - start );
 
-            var b = b1.Multiply( 
-                    new BigInteger( 
-                            1,
-                            egblock.BaseArray,
-                            egblock.BaseArrayOffset,
-                            egblock.Length ) )
+            writer.Write( I2PHashSHA256.GetHash( data ) );
+            writer.Write( data );
+            var egblock = new BufLen( start, 0, writer - start );
+
+            var b = b1
+                    .Multiply( 
+                        new BigInteger( 
+                                1,
+                                egblock.BaseArray,
+                                egblock.BaseArrayOffset,
+                                egblock.Length ) )
                     .Mod( I2PConstants.ElGamalP );
 
             dest.Write( new BufLen( a.ToByteArray( 257 ), zeropad ? 0 : 1 ) );

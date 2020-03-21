@@ -380,7 +380,7 @@ namespace I2PCore.SessionLayer
                 File.WriteAllText( $"Garlic_{DateTime.Now.ToLongTimeString()}.b64", st );
                 */
 
-                var decr = IncommingSessions.DecryptMessage( msg.Garlic );
+                var decr = IncommingSessions.DecryptMessage( msg );
                 if ( decr == null )
                 {
                     Logging.LogWarning( $"{this}: GarlicMessageReceived: Failed to decrypt garlic." );

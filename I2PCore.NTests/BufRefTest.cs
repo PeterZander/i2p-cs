@@ -13,8 +13,8 @@ namespace I2PTests
         public void TestBufLen()
         {
             BufLen b1null = null;
-            var b1 = new BufLen( BufUtils.Random( 70 ) );
-            var b2 = new BufLen( BufUtils.Random( 70 ) );
+            var b1 = new BufLen( BufUtils.RandomBytes( 70 ) );
+            var b2 = new BufLen( BufUtils.RandomBytes( 70 ) );
             b1[0] = 2;
             b2[0] = 1;
 
@@ -82,6 +82,25 @@ namespace I2PTests
             Assert.IsTrue( b1 > b2 );
             Assert.IsTrue( b1 < b3 );
             Assert.IsTrue( b2 < b3 );
+        }
+
+        [Test]
+        public void TestBufLenHex()
+        {
+            var b1 = new BufLen( BufUtils.RandomBytes( 200 ) );
+            var st = b1.ToHexDump();
+            var linecount = st.Split( new char[] { '\n' } ).Count();
+            Assert.IsTrue( linecount == 14 );
+
+            b1 = new BufLen( BufUtils.RandomBytes( 400 ) );
+            st = b1.ToHexDump();
+            linecount = st.Split( new char[] { '\n' } ).Count();
+            Assert.IsTrue( linecount == 26 );
+
+            b1 = new BufLen( BufUtils.RandomBytes( 400 ) );
+            st = b1.ToHexDump( 8 );
+            linecount = st.Split( new char[] { '\n' } ).Count();
+            Assert.IsTrue( linecount == 51 );
         }
     }
 }

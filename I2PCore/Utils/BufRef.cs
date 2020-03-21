@@ -879,28 +879,6 @@ namespace I2PCore.Utils
             return new BufRefLen( buf, 0, buf.Length );
         }
 
-        public static explicit operator BufLen( int value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( uint value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( ushort value )
-        {
-            var ar = BitConverter.GetBytes( value );
-            return new BufLen( ar, 0, ar.Length );
-        }
-
-        public static explicit operator BufLen( byte value )
-        {
-            return new BufLen( new byte[] { value } );
-        }
         #endregion
 
         #region IEnumerable<byte> Members
@@ -1093,6 +1071,23 @@ namespace I2PCore.Utils
                 hash += hash << 5;
                 return hash;
             }
+        }
+
+        public string ToHexDump( int width = 16 )
+        {
+            var result = new StringBuilder();
+            var lines = this.Chunk( a => width );
+            var linestart = 0;
+            _ = lines
+                .Select( line => line.Count() < width 
+                        ? line.Select( b => (int)b ).Concat( Enumerable.Range( 1, width - line.Count() ).Select( c => (int)-1 ) )
+                        : line.Select( b => (int)b ) )
+                .Select( line => $"{linestart:X4} : " +
+                        $"{string.Join( " ", line.Select( b => ( b < 0 ? "   " : $"{b:X2} " ) ) )} | " +
+                        $"{string.Join( "", line.Select( b => $"{( b < 0 ? ' ' : ( b > 30 ? (char)(byte)b : '.' ) )}" ) )}" )
+                            .Select( line => { result.AppendLine( line ); linestart += width; return ""; } )
+                            .ToArray();
+            return result.ToString();
         }
 
         #endregion

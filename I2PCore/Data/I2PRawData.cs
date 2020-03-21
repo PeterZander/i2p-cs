@@ -12,7 +12,7 @@ namespace I2PCore.Data
 
         public I2PRawData( int bytes, bool random )
         {
-            Data = random ? BufUtils.Random( bytes ): new byte[bytes];
+            Data = random ? BufUtils.RandomBytes( bytes ): new byte[bytes];
         }
 
         public I2PRawData( byte b )

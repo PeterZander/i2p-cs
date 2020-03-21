@@ -184,7 +184,7 @@ namespace I2PDemo
                                 {
                                     // Send some data to the MyDestination
                                     DataSent = new BufLen(
-                                                    BufUtils.Random(
+                                                    BufUtils.RandomBytes(
                                                         (int)( 1 + BufUtils.RandomDouble( 25 ) * 1024 ) ) );
 
                                     var ok = MyOrigin.Send( LookedUpDestination, DataSent );

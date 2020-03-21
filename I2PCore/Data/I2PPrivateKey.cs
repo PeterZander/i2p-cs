@@ -14,7 +14,7 @@ namespace I2PCore.Data
     {
         public I2PPrivateKey( I2PCertificate cert ): base( cert )
         {
-            Key = new BufLen( BufUtils.Random( KeySizeBytes ) );
+            Key = new BufLen( BufUtils.RandomBytes( KeySizeBytes ) );
         }
 
         public I2PPrivateKey( BufRef reader, I2PCertificate cert ) : base( reader, cert ) { }

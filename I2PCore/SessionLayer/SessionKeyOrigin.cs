@@ -98,7 +98,7 @@ namespace I2PCore.SessionLayer
                 return ClientStates.NoTunnels;
             }
 
-            EGGarlic egmsg = null;
+            GarlicMessage egmsg = null;
 
         again:
 
@@ -195,7 +195,7 @@ namespace I2PCore.SessionLayer
 
             outtunnel.Send(
                 new TunnelMessageTunnel(
-                    new GarlicMessage( egmsg ),
+                    egmsg,
                     remotelease.TunnelGw, remotelease.TunnelId ) );
 
             return ClientStates.Established;

@@ -32,7 +32,7 @@ namespace I2PCore.Data
             Certificate = cert;
         }
 
-        public I2PKeyType( BufRef buf, I2PCertificate cert )
+        protected I2PKeyType( BufRef buf, I2PCertificate cert )
         {
             Certificate = cert;
             Key = buf.ReadBufLen( KeySizeBytes );
@@ -46,7 +46,6 @@ namespace I2PCore.Data
         public byte[] ToByteArray()
         {
             return Key.ToByteArray();
-            //return Key.ToByteArray( KeySizeBytes );
         }
 
         public BigInteger ToBigInteger()

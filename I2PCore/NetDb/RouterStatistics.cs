@@ -172,7 +172,7 @@ namespace I2PCore
             Id.Write( dest );
             LastSeen.Write( dest );
             Created.Write( dest );
-            dest.Write( BufUtils.Random( 52 ) ); // Reserved space
+            dest.Write( BufUtils.RandomBytes( 52 ) ); // Reserved space
 
             var mapping = CreateMapping();
 

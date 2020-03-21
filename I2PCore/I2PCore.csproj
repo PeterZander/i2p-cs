@@ -174,7 +174,6 @@
     <Compile Include="TunnelLayer\I2NP\Data\AesEGBuildRequestRecord.cs" />
     <Compile Include="TunnelLayer\I2NP\Data\BuildRequestRecord.cs" />
     <Compile Include="TunnelLayer\I2NP\Data\Garlic.cs" />
-    <Compile Include="TunnelLayer\I2NP\Data\EGGarlic.cs" />
     <Compile Include="TunnelLayer\I2NP\Data\GarlicClove.cs" />
     <Compile Include="TunnelLayer\I2NP\Data\GarlicCloveDelivery.cs" />
     <Compile Include="TunnelLayer\I2NP\Data\I2NPHeader.cs" />

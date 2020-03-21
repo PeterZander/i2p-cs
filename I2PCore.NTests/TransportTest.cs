@@ -69,7 +69,7 @@ namespace I2PTests
             var client = remotehost.AddSession( addr, testcontext.MyRouterIdentity );
             client.Connect();
 
-            var data = new BufLen( BufUtils.Random( 30000 ) );
+            var data = new BufLen( BufUtils.RandomBytes( 30000 ) );
 
             var messagecount = 900; // If the out queue is larger than 1000 msgs we start discarding them
 
@@ -211,13 +211,13 @@ namespace I2PTests
         {
             var fragmenter = new DataFragmenter();
 
-            var smalldata = new BufLen( BufUtils.Random( 30 ) );
+            var smalldata = new BufLen( BufUtils.RandomBytes( 30 ) );
             var smalldatamessage = new DataMessage( smalldata );
 
-            var data = new BufLen( BufUtils.Random( 30000 ) );
+            var data = new BufLen( BufUtils.RandomBytes( 30000 ) );
             var datamessage = new DataMessage( data );
 
-            var data2 = new BufLen( BufUtils.Random( 30000 ) );
+            var data2 = new BufLen( BufUtils.RandomBytes( 30000 ) );
             var datamessage2 = new DataMessage( data2 );
 
             var dest = new byte[MTUConfig.BufferSize];
@@ -282,22 +282,22 @@ namespace I2PTests
         {
             var fragmenter = new DataFragmenter();
 
-            var smalldata = new BufLen( BufUtils.Random( 4 + BufUtils.RandomInt( 4 ) ) );
+            var smalldata = new BufLen( BufUtils.RandomBytes( 4 + BufUtils.RandomInt( 4 ) ) );
             var smalldatamessage = new DataMessage( smalldata );
 
-            var smalldata1 = new BufLen( BufUtils.Random( 40 + BufUtils.RandomInt( 14 ) ) );
+            var smalldata1 = new BufLen( BufUtils.RandomBytes( 40 + BufUtils.RandomInt( 14 ) ) );
             var smalldatamessage1 = new DataMessage( smalldata1 );
 
-            var smalldata2 = new BufLen( BufUtils.Random( 130 + BufUtils.RandomInt( 39 ) ) );
+            var smalldata2 = new BufLen( BufUtils.RandomBytes( 130 + BufUtils.RandomInt( 39 ) ) );
             var smalldatamessage2 = new DataMessage( smalldata2 );
 
-            var smalldata3 = new BufLen( BufUtils.Random( 770 + BufUtils.RandomInt( 220 ) ) );
+            var smalldata3 = new BufLen( BufUtils.RandomBytes( 770 + BufUtils.RandomInt( 220 ) ) );
             var smalldatamessage3 = new DataMessage( smalldata3 );
 
-            var data = new BufLen( BufUtils.Random( 30000 + BufUtils.RandomInt( 30 ) ) );
+            var data = new BufLen( BufUtils.RandomBytes( 30000 + BufUtils.RandomInt( 30 ) ) );
             var datamessage = new DataMessage( data );
 
-            var data2 = new BufLen( BufUtils.Random( 20000 + BufUtils.RandomInt( 1040 ) ) );
+            var data2 = new BufLen( BufUtils.RandomBytes( 20000 + BufUtils.RandomInt( 1040 ) ) );
             var datamessage2 = new DataMessage( data2 );
 
             var dest = new byte[MTUConfig.BufferSize];

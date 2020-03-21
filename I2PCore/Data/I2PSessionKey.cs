@@ -12,7 +12,7 @@ namespace I2PCore.Data
 
         public I2PSessionKey()
         {
-            Key = new BufLen( BufUtils.Random( 32 ) );
+            Key = new BufLen( BufUtils.RandomBytes( 32 ) );
         }
 
         public I2PSessionKey( byte[] buf )

@@ -100,7 +100,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         // of range exception, or faulty data.
         protected void SetBuffer( BufRef start, BufRef reader )
         {
-            Buf = new BufLen( start, -I2NPHeader16.I2NPMaxHeaderSize, ( reader - start ) + I2NPHeader16.I2NPMaxHeaderSize );
+            Buf = new BufLen( start, -I2NPMaxHeaderSize, ( reader - start ) + I2NPMaxHeaderSize );
 #if DEBUG
             HeaderState = HeaderStates.Invalid;
 #endif
@@ -108,10 +108,15 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         protected void AllocateBuffer( int size )
         {
-            Buf = new BufLen( new byte[size + I2NPHeader16.I2NPMaxHeaderSize] );
+            Buf = new BufLen( new byte[size + I2NPMaxHeaderSize] );
 #if DEBUG
             HeaderState = HeaderStates.Invalid;
 #endif
+        }
+
+        public static T Clone<T>( T src ) where T : I2NPMessage
+        {
+            return (T)I2NPUtil.GetMessage( src.MessageType, new BufRefLen( src.Buf.Clone(), I2NPMaxHeaderSize ), src.MessageId );
         }
 
         protected BufLen Header5Buf 
@@ -121,7 +126,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 #if DEBUG
                 HeaderState = HeaderStates.Header5;
 #endif
-                return new BufLen( Buf, I2NPHeader16.I2NPMaxHeaderSize - 5 ); 
+                return new BufLen( Buf, I2NPMaxHeaderSize - 5 ); 
             } 
         }
 
@@ -136,7 +141,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             } 
         }
 
-        public BufLen Payload { get { return new BufLen( Buf, I2NPHeader16.I2NPMaxHeaderSize ); } }
+        public BufLen Payload { get { return new BufLen( Buf, I2NPMaxHeaderSize ); } }
 
         public static II2NPHeader16 ReadHeader16( BufRefLen reader )
         {

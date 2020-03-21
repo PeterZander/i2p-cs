@@ -60,7 +60,7 @@ namespace I2PCore.TransportLayer.NTCP
 
             writer.Write( I2PHashSHA256.GetHash( context.XBuf, context.YBuf ) );
             writer.WriteFlip32( context.TimestampB );
-            writer.Write( BufUtils.Random( 12 ) );
+            writer.Write( BufUtils.RandomBytes( 12 ) );
 
             var key = new KeyParameter( context.SessionKey.Key.ToByteArray() );
 

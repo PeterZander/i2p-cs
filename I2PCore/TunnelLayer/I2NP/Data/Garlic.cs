@@ -6,6 +6,8 @@ using I2PCore.Utils;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using System.Diagnostics;
+using I2PCore.TunnelLayer.I2NP.Messages;
+using static I2PCore.TunnelLayer.I2NP.Messages.I2NPMessage;
 
 namespace I2PCore.TunnelLayer.I2NP.Data
 {
@@ -45,6 +47,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             BufRefStream buf = new BufRefStream();
             buf.Write( (byte)cloves.Count() );
             foreach ( var clove in cloves ) clove.Write( buf );
+            Cloves = cloves.ToList();
 
             // Certificate
             buf.Write( new byte[] { 0, 0, 0 } );
@@ -80,7 +83,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             return $"Garlic: {Cloves?.Count} cloves. {string.Join( ", ", Cloves )}";
         }
 
-        public static EGGarlic EGEncryptGarlic(
+        public static GarlicMessage EGEncryptGarlic(
                 Garlic msg,
                 I2PPublicKey pubkey,
                 I2PSessionKey sessionkey,
@@ -89,51 +92,53 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var cipher = new CbcBlockCipher( new AesEngine() );
 
             var payload = msg.ToByteArray();
-            var dest = new BufLen( new byte[61000] );
-            var writer = new BufRefLen( dest, 4 ); // Reserve 4 bytes for GarlicMessageLength
+            var dest = new BufLen( new byte[65536] );
+            // Reserve header + 4 bytes for GarlicMessageLength
+            var writer = new BufRefLen( dest, I2NPMaxHeaderSize + 4 );
 
             // ElGamal block
             var egbuf = new BufLen( writer, 0, 222 );
             var sessionkeybuf = new BufLen( egbuf, 0, 32 );
             var preivbuf = new BufLen( egbuf, 32, 32 );
-            var egpadding = new BufLen( egbuf, 64 );
+            var egpadding = new BufLen( egbuf, 64, 158 );
 
+            Debug.Assert( sessionkey.Key.Length == 32 );
             sessionkeybuf.Poke( sessionkey.Key, 0 );
             preivbuf.Randomize();
             egpadding.Randomize();
 
-            var preiv = preivbuf.Clone();
+            var iv = new BufLen( I2PHashSHA256.GetHash( preivbuf ), 0, 16 );
 
             var eg = new ElGamalCrypto( pubkey );
+            Debug.Assert( egbuf.Length == 222 );
             eg.Encrypt( writer, egbuf, true );
 
             // AES block
             var aesstart = new BufLen( writer );
             var aesblock = new GarlicAESBlock( writer, newtags, null, new BufRefLen( payload ) );
 
-            var pivh = I2PHashSHA256.GetHash( preiv );
-
-            cipher.Init( true, sessionkey.Key.ToParametersWithIV( new BufLen( pivh, 0, 16 ) ) );
+            cipher.Init( true, sessionkey.Key.ToParametersWithIV( iv ) );
             cipher.ProcessBytes( aesblock.DataBuf );
 
             var length = writer - dest;
-            dest.PokeFlip32( (uint)( length - 4 ), 0 );
+            dest.PokeFlip32( (uint)( length - 4 ), I2NPMaxHeaderSize );
 
-            return new EGGarlic( new BufRefLen( dest, 0, length ) );
+            return new GarlicMessage( new BufRefLen( dest, I2NPMaxHeaderSize, length ) );
         }
 
         public static (GarlicAESBlock,I2PSessionKey) EGDecryptGarlic( 
-                    BufLen egdata, 
+                    GarlicMessage garlic, 
                     I2PPrivateKey privkey )
         {
             var cipher = new CbcBlockCipher( new AesEngine() );
+            var egdata = garlic.EGData;
 
             var egbuf = new BufLen( egdata, 0, 514 );
             var egheader = ElGamalCrypto.Decrypt( egbuf, privkey, true );
 
             var sessionkey = new I2PSessionKey( new BufLen( egheader, 0, 32 ) );
             var preiv = new BufLen( egheader, 32, 32 );
-            var egpadding = new BufLen( egheader, 64 );
+            var egpadding = new BufLen( egheader, 64, 158 );
             var aesbuf = new BufLen( egdata, 514 );
 
             var pivh = I2PHashSHA256.GetHash( preiv );
@@ -153,7 +158,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         }
 
 
-        public static EGGarlic AESEncryptGarlic(
+        public static GarlicMessage AESEncryptGarlic(
                 Garlic msg,
                 I2PSessionKey sessionkey,
                 I2PSessionTag tag,
@@ -162,8 +167,9 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var cipher = new CbcBlockCipher( new AesEngine() );
 
             var payload = msg.ToByteArray();
-            var dest = new BufLen( new byte[61000] );
-            var writer = new BufRefLen( dest, 4 ); // Reserve 4 bytes for GarlicMessageLength
+            var dest = new BufLen( new byte[65536] );
+            // Reserve header + 4 bytes for GarlicMessageLength
+            var writer = new BufRefLen( dest, I2NPMaxHeaderSize + 4 );
 
             // Tag as header
             writer.Write( tag.Value );
@@ -178,13 +184,13 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             cipher.ProcessBytes( aesblock.DataBuf );
 
             var length = writer - dest;
-            dest.PokeFlip32( (uint)( length - 4 ), 0 );
+            dest.PokeFlip32( (uint)( length - 4 ), I2NPMaxHeaderSize );
 
-            return new EGGarlic( new BufRefLen( dest, 0, length ) );
+            return new GarlicMessage( new BufRefLen( dest, I2NPMaxHeaderSize, length ) );
         }
 
         public static (GarlicAESBlock,I2PSessionKey) RetrieveAESBlock(
-                BufLen egdata,
+                GarlicMessage garlic,
                 I2PPrivateKey privatekey,
                 Func<I2PSessionTag,I2PSessionKey> findsessionkey )
         {
@@ -192,14 +198,14 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             var cipher = new CbcBlockCipher( new AesEngine() );
 
-            var tag = new I2PSessionTag( new BufRefLen( egdata, 0, 32 ) );
+            var tag = new I2PSessionTag( new BufRefLen( garlic.EGData, 0, 32 ) );
             var sessionkey = findsessionkey?.Invoke( tag );
 #if LOG_ALL_LEASE_MGMT
             Logging.LogDebug( $"Garlic: Session key found {sessionkey}" );
 #endif
             if ( sessionkey != null )
             {
-                var aesbuf = new BufLen( egdata, 32 );
+                var aesbuf = new BufLen( garlic.EGData, 32 );
                 var pivh = I2PHashSHA256.GetHash( tag.Value );
 
                 cipher.Init( false, sessionkey.Key.ToParametersWithIV( new BufLen( pivh, 0, 16 ) ) );
@@ -234,7 +240,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             try
             {
-                (result,sessionkey) = Garlic.EGDecryptGarlic( egdata, privatekey );
+                (result,sessionkey) = Garlic.EGDecryptGarlic( garlic, privatekey );
 #if LOG_ALL_LEASE_MGMT
                 Logging.LogDebug( $"Garlic: EG session key {sessionkey}" );
 #endif

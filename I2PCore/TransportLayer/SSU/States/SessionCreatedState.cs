@@ -138,14 +138,14 @@ namespace I2PCore.TransportLayer.SSU
 
                     var sign = I2PSignature.DoSign( Session.MyRouterContext.PrivateSigningKey,
                         Request.X, Y.Key, 
-                        new BufLen( AAddr ), (BufLen)APort,
-                        Request.Address, (BufLen)BufUtils.Flip16( (ushort)Session.MyRouterContext.UDPPort ),
-                        (BufLen)RelayTag, (BufLen)Session.SignOnTimeB );
+                        new BufLen( AAddr ), BufUtils.To16BL( APort ),
+                        Request.Address, BufUtils.Flip16BL( (ushort)Session.MyRouterContext.UDPPort ),
+                        BufUtils.To32BL( RelayTag ), BufUtils.To32BL( Session.SignOnTimeB ) );
 
                     var signstart = new BufLen( writer );
                     writer.Write( sign );
                     var padding = BufUtils.Get16BytePadding( writer - signstart );
-                    writer.Write( BufUtils.Random( padding ) );
+                    writer.Write( BufUtils.RandomBytes( padding ) );
 
                     var cipher = new CbcBlockCipher( new AesEngine() ); 
                     var signcryptbuf = new BufLen( signstart, 0, writer - signstart );
@@ -185,9 +185,9 @@ namespace I2PCore.TransportLayer.SSU
 
             var signdata = new BufLen[] {
                     Request.X, Y.Key, 
-                    baaddr, (BufLen)APort,
+                    baaddr, BufUtils.To16BL( APort ),
                     Request.Address, bbport,
-                    (BufLen)RelayTag, (BufLen)ASignonTime 
+                    BufUtils.To32BL( RelayTag ), BufUtils.To32BL( ASignonTime )
                 };
 
             var ok = I2PSignature.DoVerify( Session.RemoteRouter.SigningPublicKey, ASign, signdata );

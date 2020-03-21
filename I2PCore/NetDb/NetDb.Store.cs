@@ -189,7 +189,12 @@ namespace I2PCore
 
                         if ( !onlyupdated || ( onlyupdated && one.Value.Value.Updated ) )
                         {
-                            var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdRouterInfo, new BufLen( one.Value.Key.ToByteArray() ) };
+                            var rec = new BufLen[] 
+                            { 
+                                BufUtils.To32BL( (int)StoreRecordId.StoreIdRouterInfo ), 
+                                new BufLen( one.Value.Key.ToByteArray() ) 
+                            };
+
                             if ( one.Value.Value.StoreIx > 0 )
                             {
                                 s.Write( rec, one.Value.Value.StoreIx );
@@ -239,9 +244,10 @@ namespace I2PCore
             {
                 foreach ( var one in settings )
                 {
-                    var rec = new BufLen[] { (BufLen)(int)StoreRecordId.StoreIdConfig,
-                            new BufLen( one.Key.ToByteArray() ), new BufLen( one.Value.ToByteArray() )
-                        };
+                    var rec = new BufLen[] { 
+                        BufUtils.To32BL( (int)StoreRecordId.StoreIdConfig ),
+                        new BufLen( one.Key.ToByteArray() ), new BufLen( one.Value.ToByteArray() )
+                    };
 
                     if ( str2ix.ContainsKey( one.Key ) )
                     {

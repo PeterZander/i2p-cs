@@ -233,7 +233,7 @@ namespace I2PCore.SessionLayer
             {
                 // No sessions, just accept EG
                 var (aesblock,sessionkey) = Garlic.EGDecryptGarlic(
-                        garlicmsg.Garlic.EGData,
+                        garlicmsg,
                         RouterContext.Inst.PrivateKey );
 
                 if ( aesblock == null )
