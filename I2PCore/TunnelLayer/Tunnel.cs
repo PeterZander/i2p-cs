@@ -75,8 +75,8 @@ namespace I2PCore.TunnelLayer
         { 
             get 
             {
-                return EstablishedTime.DeltaToNow > Lifetime || 
-                    CreationTime.DeltaToNow > Lifetime * 1.1; 
+                return EstablishedTime.DeltaToNow > Lifetime * 1.1 || 
+                    CreationTime.DeltaToNow > Lifetime * 1.2; 
             } 
         }
 

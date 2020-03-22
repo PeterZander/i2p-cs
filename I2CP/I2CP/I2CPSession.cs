@@ -59,7 +59,7 @@ namespace I2P.I2CP
 
         internal TickCounter LastReception = TickCounter.Now;
 
-        readonly byte[] RecvBuf = new byte[8192];
+        readonly byte[] RecvBuf = new byte[65536*2];
 
         // We are host
         public I2CPSession( I2CPHost host, TcpClient client )
@@ -106,11 +106,30 @@ namespace I2P.I2CP
 
                     if ( msglen > 0 )
                     {
-                        readlen = await MyStream.ReadAsync( RecvBuf, 5, (int)msglen, CTSource.Token );
+                        var startpos = 5;
+                        var toread = (int)msglen;
+                    again:
+                        readlen = await MyStream.ReadAsync( RecvBuf, startpos, toread, CTSource.Token );
+
+                        if ( readlen == 0 )
+                        {
+                            Logging.LogInformation( $"{this}: Failed to read message {msglen}. Got end of stream." );
+                            break;
+                        }
+
                         if ( readlen != msglen )
                         {
                             Logging.LogDebug( $"{this}: Failed to read message {msglen}. Got {readlen} bytes." );
-                            break;
+
+                            startpos += readlen;
+                            toread -= readlen;
+
+                            if ( startpos >= RecvBuf.Length )
+                            {
+                                Logging.LogWarning( $"{this}: Failed to read message {msglen}. Receivebuffer too small. Quitting." );
+                                break;
+                            }
+                            goto again;
                         }
 
                         LastReception.SetNow();
@@ -198,7 +217,7 @@ namespace I2P.I2CP
                     writer.WriteFlip32( (uint)data.Length );
                     writer.Write8( (byte)msg.MessageType );
 
-                    Logging.LogDebug( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
+                    Logging.LogDebugData( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
 
                     MyStream.Write( header, 0, 5 );
                     MyStream.Write( data, 0, data.Length );
@@ -259,11 +278,13 @@ namespace I2P.I2CP
         {
             if ( Terminated ) return;
 
-            var ldata = data.Clone();
+            //var ldata = data.Clone();
+            var ldata = data;
 
+            LastReception.SetNow();
             var sessid = FindSession( dest );
 
-            Logging.LogDebug( $"{this} MyDestination_DataReceived: Received message {sessid.SessionId} {dest} {(PayloadFormat)ldata[9]}, {ldata}" );
+            Logging.LogDebugData( $"{this} MyDestination_DataReceived: Received message {sessid.SessionId} {dest} {(PayloadFormat)ldata[9]}, {ldata}" );
 
             if ( sessid.MyDestination.Terminated )
             {
@@ -378,7 +399,7 @@ namespace I2P.I2CP
             var pmt = (ProtocolMessageType)data[4];
             data.Seek( 5 );
 
-            Logging.LogDebug( $"{this} GetMessage: Received message {pmt}, {data.Length} bytes." );
+            Logging.LogDebugData( $"{this} GetMessage: Received message {pmt}, {data.Length} bytes." );
 
             switch ( pmt )
             {
