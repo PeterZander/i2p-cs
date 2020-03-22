@@ -64,7 +64,19 @@ namespace I2PCore
 
         public void LookupRouterInfo( I2PIdentHash ident )
         {
-            if ( OutstandingQueries.ContainsKey( ident ) )
+            bool inprogress = true;
+
+            var updateinfo = OutstandingQueries.GetOrAdd(
+                    ident,
+                    ( id ) =>
+                    {
+                        inprogress = false;
+                        return new IdentUpdateRequestInfo(
+                                ident,
+                                DatabaseLookupMessage.LookupTypes.RouterInfo );
+                    } );
+
+            if ( inprogress )
             {
 #if LOG_ALL_IDENT_LOOKUPS
                 Logging.LogDebug( $"IdentResolver: Lookup of RouterInfo {ident.Id32Short} already in progress." );
@@ -72,29 +84,35 @@ namespace I2PCore
                 return;
             }
 
-            var newitem = new IdentUpdateRequestInfo( ident, DatabaseLookupMessage.LookupTypes.RouterInfo );
 #if LOG_ALL_IDENT_LOOKUPS
             Logging.Log( $"IdentResolver: Starting lookup of RouterInfo for {ident.Id32Short}." );
 #endif
-            OutstandingQueries[ident] = newitem;
 
-            SendRIDatabaseLookup( ident, newitem );
+            SendRIDatabaseLookup( ident, updateinfo );
         }
 
         public void LookupLeaseSet( I2PIdentHash ident )
         {
-            if ( OutstandingQueries.ContainsKey( ident ) )
+            bool inprogress = true;
+
+            var updateinfo = OutstandingQueries.GetOrAdd(
+                    ident,
+                    ( id ) =>
+                    {
+                        inprogress = false;
+                        return new IdentUpdateRequestInfo(
+                                ident,
+                                DatabaseLookupMessage.LookupTypes.LeaseSet );
+                    } );
+
+            if ( inprogress )
             {
                 Logging.LogDebug( $"IdentResolver: Lookup of LeaseSet {ident.Id32Short} already in progress." );
                 return;
             }
 
-            var newitem = new IdentUpdateRequestInfo( ident, DatabaseLookupMessage.LookupTypes.LeaseSet );
-
             Logging.LogDebug( $"IdentResolver: Starting lookup of LeaseSet for {ident.Id32Short}." );
-            OutstandingQueries[ident] = newitem;
-
-            SendLSDatabaseLookup( ident, newitem );
+            SendLSDatabaseLookup( ident, updateinfo );
         }
 
         void NetDb_DatabaseSearchReplies( DatabaseSearchReplyMessage dsm )
