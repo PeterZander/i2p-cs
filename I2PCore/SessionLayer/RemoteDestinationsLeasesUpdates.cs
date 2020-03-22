@@ -67,8 +67,8 @@ namespace I2PCore.SessionLayer
         {
             if ( Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
             {
-                Logging.LogDebug(
-                    $"{Owner} RemoteDestinations: updating {ls.Destination} (passive)" );
+                Logging.LogDebugData(
+                    $"{Owner} RemoteDestinations: updating LeaseSet for {ls.Destination} (passive)" );
 
                 info.LeaseSet = ls;
             }

@@ -153,7 +153,7 @@ namespace I2CP.I2CP.States
                     break;
 
                 case SendMessageMessage smm:
-                    Logging.LogDebug( $"{this}: {smm} {smm.Destination.IdentHash.Id32Short} {smm.Payload}" );
+                    Logging.LogDebugData( $"{this}: {smm} {smm.Destination.IdentHash.Id32Short} {smm.Payload}" );
 
                     SendMessageToDestination(
                             smm.Destination,
@@ -163,7 +163,7 @@ namespace I2CP.I2CP.States
                     break;
 
                 case SendMessageExpiresMessage smem:
-                    Logging.LogDebug( $"{this}: {smem} {smem.Destination.IdentHash.Id32Short} {(PayloadFormat)smem.Payload[9]} {smem.Payload}" );
+                    Logging.LogDebugData( $"{this}: {smem} {smem.Destination.IdentHash.Id32Short} {(PayloadFormat)smem.Payload[9]} {smem.Payload}" );
 
                     SendMessageToDestination( 
                             smem.Destination, 

@@ -453,7 +453,7 @@ namespace I2PCore.TransportLayer.SSU
                 }
                 catch ( Exception ex )
                 {
-                    Logging.Log( ex );
+                    Logging.LogDebug( ex );
                     return SessionTerminated();
                 }
             } while ( CurrentState != null

@@ -148,7 +148,7 @@ namespace I2PCore.SessionLayer
 
                         newcloves = newcloveslist.ToArray();
                     }
-#if NO_LOG_ALL_LEASE_MGMT
+#if LOG_ALL_LEASE_MGMT
                     Logging.LogInformation( $"{this}: Encrypting with session key {session.SessionKey}" );
 #endif
                     if ( session.Tags.Count > 0 )
@@ -174,7 +174,7 @@ namespace I2PCore.SessionLayer
             if ( egmsg == null )
             {
                 var newtags = GenerateNewTags( new I2PSessionKey() );
-#if NO_LOG_ALL_LEASE_MGMT
+#if LOG_ALL_LEASE_MGMT
                 Logging.LogInformation( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey} {RemoteDestination.PublicKey}, {newtags.MessageId}" );
 #endif
 

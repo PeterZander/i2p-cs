@@ -94,7 +94,7 @@ namespace I2P.I2CP
             var tcpclient = listener.EndAcceptTcpClient( ar );
 
             var i2cpc = new I2CPSession( this, tcpclient );
-            Logging.LogDebug( $"{this}: incoming connection ${i2cpc.DebugId} from {tcpclient.Client.RemoteEndPoint} created." );
+            Logging.LogInformation( $"{this}: incoming connection ${i2cpc.DebugId} from {tcpclient.Client.RemoteEndPoint} created." );
 
             Sessions[(IPEndPoint)tcpclient.Client.RemoteEndPoint] = i2cpc;
 
