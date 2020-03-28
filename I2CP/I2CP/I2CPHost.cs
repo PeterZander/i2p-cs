@@ -56,7 +56,24 @@ namespace I2P.I2CP
                             {
                                 try
                                 {
+                                    Logging.LogWarning( $"{this}: Terminating stuck session {one}" );
                                     one.Value.Terminate();
+                                }
+                                catch ( Exception ex )
+                                {
+                                    Logging.Log( ex );
+                                }
+                            }
+
+                            var terminated = Sessions.Where( s =>
+                                    s.Value.CurrentState is null );
+
+                            foreach ( var one in terminated )
+                            {
+                                try
+                                {
+                                    Logging.LogInformation( $"{this}: Removing terminated session {one}" );
+                                    Sessions.TryRemove( one.Key, out _ );
                                 }
                                 catch ( Exception ex )
                                 {

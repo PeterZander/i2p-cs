@@ -43,7 +43,7 @@ namespace I2CP.I2CP.States
 
                     if ( !signok )
                     {
-                        Logging.LogDebug( $"{this} CreateSessionMessage: Signature check failed." );
+                        Logging.LogWarning( $"{this} CreateSessionMessage: Signature check failed." );
                         Session.Send( new SessionStatusMessage( 0, SessionStates.Invalid ) );
                         return this;
                     }
@@ -56,7 +56,7 @@ namespace I2CP.I2CP.States
 
                     if ( alreadyrunning || newdest is null )
                     {
-                        Logging.LogDebug( $"{this}: Destination already running." );
+                        Logging.LogWarning( $"{this}: Destination already running. {csm}" );
                         Session.Send( new SessionStatusMessage( 0, SessionStates.Refused ) );
                         return this;
                     }

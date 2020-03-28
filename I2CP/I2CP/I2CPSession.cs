@@ -59,7 +59,7 @@ namespace I2P.I2CP
 
         internal TickCounter LastReception = TickCounter.Now;
 
-        readonly byte[] RecvBuf = new byte[65536*2];
+        readonly byte[] RecvBuf = new byte[65536];
 
         // We are host
         public I2CPSession( I2CPHost host, TcpClient client )
@@ -145,7 +145,6 @@ namespace I2P.I2CP
                         }
                     }
                 }
-                Terminate();
             }
             catch( Exception ex )
             {
@@ -153,8 +152,15 @@ namespace I2P.I2CP
             }
             finally
             {
-                var s = Host.Sessions.Where( p => p.Value == this );
-                foreach ( var one in s ) Host.Sessions.TryRemove( one.Key, out _ );
+                Terminate();
+
+                foreach ( var session in SessionIds )
+                {
+                    DetachDestination( session.Value.MyDestination );
+                    session.Value.MyDestination?.Shutdown();
+                }
+
+                Logging.LogInformation( $"{this}: Session closed." );
             }
         }
 
@@ -165,15 +171,22 @@ namespace I2P.I2CP
             dest.ClientStateChanged += MyDestination_ClientStateChanged;
         }
 
-        internal void Terminate()
+        internal void DetachDestination( ClientDestination dest )
+        {
+            dest.DataReceived -= MyDestination_DataReceived;
+            dest.SignLeasesRequest -= MyDestination_SignLeasesRequest;
+            dest.ClientStateChanged -= MyDestination_ClientStateChanged;
+        }
+
+        internal void Terminate( [CallerMemberName] string caller = "" )
         {
             if ( Terminated ) return;
             Terminated = true;
 
             MyStream.Flush();
-            CTSource.Cancel();
+            CTSource.Cancel( true );
 
-            Logging.LogDebug( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint}." );
+            Logging.LogDebug( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint} by {caller}." );
 
             foreach ( var destsid in SessionIds )
             {
@@ -190,7 +203,10 @@ namespace I2P.I2CP
             }
 
             CurrentState = null;
+
             MyTcpClient.Close();
+            MyTcpClient.Dispose();
+            MyTcpClient = null;
         }
 
         ushort PrevSessionId = 0;
@@ -278,10 +294,7 @@ namespace I2P.I2CP
         {
             if ( Terminated ) return;
 
-            //var ldata = data.Clone();
             var ldata = data;
-
-            LastReception.SetNow();
             var sessid = FindSession( dest );
 
             Logging.LogDebugData( $"{this} MyDestination_DataReceived: Received message {sessid.SessionId} {dest} {(PayloadFormat)ldata[9]}, {ldata}" );
