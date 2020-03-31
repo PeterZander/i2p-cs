@@ -44,9 +44,6 @@ namespace I2P.I2CP
         public ushort SessionId = 1;
         public bool Terminated = false;
 
-        public Dictionary<uint, I2PLease> Tunnels = new Dictionary<uint, I2PLease>();
-        public Dictionary<uint, I2PLeaseInfo> TunnelsLeaseInfo = new Dictionary<uint, I2PLeaseInfo>();
-
         static int InstanceCounter;
         readonly string InstanceInfo;
         public string DebugId { get { return $"--{InstanceInfo}:{SessionId}--"; } }
@@ -81,7 +78,7 @@ namespace I2P.I2CP
             {
                 var recvbuf = new BufLen( RecvBuf );
 
-                var readlen = await MyStream.ReadAsync( RecvBuf, 0, 1, CTSource.Token );
+                var readlen = await MyStream.ReadAsync( RecvBuf, 0, 1, CTSource.Token ).ConfigureAwait( false );
                 if ( readlen != 1 )
                 {
                     throw new FailedToConnectException( $"I2CPSession. Failed to read protocol version" );
@@ -94,7 +91,7 @@ namespace I2P.I2CP
 
                 while ( !( CurrentState is null ) )
                 {
-                    readlen = await MyStream.ReadAsync( RecvBuf, 0, 5, CTSource.Token );
+                    readlen = await MyStream.ReadAsync( RecvBuf, 0, 5, CTSource.Token ).ConfigureAwait( false );
                     if ( readlen != 5 )
                     {
                         Logging.LogDebug( $"{this}: Failed to read message header 5. Got {readlen} bytes." );
@@ -104,45 +101,45 @@ namespace I2P.I2CP
                     var msglen = recvbuf.PeekFlip32( 0 );
                     var msgtype = recvbuf[4];
 
-                    if ( msglen > 0 )
+                    if ( msglen + 5 >= RecvBuf.Length )
                     {
-                        var startpos = 5;
-                        var toread = (int)msglen;
-                    again:
-                        readlen = await MyStream.ReadAsync( RecvBuf, startpos, toread, CTSource.Token );
+                        Logging.LogWarning( $"{this}: Failed to read message {msglen}. Receivebuffer too small. Quitting." );
+                        break;
+                    }
 
-                        if ( readlen == 0 )
-                        {
-                            Logging.LogInformation( $"{this}: Failed to read message {msglen}. Got end of stream." );
-                            break;
-                        }
+                    if ( msglen == 0 ) continue;
 
-                        if ( readlen != msglen )
-                        {
-                            Logging.LogDebug( $"{this}: Failed to read message {msglen}. Got {readlen} bytes." );
+                    var startpos = 5;
+                    var toread = (int)msglen;
+                again:
+                    readlen = await MyStream.ReadAsync( RecvBuf, startpos, toread, CTSource.Token ).ConfigureAwait( false );
 
-                            startpos += readlen;
-                            toread -= readlen;
+                    if ( readlen == 0 )
+                    {
+                        Logging.LogInformation( $"{this}: Failed to read message {msglen}. Got end of stream." );
+                        break;
+                    }
 
-                            if ( startpos >= RecvBuf.Length )
-                            {
-                                Logging.LogWarning( $"{this}: Failed to read message {msglen}. Receivebuffer too small. Quitting." );
-                                break;
-                            }
-                            goto again;
-                        }
+                    if ( readlen != msglen )
+                    {
+                        Logging.LogDebug( $"{this}: Failed to read message {msglen}. Got {readlen} bytes." );
 
-                        LastReception.SetNow();
+                        startpos += readlen;
+                        toread -= readlen;
 
-                        var nextstate = CurrentState.MessageReceived(
-                            GetMessage(
-                                new BufRefLen( recvbuf, 0, readlen + 5 ).Clone() ) );
+                        goto again;
+                    }
 
-                        if ( nextstate != CurrentState )
-                        {
-                            Logging.LogDebug( $"{this}: Changed state from {CurrentState} to {nextstate}" );
-                            CurrentState = nextstate;
-                        }
+                    LastReception.SetNow();
+
+                    var nextstate = CurrentState.MessageReceived(
+                        GetMessage(
+                            new BufRefLen( recvbuf, 0, readlen + 5 ).Clone() ) );
+
+                    if ( nextstate != CurrentState )
+                    {
+                        Logging.LogDebug( $"{this}: Changed state from {CurrentState} to {nextstate}" );
+                        CurrentState = nextstate;
                     }
                 }
             }
@@ -194,10 +191,7 @@ namespace I2P.I2CP
 
                 if ( dest != null )
                 {
-                    dest.DataReceived -= MyDestination_DataReceived;
-                    dest.SignLeasesRequest -= MyDestination_SignLeasesRequest;
-                    dest.ClientStateChanged -= MyDestination_ClientStateChanged;
-
+                    DetachDestination( dest );
                     dest.Shutdown();
                 }
             }
@@ -213,7 +207,7 @@ namespace I2P.I2CP
         internal SessionInfo GenerateNewSessionId()
         {
             var newid = ++PrevSessionId;
-            if ( PrevSessionId > 15000 ) PrevSessionId = 0;
+            if ( PrevSessionId > 30000 ) PrevSessionId = 0;
 
             var result = new SessionInfo( newid );
 
