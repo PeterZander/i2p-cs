@@ -1,4 +1,4 @@
-﻿#define NO_MANUAL_SIGN
+﻿#define MANUAL_SIGN
 
 using System;
 using I2PCore.Data;
@@ -31,6 +31,8 @@ namespace I2PDemo
             Logging.ReadAppConfig();
             Logging.LogToDebug = false;
             Logging.LogToConsole = true;
+
+            RouterContext.RouterSettingsFile = "I2PDemo.bin";
 
             MyDestinationInfo = new I2PDestinationInfo( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
 
@@ -142,10 +144,11 @@ namespace I2PDemo
             MyDestination = MyDestinationInfo.Destination;
 
 #if MANUAL_SIGN
-            PublishedDestination = Router.CreateDestination( 
+            PublishedDestination = Router.CreateDestination(
                     MyDestination, 
                     MyDestinationInfo.PrivateKey, 
-                    true ); // Publish our destinaiton
+                    true,
+                    out _ ); // Publish our destinaiton
             PublishedDestination.SignLeasesRequest += MyDestination_SignLeasesRequest;
 #else
             PublishedDestination = Router.CreateDestination( MyDestinationInfo, true, out _ ); // Publish our destinaiton
@@ -237,7 +240,11 @@ namespace I2PDemo
             PublishedDestination.SignedLeases = new I2PLeaseSet(
                     MyDestination,
                     ls.Leases,
-                    new I2PLeaseInfo( MyDestinationInfo ) );
+                    new I2PLeaseInfo(
+                        MyDestination.PublicKey,
+                        ls.PublicSigningKey,
+                        null,
+                        MyDestinationInfo.PrivateSigningKey ) );
         }
 
         static void LookupResult( I2PIdentHash hash, I2PLeaseSet ls, object o )

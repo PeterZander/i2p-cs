@@ -16,7 +16,7 @@ using static System.Configuration.ConfigurationManager;
 
 namespace I2PCore.SessionLayer
 {
-    public class ClientDestination: IClient
+    public class ClientDestination : IClient
     {
         static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 2 );
 
@@ -72,9 +72,9 @@ namespace I2PCore.SessionLayer
         /// Currently signed Leases for this Destination.
         /// </summary>
         /// <value>The leases.</value>
-        public I2PLeaseSet SignedLeases 
-        { 
-            get => SignedLeasesField; 
+        public I2PLeaseSet SignedLeases
+        {
+            get => SignedLeasesField;
             set
             {
 #if DEBUG
@@ -100,8 +100,6 @@ namespace I2PCore.SessionLayer
         /// </summary>
         /// <value>The destination.</value>
         public I2PDestination Destination { get; private set; }
-
-        readonly I2PLeaseInfo DestinationLeaseInfo;
 
         readonly bool PublishDestination;
 
@@ -172,19 +170,48 @@ namespace I2PCore.SessionLayer
         /// <value>The this destination info.</value>
         protected I2PDestinationInfo ThisDestinationInfo { get; private set; }
 
-        public I2PPrivateKey PrivateKeyField;
-        public I2PPrivateKey PrivateKey
+        public I2PPrivateKey TemporaryPrivateKeyField;
+        public I2PPrivateKey TemporaryPrivateKey
         {
-            get => PrivateKeyField; 
+            get => TemporaryPrivateKeyField;
 
             set
             {
-                if ( value == PrivateKeyField ) return;
+                if ( value is null )
+                {
+                    if ( TemporaryPrivateKeyField is null )
+                    {
+                        UpdateTemporaryPrivateKey( 
+                                new I2PPrivateKey( I2PKeyType.DefaultAsymetricKeyCert ) );
+                    }
+                    return;
+                }
 
-                PrivateKeyField = value;
-                IncommingSessions = new DecryptReceivedSessions( this, PrivateKeyField );
+                if ( value == TemporaryPrivateKeyField ) return;
+
+                UpdateTemporaryPrivateKey( value );
             }
         }
+
+        private void UpdateTemporaryPrivateKey( I2PPrivateKey privkey )
+        {
+            TemporaryPrivateKeyField = privkey;
+            TemporaryPublicKey = new I2PPublicKey( TemporaryPrivateKeyField );
+
+            var dli = new I2PLeaseInfo(
+                                    TemporaryPublicKey,
+                                    Destination.SigningPublicKey,
+                                    null,
+                                    ThisDestinationInfo?.PrivateSigningKey );
+            EstablishedLeases = new I2PLeaseSet(
+                Destination,
+                EstablishedLeases?.Leases,
+                dli );
+
+            IncommingSessions = new DecryptReceivedSessions( this, TemporaryPrivateKeyField );
+        }
+
+        public I2PPublicKey TemporaryPublicKey { get; private set; }
 
         protected I2PSessionKey DefaultFakeSession = new I2PSessionKey();
 
@@ -195,23 +222,11 @@ namespace I2PCore.SessionLayer
             ThisDestinationInfo = destinfo;
             Destination = ThisDestinationInfo.Destination;
 
+            TemporaryPrivateKey = null;
             MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
 
             NetDb.Inst.LeaseSetUpdates += NetDb_LeaseSetUpdates;
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
-
-            IncommingSessions = new DecryptReceivedSessions( this, ThisDestinationInfo.PrivateKey );
-
-            // TODO: Use separate keys
-            DestinationLeaseInfo = new I2PLeaseInfo(
-                                    Destination.PublicKey,
-                                    Destination.SigningPublicKey,
-                                    null, 
-                                    ThisDestinationInfo.PrivateSigningKey );
-            EstablishedLeases = new I2PLeaseSet(
-                    Destination,
-                    null,
-                    DestinationLeaseInfo );
 
             ReadAppConfig();
         }
@@ -221,25 +236,13 @@ namespace I2PCore.SessionLayer
         {
             PublishDestination = publishdest;
             ThisDestinationInfo = null;
-            PrivateKey = privkey;
             Destination = dest;
 
+            TemporaryPrivateKey = privkey;
             MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
 
             NetDb.Inst.LeaseSetUpdates += NetDb_LeaseSetUpdates;
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
-
-            IncommingSessions = new DecryptReceivedSessions( this, privkey );
-
-            // TODO: Use separate keys
-            DestinationLeaseInfo = new I2PLeaseInfo(
-                                    Destination.PublicKey,
-                                    Destination.SigningPublicKey,
-                                    null, null );
-            EstablishedLeases = new I2PLeaseSet(
-                    Destination,
-                    null,
-                    DestinationLeaseInfo );
 
             ReadAppConfig();
         }
@@ -488,7 +491,7 @@ namespace I2PCore.SessionLayer
                                     {
                                         Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination}." );
                                         NetDb.Inst.AddLeaseSet( dbsmsg.LeaseSet );
-                                        MyRemoteDestinations.LeaseSetReceived( 
+                                        MyRemoteDestinations.LeaseSetReceived(
                                             dbsmsg.LeaseSet );
                                         UpdateClientState();
                                     }
@@ -522,7 +525,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        internal virtual void AddTunnelToEstablishedLeaseSet( InboundTunnel tunnel )
+        internal void AddTunnelToEstablishedLeaseSet( InboundTunnel tunnel )
         {
             EstablishedLeases.AddLease(
                 new I2PLease(
@@ -547,9 +550,13 @@ namespace I2PCore.SessionLayer
             {
                 // Auto sign
                 SignedLeases = new I2PLeaseSet(
-                    Destination, 
-                    EstablishedLeases.Leases, 
-                    new I2PLeaseInfo( ThisDestinationInfo ) );
+                    Destination,
+                    EstablishedLeases.Leases,
+                    new I2PLeaseInfo(
+                        TemporaryPublicKey,
+                        Destination.SigningPublicKey,
+                        null,
+                        ThisDestinationInfo.PrivateSigningKey ) );
             }
         }
 
@@ -567,7 +574,7 @@ namespace I2PCore.SessionLayer
             }
 
             var lsl = MyRemoteDestinations.DestinationsToUpdate( 2 );
-            foreach( var dest in lsl )
+            foreach ( var dest in lsl )
             {
                 UpdateRemoteDestinationWithLeases( dest.Value );
             }
@@ -618,8 +625,8 @@ namespace I2PCore.SessionLayer
 
             var sk = SessionKeys.GetOrAdd(
                         lsinfo.LeaseSet.Destination.IdentHash,
-                        ( d ) => new SessionKeyOrigin( 
-                                    this, 
+                        ( d ) => new SessionKeyOrigin(
+                                    this,
                                     Destination,
                                     lsinfo.LeaseSet.Destination ) );
 
@@ -640,8 +647,8 @@ namespace I2PCore.SessionLayer
             return;
         }
 
-        public void LookupDestination( 
-                I2PIdentHash dest, 
+        public void LookupDestination(
+                I2PIdentHash dest,
                 DestinationLookupResult cb,
                 object tag = null )
         {
@@ -681,8 +688,8 @@ namespace I2PCore.SessionLayer
             return false;
         }
 
-        protected void HandleDestinationLookupResult( 
-                I2PIdentHash hash, 
+        protected void HandleDestinationLookupResult(
+                I2PIdentHash hash,
                 I2PLeaseSet ls,
                 object tag )
         {
@@ -740,9 +747,9 @@ namespace I2PCore.SessionLayer
 
         void UnsentMessagePush( I2PDestination dest, BufLen buf )
         {
-            if ( UnsentMessages.TryGetValue( dest.IdentHash, out var msgs))
+            if ( UnsentMessages.TryGetValue( dest.IdentHash, out var msgs ) )
             {
-                lock( msgs )
+                lock ( msgs )
                 {
                     msgs.Data.Add( buf );
                 }
@@ -767,9 +774,9 @@ namespace I2PCore.SessionLayer
             return null;
         }
 
-        ClientStates CheckSendPreconditions( 
-                I2PIdentHash dest, 
-                out OutboundTunnel outtunnel, 
+        ClientStates CheckSendPreconditions(
+                I2PIdentHash dest,
+                out OutboundTunnel outtunnel,
                 out I2PLeaseSet leaseset )
         {
             if ( InboundEstablishedPool.IsEmpty )
@@ -835,8 +842,8 @@ namespace I2PCore.SessionLayer
             var sk = SessionKeys.GetOrAdd(
                         dest.IdentHash,
                         ( d ) => new SessionKeyOrigin(
-                                this, 
-                                Destination, 
+                                this,
+                                Destination,
                                 dest ) );
 
             var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
@@ -864,13 +871,13 @@ namespace I2PCore.SessionLayer
         {
             if ( UnsentMessages.IsEmpty ) return;
 
-            if ( CheckSendPreconditions( dest, out _, out _ ) 
+            if ( CheckSendPreconditions( dest, out _, out _ )
                 != ClientStates.Established ) return;
 
             var msgs = UnsentMessagePop( dest );
             if ( msgs is null ) return;
 
-            foreach( var msg in msgs.Data )
+            foreach ( var msg in msgs.Data )
             {
                 ThreadPool.QueueUserWorkItem( a =>
                 {

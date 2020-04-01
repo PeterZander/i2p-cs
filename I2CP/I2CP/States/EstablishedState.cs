@@ -90,11 +90,7 @@ namespace I2CP.I2CP.States
 
                         var s = Session.SessionIds[clsm.SessionId];
                         s.PrivateKey = clsm.PrivateKey;
-
-                        if ( s.MyDestination.PrivateKey is null )
-                        {
-                            s.MyDestination.PrivateKey = clsm.PrivateKey;
-                        }
+                        s.MyDestination.TemporaryPrivateKey = clsm.PrivateKey;
 
                         s.LeaseInfo = clsm.Info;
                         s.MyDestination.SignedLeases = clsm.Leases;

@@ -18,6 +18,8 @@ namespace I2PRouter
             Logging.LogToDebug = false;
             Logging.LogToConsole = true;
 
+            RouterContext.RouterSettingsFile = "I2PRouter.bin";
+
             for ( int i = 0; i < args.Length; ++i )
             {
                 switch ( args[i] )
