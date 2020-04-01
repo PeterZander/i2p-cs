@@ -24,7 +24,7 @@ namespace I2P.I2CP
 
         public I2CPHost()
         {
-            Worker = new Thread( Run )
+            Worker = new Thread( RunHost )
             {
                 Name = "NTCPHost",
                 IsBackground = true
@@ -32,7 +32,7 @@ namespace I2P.I2CP
             Worker.Start();
         }
 
-        void Run()
+        void RunHost()
         {
             try
             {
@@ -50,14 +50,14 @@ namespace I2P.I2CP
                             Thread.Sleep( 10000 );
 
                             var stuck = Sessions.Where( s =>
-                                    s.Value.LastReception.DeltaToNow > TickSpan.Minutes( 5 ) );
+                                    s.Value.LastReception.DeltaToNow > TickSpan.Minutes( 30 ) );
 
                             foreach ( var one in stuck )
                             {
                                 try
                                 {
-                                    Logging.LogWarning( $"{this}: Terminating stuck session {one}" );
-                                    one.Value.Terminate();
+                                    Logging.LogWarning( $"{this}: Terminating stuck session {one} {one.Value.LastReception}" );
+                                    //one.Value.Terminate();
                                 }
                                 catch ( Exception ex )
                                 {

@@ -31,158 +31,180 @@ namespace I2CP.I2CP.States
 
         internal override I2CPState MessageReceived( I2CPMessage msg )
         {
-            switch ( msg )
+            try
             {
-                case CreateSessionMessage csm:
-                    Logging.LogDebug( $"{this}: Received message {csm}." );
+                switch ( msg )
+                {
+                    case CreateSessionMessage csm:
+                        Logging.LogDebug( $"{this}: Received message {csm}." );
 
-                    var signok = I2PSignature.DoVerify(
-                            csm.Config.Destination.SigningPublicKey,
-                            csm.Config.Signature,
-                            csm.Config.SignedBuf );
+                        var signok = I2PSignature.DoVerify(
+                                csm.Config.Destination.SigningPublicKey,
+                                csm.Config.Signature,
+                                csm.Config.SignedBuf );
 
-                    if ( !signok )
-                    {
-                        Logging.LogWarning( $"{this} CreateSessionMessage: Signature check failed." );
-                        Session.Send( new SessionStatusMessage( 0, SessionStates.Invalid ) );
-                        return this;
-                    }
+                        if ( !signok )
+                        {
+                            Logging.LogWarning( $"{this} CreateSessionMessage: Signature check failed." );
+                            Session.Send( new SessionStatusMessage( 0, SessionStates.Invalid ) );
+                            return this;
+                        }
 
-                    var newdest = Router.CreateDestination(
-                         csm.Config.Destination,
-                         null,
-                         !csm.Config.DontPublishLeaseSet,
-                         out var alreadyrunning );
+                        var newdest = Router.CreateDestination(
+                             csm.Config.Destination,
+                             null,
+                             !csm.Config.DontPublishLeaseSet,
+                             out var alreadyrunning );
 
-                    if ( alreadyrunning || newdest is null )
-                    {
-                        Logging.LogWarning( $"{this}: Destination already running. {csm}" );
-                        Session.Send( new SessionStatusMessage( 0, SessionStates.Refused ) );
-                        return this;
-                    }
+                        if ( alreadyrunning || newdest is null )
+                        {
+                            Logging.LogWarning( $"{this}: Destination already running. {csm}" );
+                            Session.Send( new SessionStatusMessage( 0, SessionStates.Refused ) );
+                            return this;
+                        }
 
-                    var newsession = Session.GenerateNewSessionId();
-                    newsession.MyDestination = newdest;
+                        var newsession = Session.GenerateNewSessionId();
+                        newsession.MyDestination = newdest;
 
-                    newsession.Config = csm.Config;
-                    UpdateConfiguration( newsession, csm.Config );
+                        newsession.Config = csm.Config;
+                        UpdateConfiguration( newsession, csm.Config );
 
-                    Session.AttachDestination( newsession.MyDestination );
+                        Session.AttachDestination( newsession.MyDestination );
 
-                    Logging.LogDebug( $"{this}: Creating session {newsession.SessionId}." );
+                        Logging.LogDebug( $"{this}: Creating session {newsession.SessionId}." );
 
-                    var reply = new SessionStatusMessage( newsession.SessionId, SessionStates.Created );
-                    Session.Send( reply );
+                        var reply = new SessionStatusMessage( newsession.SessionId, SessionStates.Created );
+                        Session.Send( reply );
 
-                    Session.SendPendingLeaseUpdates( true );
-                    break;
+                        Session.SendPendingLeaseUpdates( true );
+                        break;
 
-                case ReconfigureSessionMessage rcm:
-                    var rcms = Session.SessionIds[rcm.SessionId];
-                    rcms.Config = rcm.Config;
-                    UpdateConfiguration( rcms, rcms.Config );
-                    break;
+                    case ReconfigureSessionMessage rcm:
+                        var rcms = Session.SessionIds[rcm.SessionId];
+                        rcms.Config = rcm.Config;
+                        UpdateConfiguration( rcms, rcms.Config );
+                        break;
 
-                case CreateLeaseSetMessage clsm:
-                    Logging.LogDebug( $"{this}: {clsm} {clsm.PrivateKey}" );
+                    case CreateLeaseSetMessage clsm:
+                        Logging.LogDebug( $"{this}: {clsm} {clsm.PrivateKey}" );
 
-                    var s = Session.SessionIds[clsm.SessionId];
-                    s.PrivateKey = clsm.PrivateKey;
+                        var s = Session.SessionIds[clsm.SessionId];
+                        s.PrivateKey = clsm.PrivateKey;
 
-                    if ( s.MyDestination.PrivateKey is null )
-                    {
-                        s.MyDestination.PrivateKey = clsm.PrivateKey;
-                    }
+                        if ( s.MyDestination.PrivateKey is null )
+                        {
+                            s.MyDestination.PrivateKey = clsm.PrivateKey;
+                        }
 
-                    s.LeaseInfo = clsm.Info;
-                    s.MyDestination.SignedLeases = clsm.Leases;
+                        s.LeaseInfo = clsm.Info;
+                        s.MyDestination.SignedLeases = clsm.Leases;
 
-                    Session.SendPendingLeaseUpdates( true );
-                    break;
+                        Session.SendPendingLeaseUpdates( true );
+                        break;
 
-                case DestLookupMessage dlum:
-                    Logging.LogDebug( $"{this}: {dlum} {dlum.Ident.Id32Short}" );
+                    case DestLookupMessage dlum:
+                        Logging.LogDebug( $"{this}: {dlum} {dlum.Ident.Id32Short}" );
 
-                    Session
-                            .SessionIds
-                            .First()
-                            .Value
-                            .MyDestination
-                            .LookupDestination( dlum.Ident, HandleDestinationLookupResult, null );
-                    break;
+                        Session
+                                .SessionIds
+                                .First()
+                                .Value
+                                .MyDestination
+                                .LookupDestination( dlum.Ident, HandleDestinationLookupResult, null );
+                        break;
 
-                case HostLookupMessage hlum:
-                    Logging.LogDebug( $"{this}: {hlum} {hlum.SessionId} {hlum.RequestId} {hlum.Hash?.Id32Short}" );
+                    case HostLookupMessage hlum:
+                        Logging.LogDebug( $"{this}: {hlum} {hlum.SessionId} {hlum.RequestId} {hlum.Hash?.Id32Short}" );
 
-                    if ( hlum.SessionId == 0xFFFF )
-                    {
+                        I2PIdentHash lookuphash;
+
                         if ( hlum.RequestType == HostLookupMessage.HostLookupTypes.HostName )
                         {
+                            lookuphash = ParseHostName( hlum );
+
+                            if ( lookuphash is null )
+                            {
+                                Session.Send( new HostReplyMessage(
+                                            hlum.SessionId,
+                                            hlum.RequestId,
+                                            HostLookupResults.Failure ) );
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            lookuphash = hlum.Hash;
+                        }
+
+                        if ( hlum.SessionId == 0xFFFF )
+                        {
                             Router.LookupDestination(
-                                    new I2PIdentHash( hlum.HostName.ToString() ),
+                                    lookuphash,
                                     HandleHostLookupResult,
                                     new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
                         }
                         else
                         {
-                            Router.LookupDestination(
-                                    hlum.Hash,
-                                    HandleHostLookupResult,
-                                    new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
-                        }
-                    }
-                    else
-                    {
-                        var s2 = Session.SessionIds[hlum.SessionId];
+                            var s2 = Session.SessionIds[hlum.SessionId];
 
-                        if ( hlum.RequestType == HostLookupMessage.HostLookupTypes.HostName )
-                        {
                             s2.MyDestination.LookupDestination(
-                                    new I2PIdentHash( hlum.HostName.ToString() ),
+                                    lookuphash,
                                     HandleHostLookupResult,
                                     new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
                         }
-                        else
-                        {
-                            s2.MyDestination.LookupDestination(
-                                    hlum.Hash,
-                                    HandleHostLookupResult,
-                                    new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
-                        }
-                    }
-                    break;
+                        break;
 
-                case SendMessageMessage smm:
-                    Logging.LogDebugData( $"{this}: {smm} {smm.Destination.IdentHash.Id32Short} {smm.Payload}" );
+                    case SendMessageMessage smm:
+                        Logging.LogDebugData( $"{this}: {smm} {smm.Destination.IdentHash.Id32Short} {smm.Payload}" );
 
-                    SendMessageToDestination(
-                            smm.Destination,
-                            smm.SessionId,
-                            smm.Payload,
-                            smm.Nonce );
-                    break;
+                        SendMessageToDestination(
+                                smm.Destination,
+                                smm.SessionId,
+                                smm.Payload,
+                                smm.Nonce );
+                        break;
 
-                case SendMessageExpiresMessage smem:
-                    Logging.LogDebugData( $"{this}: {smem} {smem.Destination.IdentHash.Id32Short} {(PayloadFormat)smem.Payload[9]} {smem.Payload}" );
+                    case SendMessageExpiresMessage smem:
+                        Logging.LogDebugData( $"{this}: {smem} {smem.Destination.IdentHash.Id32Short} {(PayloadFormat)smem.Payload[9]} {smem.Payload}" );
 
-                    SendMessageToDestination( 
-                            smem.Destination, 
-                            smem.SessionId, 
-                            smem.Payload, 
-                            smem.Nonce );
-                    break;
+                        SendMessageToDestination(
+                                smem.Destination,
+                                smem.SessionId,
+                                smem.Payload,
+                                smem.Nonce );
+                        break;
 
-                case DestroySessionMessage dsm:
-                    Logging.LogDebug( $"{this}: {dsm}" );
-                    Session.Send( new SessionStatusMessage( dsm.SessionId, SessionStates.Destroyed ) );
-                    return null;
+                    case DestroySessionMessage dsm:
+                        Logging.LogDebug( $"{this}: {dsm}" );
+                        Session.Send( new SessionStatusMessage( dsm.SessionId, SessionStates.Destroyed ) );
+                        return null;
 
+                    default:
+                        Logging.LogWarning( $"{this}: Unhandled message {msg}" );
+                        break;
+                }
+                return this;
 
-                default:
-                    Logging.LogWarning( $"{this}: Unhandled message {msg}" );
-                    break;
             }
-            return this;
+            catch ( Exception ex )
+            {
+                Logging.LogWarning( $"{this} MessageReceived: {msg.MessageType} {ex}" );
+                throw;
+            }
+        }
+
+        private I2PIdentHash ParseHostName( HostLookupMessage hlum )
+        {
+            try
+            {
+                return new I2PIdentHash( hlum.HostName.ToString() );
+            }
+            catch ( Exception ex )
+            {
+                Logging.LogDebug( ex );
+            }
+
+            return null;
         }
 
         private static void UpdateConfiguration( SessionInfo newsession, I2PSessionConfig cfg )

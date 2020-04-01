@@ -143,9 +143,9 @@ namespace I2P.I2CP
                     }
                 }
             }
-            catch( Exception ex )
+            catch ( Exception ex )
             {
-                Logging.LogDebug( $"{this} {ex}" );
+                Logging.LogWarning( $"{this} {ex}" );
             }
             finally
             {
@@ -181,9 +181,9 @@ namespace I2P.I2CP
             Terminated = true;
 
             MyStream.Flush();
-            CTSource.Cancel( true );
+            CTSource.Cancel( false );
 
-            Logging.LogDebug( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint} by {caller}." );
+            Logging.LogInformation( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint} by {caller}." );
 
             foreach ( var destsid in SessionIds )
             {
@@ -215,7 +215,74 @@ namespace I2P.I2CP
             return result;
         }
 
+        readonly ConcurrentQueue<I2CPMessage> SendQueue = new ConcurrentQueue<I2CPMessage>();
+        bool SendInProgress = false;
+
         internal void Send( I2CPMessage msg )
+        {
+            lock ( SendQueue )
+            {
+                if ( SendInProgress )
+                {
+                    SendQueue.Enqueue( msg );
+                    return;
+                }
+
+                SendInProgress = true;
+                SendOneMessage( msg );
+            }
+        }
+
+        private void SendOneMessage( I2CPMessage msg )
+        {
+            try
+            {
+                var header = new byte[5];
+                var writer = new BufRefLen( header );
+                var data = msg.ToByteArray();
+                writer.WriteFlip32( (uint)data.Length );
+                writer.Write8( (byte)msg.MessageType );
+
+                Logging.LogDebugData( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
+
+                MyTcpClient.Client.BeginSend(
+                    new List<ArraySegment<byte>> {
+                        new ArraySegment<byte>( header ),
+                        new ArraySegment<byte>( data )
+                    },
+                    SocketFlags.None,
+                    ( ar ) =>
+                    {
+                        try
+                        {
+                            MyTcpClient?.Client?.EndSend( ar );
+
+                            lock ( SendQueue )
+                            {
+                                if ( SendQueue.IsEmpty || !SendQueue.TryDequeue( out var newmsg ) )
+                                {
+                                    SendInProgress = false;
+                                    return;
+                                }
+
+                                SendOneMessage( newmsg );
+                            }
+                        }
+                        catch ( Exception ex )
+                        {
+                            Logging.LogDebug( ex );
+                        }
+                    },
+                    this );
+            }
+            catch ( Exception ex )
+            {
+                Logging.LogDebug( $"{this} {ex}" );
+                Terminate();
+            }
+        }
+
+        internal void Send2( I2CPMessage msg )
         {
             try
             {
@@ -234,7 +301,7 @@ namespace I2P.I2CP
                     MyStream.Flush();
                 }
             }
-            catch( Exception ex )
+            catch ( Exception ex )
             {
                 Logging.LogDebug( $"{this} {ex}" );
                 Terminate();
