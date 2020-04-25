@@ -371,6 +371,7 @@ namespace I2PCore.TransportLayer.SSU
         public void Terminate()
         {
             IsTerminated = true;
+            CurrentState = null;
         }
 
         public bool Terminated
