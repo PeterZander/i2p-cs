@@ -187,13 +187,14 @@ namespace I2PCore.TransportLayer.NTCP
             catch ( SocketException )
             {
                 Logging.LogTransport( $"NTCP {DebugId} SendCompleted SocketException" );
-                Terminated = true;
+                Terminate();
                 return;
             }
             catch ( Exception ex )
             {
                 Logging.Log( "NTCP SendCompleted", ex );
-                Terminated = true;
+                Terminate();
+                return;
             }
             finally
             {
