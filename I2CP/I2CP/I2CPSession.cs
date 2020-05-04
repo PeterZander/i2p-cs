@@ -42,7 +42,7 @@ namespace I2P.I2CP
         internal TcpClient MyTcpClient;
 
         public ushort SessionId = 1;
-        public bool Terminated = false;
+        public bool Terminated { get; private set; }
 
         static int InstanceCounter;
         readonly string InstanceInfo;
@@ -177,30 +177,59 @@ namespace I2P.I2CP
 
         internal void Terminate( [CallerMemberName] string caller = "" )
         {
-            if ( Terminated ) return;
-            Terminated = true;
-
-            MyStream.Flush();
-            CTSource.Cancel( false );
-
-            Logging.LogInformation( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint} by {caller}." );
-
-            foreach ( var destsid in SessionIds )
+            try
             {
-                var dest = destsid.Value.MyDestination;
+                CurrentState = null;
 
-                if ( dest != null )
+                if ( Terminated ) return;
+
+                CTSource?.Cancel( false );
+
+                Logging.LogInformation( $"{this}: Terminating {DebugId} from {MyTcpClient.Client.RemoteEndPoint} by {caller}." );
+
+                try
                 {
-                    DetachDestination( dest );
-                    dest.Shutdown();
+                    MyTcpClient?.Close();
                 }
+                catch ( Exception ex )
+                {
+                    Logging.LogDebug( ex );
+                }
+
+                try
+                {
+                    MyTcpClient?.Dispose();
+                    MyTcpClient = null;
+                }
+                catch ( Exception ex )
+                {
+                    Logging.LogDebug( ex );
+                }
+
+                foreach ( var destsid in SessionIds )
+                {
+                    try
+                    {
+                        var dest = destsid.Value.MyDestination;
+
+                        if ( dest != null )
+                        {
+                            DetachDestination( dest );
+                            dest?.Shutdown();
+                        }
+                    }
+                    catch ( Exception ex )
+                    {
+                        Logging.LogDebug( ex );
+                    }
+                }
+
+                Terminated = true;
             }
-
-            CurrentState = null;
-
-            MyTcpClient.Close();
-            MyTcpClient.Dispose();
-            MyTcpClient = null;
+            catch ( Exception ex )
+            {
+                Logging.LogDebug( ex );
+            }
         }
 
         ushort PrevSessionId = 0;
@@ -271,6 +300,7 @@ namespace I2P.I2CP
                         catch ( Exception ex )
                         {
                             Logging.LogDebug( ex );
+                            Terminate();
                         }
                     },
                     this );

@@ -57,7 +57,7 @@ namespace I2P.I2CP
                                 try
                                 {
                                     Logging.LogWarning( $"{this}: Terminating stuck session {one} {one.Value.LastReception}" );
-                                    //one.Value.Terminate();
+                                    one.Value.Terminate();
                                 }
                                 catch ( Exception ex )
                                 {
