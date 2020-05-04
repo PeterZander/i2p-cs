@@ -16,5 +16,7 @@ namespace I2PCore.TunnelLayer
         }
 
         public bool PassedTunnelTest { get; set; }
+
+        public TickSpan BuildTimePerHop { get; set; }
     }
 }

@@ -833,9 +833,11 @@ namespace I2PCore.TunnelLayer
                 {
                     var delta = ( tunnel.EstablishedTime - tunnel.CreationTime ).ToMilliseconds;
                     var hops = members.Length + tunnel.ReplyTunnelHops;
+                    var deltaperhop = delta / hops;
+                    tunnel.Metrics.BuildTimePerHop = TickSpan.Milliseconds( deltaperhop );
                     try
                     {
-                        foreach ( var member in members ) NetDb.Inst.Statistics.TunnelBuildTimeMsPerHop( member.IdentHash, delta / hops );
+                        foreach ( var member in members ) NetDb.Inst.Statistics.TunnelBuildTimeMsPerHop( member.IdentHash, deltaperhop );
                     }
                     catch ( Exception ex )
                     {
@@ -866,9 +868,11 @@ namespace I2PCore.TunnelLayer
                 {
                     var delta = ( tunnel.EstablishedTime - tunnel.CreationTime ).ToMilliseconds;
                     var hops = members.Length + tunnel.OutTunnelHops - 1;
+                    var deltaperhop = delta / hops;
+                    tunnel.Metrics.BuildTimePerHop = TickSpan.Milliseconds( deltaperhop );
                     try
                     {
-                        foreach ( var member in members ) NetDb.Inst.Statistics.TunnelBuildTimeMsPerHop( member.IdentHash, delta / hops );
+                        foreach ( var member in members ) NetDb.Inst.Statistics.TunnelBuildTimeMsPerHop( member.IdentHash, deltaperhop );
                     }
                     catch ( Exception ex )
                     {
@@ -916,7 +920,8 @@ namespace I2PCore.TunnelLayer
             var penalty = Tunnel.MeassuredTunnelBuildTimePerHop.ToMilliseconds * 2.0;
 
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
-            result += t.CreationTime.DeltaToNowMilliseconds;
+            result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
+            result += ( t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? Tunnel.ExpectedTunnelBuildTimePerHop.ToMilliseconds * 2 );
             if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
             if ( t.Expired ) result += penalty;
