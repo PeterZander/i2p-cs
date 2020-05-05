@@ -26,7 +26,7 @@ namespace I2PCore.TransportLayer.SSU
 
         private void CreateSocket()
         {
-            IPAddress local = MyRouterContext.Address;
+            IPAddress local = MyRouterContext.LocalInterface;
             LocalEP = new IPEndPoint( local, MyRouterContext.UDPPort );
             RemoteEP = LocalEP;
 

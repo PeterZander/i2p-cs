@@ -91,9 +91,8 @@ namespace I2PCore.TransportLayer.NTCP
         private static Socket CreateListener()
         {
             Socket listener;
-            var ipaddr = RouterContext.Inst.Address;
             listener = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
-            listener.Bind( new IPEndPoint( ipaddr, RouterContext.Inst.TCPPort ) );
+            listener.Bind( new IPEndPoint( RouterContext.Inst.LocalInterface, RouterContext.Inst.TCPPort ) );
             listener.Listen( 20 );
             return listener;
         }

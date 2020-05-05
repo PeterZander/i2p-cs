@@ -60,6 +60,8 @@ namespace I2PCore.SessionLayer
             NetworkInterfaceType.Wireless80211
         };
 
+        public IPAddress LocalInterface { get; set; } = IPAddress.Any;
+
         // IP settings
         public IPAddress DefaultExtAddress = null;
         public IPAddress ExtAddress
@@ -78,37 +80,7 @@ namespace I2PCore.SessionLayer
 
                 if ( DefaultExtAddress != null ) return DefaultExtAddress;
 
-                return Address;
-            }
-        }
-
-        public IPAddress Address 
-        {
-            get
-            {
-                IEnumerable<UnicastIPAddressInformation> ai;
-
-                if ( false ) // TODO: IPV6
-                {
-                    ai = GetAllLocalInterfaces(
-                        InterfaceTypes,
-                        new AddressFamily[]
-                        {
-                            AddressFamily.InterNetwork,
-                            AddressFamily.InterNetworkV6
-                        } );
-                }
-                else
-                {
-                    ai = GetAllLocalInterfaces(
-                        InterfaceTypes,
-                        new AddressFamily[]
-                        {
-                            AddressFamily.InterNetwork
-                        } );
-                }
-
-                return ai.Random().Address;
+                return LocalInterface;
             }
         }
 

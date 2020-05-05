@@ -38,6 +38,20 @@ namespace I2PRouter
                         }
                         break;
 
+                    case "--if":
+                    case "--interface":
+                        if ( args.Length > i + 1 )
+                        {
+                            RouterContext.Inst.LocalInterface = IPAddress.Parse( args[++i] );
+                            Console.WriteLine( $"if {RouterContext.Inst.LocalInterface}" );
+                        }
+                        else
+                        {
+                            Console.WriteLine( "--if require ip number" );
+                            return;
+                        }
+                        break;
+
                     case "--port":
                         if ( args.Length > i + 1 )
                         {

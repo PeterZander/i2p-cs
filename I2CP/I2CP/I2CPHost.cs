@@ -38,7 +38,7 @@ namespace I2P.I2CP
             {
                 while ( !Terminated )
                 {
-                    var listener = new TcpListener( IPAddress.Any, DefaultI2CPPort );
+                    var listener = new TcpListener( RouterContext.Inst.LocalInterface, DefaultI2CPPort );
                     listener.Start();
 
                     try
