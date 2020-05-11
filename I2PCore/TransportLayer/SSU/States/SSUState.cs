@@ -26,7 +26,7 @@ namespace I2PCore.TransportLayer.SSU
         {
             get
             {
-                return TickSpan.Seconds( 12 * 60 );
+                return TickSpan.Minutes( 3 );
             }
         }
 
@@ -40,7 +40,7 @@ namespace I2PCore.TransportLayer.SSU
         protected SSUState( SSUSession sess ) { Session = sess; }
 
         protected bool Timeout( TickSpan timeout ) 
-        { 
+        {
             return LastSend.DeltaToNow > timeout
                 || LastReceive.DeltaToNow > timeout;
         }

@@ -74,8 +74,8 @@ namespace I2PCore.TunnelLayer
             {
                 var hops = OutTunnelHops + TunnelMemberHops;
                 var timeperhop = Config.Pool == TunnelConfig.TunnelPool.Exploratory
-                        ? ( MeassuredTunnelBuildTimePerHop * 2 ) / 3
-                        : MeassuredTunnelBuildTimePerHop;
+                        ? ( ExpectedTunnelBuildTimePerHop * 2 ) / 3
+                        : ExpectedTunnelBuildTimePerHop;
 
                 return timeperhop * hops;
             }

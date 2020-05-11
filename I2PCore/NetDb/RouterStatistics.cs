@@ -15,7 +15,7 @@ namespace I2PCore
         {
             get
             {
-                return ( Tunnel.MeassuredTunnelBuildTimePerHop * 1200 ).ToMilliseconds;
+                return Tunnel.ExpectedTunnelBuildTimePerHop.ToMilliseconds;
             }
         }
 

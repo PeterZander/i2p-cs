@@ -338,6 +338,12 @@ namespace I2PCore
          */
         void ExplorationRouterLookup()
         {
+            if ( NetDb.Inst.RouterCount > 1000 
+                    && ExploreNewRouters.Frequency < TickSpan.Minutes( 1 ) )
+            {
+                ExploreNewRouters.Frequency = TickSpan.Minutes( 5 );
+            }
+
             I2PIdentHash ident = new I2PIdentHash( true );
 
             var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null, false )

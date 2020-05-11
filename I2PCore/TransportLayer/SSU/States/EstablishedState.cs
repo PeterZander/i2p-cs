@@ -1,4 +1,6 @@
-﻿using System;
+#define NO_SSU_SEND_KEEPALIVE
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -116,7 +118,9 @@ namespace I2PCore.TransportLayer.SSU
             // Idle
             if ( Timeout( InactivityTimeout ) )
             {
-                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: Inactivity timeout. Sending SessionDestroyed." );
+                Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: " +
+                    $"Inactivity timeout. Sending SessionDestroyed. " +
+                    $"s/r {LastSend.DeltaToNow} / {LastReceive.DeltaToNow}" );
                 SendSessionDestroyed();
                 return null;
             }
@@ -151,6 +155,7 @@ namespace I2PCore.TransportLayer.SSU
                 }
             }
 
+#if SSU_SEND_KEEPALIVE
             if ( !dosend && LastIntroducerKeepalive.DeltaToNow > timeout )
             {
                 dosend = true;
@@ -161,6 +166,7 @@ namespace I2PCore.TransportLayer.SSU
 #endif
                 LastIntroducerKeepalive.SetNow();
             }
+#endif
 
             if ( dosend )
             {

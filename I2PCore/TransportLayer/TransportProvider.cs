@@ -95,21 +95,31 @@ namespace I2PCore.TransportLayer
                             }
                         }
 
-#if DEBUG
                         ActiveConnectionLog.Do( () =>
                         {
-                            var ntcprunning = RunningTransports.Where( t => t.Protocol == "NTCP" ).ToArray();
-                            var ssurunning = RunningTransports.Where( t => t.Protocol == "SSU" ).ToArray();
-                            var ntcpestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "NTCP" ) ).ToArray();
-                            var ssuestablished = EstablishedTransports.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "SSU" ) ).ToArray();
+                            if ( Logging.LogLevel > Logging.LogLevels.Information ) return;
 
-                            Logging.LogDebug(
-                                $"TransportProvider: Established out/in " +
+                            ITransport[] rt;
+                            lock ( RunningTransports )
+                            {
+                                rt = RunningTransports.ToArray();
+                            }
+
+                            var et = EstablishedTransports.ToArray();
+
+                            var ntcprunning = rt.Where( t => t.Protocol == "NTCP" ).ToArray();
+                            var ssurunning = rt.Where( t => t.Protocol == "SSU" ).ToArray();
+                            var ntcpestablished = et.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "NTCP" ) ).ToArray();
+                            var ssuestablished = et.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "SSU" ) ).ToArray();
+
+                            Logging.LogInformation(
+                                $"TransportProvider: (Established out/Running out)/(Established in/Running in) " +
                                 $"({ssuestablished.Count( t => t.Key.Outgoing )}/{ssurunning.Count( t => t.Outgoing )})/" +
                                 $"({ssuestablished.Count( t => !t.Key.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
                                 $"({ntcpestablished.Count( t => t.Key.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
                                 $"({ntcpestablished.Count( t => !t.Key.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
 
+#if DEBUG
                             var ntcpsent = ntcprunning.Sum( t => t.BytesSent );
                             var ntcprecv = ntcprunning.Sum( t => t.BytesReceived );
                             var ssusent = ssurunning.Sum( t => t.BytesSent );
@@ -119,8 +129,8 @@ namespace I2PCore.TransportLayer
                                 $"TransportProvider: send / recv  " +
                                 $"SSU: {BytesToReadable( ssusent ),12} / {BytesToReadable( ssurecv ),12}    " +
                                 $"NTCP: {BytesToReadable( ntcpsent ),12} / {BytesToReadable( ntcprecv ),12}" );
-                        } );
 #endif
+                        } );
 
                         DropOldExceptions.Do( delegate
                         {
@@ -202,8 +212,8 @@ namespace I2PCore.TransportLayer
                 if ( create )
                 {
                     var ri = NetDb.Inst[dest];
-                    if ( ri.Identity.IdentHash != dest ) throw new ArgumentException( "NetDb mismatch. Search for " +
-                        dest.Id32 + " returns " + ri.Identity.IdentHash.Id32 );
+                    if ( ri.Identity.IdentHash != dest ) throw new ArgumentException( $"NetDb mismatch. Search for " +
+                        $"{dest.Id32} returns {ri?.Identity?.IdentHash.Id32}" );
                     return CreateTransport( ri );
                 }
             }

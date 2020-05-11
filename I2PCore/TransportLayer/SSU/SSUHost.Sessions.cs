@@ -157,7 +157,7 @@ namespace I2PCore.TransportLayer.SSU
 
                         while ( !Terminated )
                         {
-                            Thread.Sleep( 50 );
+                            Thread.Sleep( 300 );
 
                             SSUSession[] sessions;
                             lock ( NeedsCpu )

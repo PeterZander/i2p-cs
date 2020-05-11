@@ -10,6 +10,9 @@ namespace I2PCore
 {
     public partial class NetDb
     {
+        public int RouterCount { get => RouterInfos.Count; }
+        public int FloodfillCount { get => FloodfillInfos.Count; }
+
         private I2PIdentHash GetRandomRouter(
             RouletteSelection<I2PRouterInfo, I2PIdentHash> r,
             ConcurrentBag<I2PIdentHash> exclude,

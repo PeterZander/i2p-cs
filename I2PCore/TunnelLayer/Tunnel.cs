@@ -25,14 +25,14 @@ namespace I2PCore.TunnelLayer
         {
             get
             {
-                return MeassuredTunnelBuildTimePerHop * 8;
+                return ExpectedTunnelBuildTimePerHop * 8;
             }
         }
 
         // Time per hop for "ok" routers
         // Avg     1223 ms
         // StdDev  1972 ms
-        public static TickSpan MeassuredTunnelBuildTimePerHop
+        public static TickSpan ExpectedTunnelBuildTimePerHop
         {
             get
             {

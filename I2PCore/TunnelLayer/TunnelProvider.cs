@@ -83,7 +83,7 @@ namespace I2PCore.TunnelLayer
         PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 30 ) );
         PeriodicAction TunnelBandwidthLog = new PeriodicAction( TickSpan.Minutes( 8 ) );
 
-        PeriodicAction CheckTunnelTimeouts = new PeriodicAction( Tunnel.MeassuredTunnelBuildTimePerHop );
+        PeriodicAction CheckTunnelTimeouts = new PeriodicAction( Tunnel.ExpectedTunnelBuildTimePerHop );
 
         bool Terminated = false;
         private void Run()
@@ -917,7 +917,7 @@ namespace I2PCore.TunnelLayer
 
         public static double GenerateTunnelWeight( Tunnel t )
         {
-            var penalty = Tunnel.MeassuredTunnelBuildTimePerHop.ToMilliseconds * 2.0;
+            var penalty = Tunnel.ExpectedTunnelBuildTimePerHop.ToMilliseconds * 2.0;
 
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
             result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
