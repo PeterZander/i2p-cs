@@ -5,10 +5,12 @@ using System.Net;
 using I2PCore.Utils;
 using System.Threading;
 using I2PCore.SessionLayer;
+using I2PCore.Data;
 
 namespace I2PCore.TransportLayer.SSU
 {
-    public partial class SSUHost
+    [TransportProtocol]
+    public partial class SSUHost: ITransportProtocol
     {
         Thread Worker;
         public bool Terminated { get; protected set; }
@@ -32,16 +34,16 @@ namespace I2PCore.TransportLayer.SSU
 #endif
 
         RouterContext MyRouterContext;
-        readonly IMTUProvider MTUProvider;
         HashSet<IPAddress> OurIPs;
 
-        public SSUHost( RouterContext rc, IMTUProvider mtup )
+        public SSUHost()
         {
-            MyRouterContext = rc;
-            MTUProvider = mtup;
+            MyRouterContext = RouterContext.Inst;
             MyRouterContext.NetworkSettingsChanged += new Action( NetworkSettingsChanged );
 
             OurIPs = new HashSet<IPAddress>( Dns.GetHostEntry( Dns.GetHostName() ).AddressList );
+
+            UpdateRouterContext();
 
             Worker = new Thread( Run )
             {
@@ -95,6 +97,7 @@ namespace I2PCore.TransportLayer.SSU
             LastIPReport.SetNow();
 
             MyRouterContext.SSUReportedAddr( ipaddr );
+            UpdateRouterContext();
         }
 
         internal void ReportRelayResponse( SSUHeader header, RelayResponse response, IPEndPoint ep )
@@ -106,6 +109,14 @@ namespace I2PCore.TransportLayer.SSU
                     RelayResponseReceived( header, response, ep );
                 }
             }
+        }
+
+        public ProtocolCapabilities ContactCapability( I2PRouterInfo router )
+        {
+            return router.Adresses.Any( ra => ra.TransportStyle == "SSU"
+                        && ra.Options.Contains( "key" ) )
+                            ? ProtocolCapabilities.NATTraversal
+                            : ProtocolCapabilities.None;
         }
     }
 }

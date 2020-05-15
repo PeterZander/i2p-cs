@@ -20,13 +20,7 @@ namespace I2PCore
         public int MTUMin;
     }
 
-    public interface IMTUProvider
-    {
-        MTUConfig GetMTU( IPEndPoint ep );
-        void MTUUsed( IPEndPoint ep, MTUConfig mtu );
-    }
-
-    public class RoutersStatistics: IMTUProvider
+    public class RoutersStatistics
     {
         enum StoreRecordId : int { RouterStatistics = 1 };
         ConcurrentDictionary<I2PIdentHash, RouterStatistics> Routers = 
@@ -292,39 +286,6 @@ namespace I2PCore
             {
                 router.Deleted = true;
             }
-        }
-
-        public MTUConfig GetMTU( IPEndPoint ep )
-        {
-            var result = new MTUConfig();
-
-            if ( ep == null )
-            {
-                result.MTU = 1484 - 28; // IPV4 28 byte UDP header
-                result.MTUMax = 1484 - 28;
-                result.MTUMin = 620 - 28;
-                return result;
-            }
-
-            switch ( ep.AddressFamily )
-            {
-                case System.Net.Sockets.AddressFamily.InterNetwork:
-                    result.MTU = 1484 - 28;
-                    result.MTUMax = 1484 - 28;
-                    result.MTUMin = 620 - 28;
-                    break;
-
-                case System.Net.Sockets.AddressFamily.InterNetworkV6:
-                    result.MTU = 1280 - 48;  // IPV6 48 byte UDP header
-                    result.MTUMax = 1472 - 48;
-                    result.MTUMin = 1280 - 48;
-                    break;
-
-                default:
-                    throw new NotImplementedException( ep.AddressFamily.ToString() + " not supported" );
-            }
-
-            return result;
         }
     }
 }

@@ -10,6 +10,8 @@ using I2PCore.TransportLayer.SSU;
 using System.Net.Sockets;
 using I2PCore.TransportLayer.SSU.Data;
 using System.Net.NetworkInformation;
+using System.Collections.Concurrent;
+using I2PCore.TransportLayer;
 
 // Todo list for all of I2PCore
 // TODO: SSU PeerTest with automatic firewall detection
@@ -80,7 +82,37 @@ namespace I2PCore.SessionLayer
 
                 if ( DefaultExtAddress != null ) return DefaultExtAddress;
 
-                return LocalInterface;
+                return MyAddress;
+            }
+        }
+
+        public IPAddress MyAddress
+        {
+            get
+            {
+                IEnumerable<UnicastIPAddressInformation> ai;
+
+                if ( false ) // TODO: IPV6
+                {
+                    ai = GetAllLocalInterfaces(
+                        InterfaceTypes,
+                        new AddressFamily[]
+                        {
+                            AddressFamily.InterNetwork,
+                            AddressFamily.InterNetworkV6
+                        } );
+                }
+                else
+                {
+                    ai = GetAllLocalInterfaces(
+                        InterfaceTypes,
+                        new AddressFamily[]
+                        {
+                            AddressFamily.InterNetwork
+                        } );
+                }
+
+                return ai.Random().Address;
             }
         }
 
@@ -189,7 +221,7 @@ namespace I2PCore.SessionLayer
         {
             try
             {
-                Logging.LogInformation( "RouterContext: Path: " + RouterPath );
+                Logging.LogInformation( $"RouterContext: Path: {RouterPath}" );
                 Load( GetFullPath( filename ) );
             }
             catch ( Exception ex )
@@ -204,10 +236,6 @@ namespace I2PCore.SessionLayer
         {
             Published = new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) );
             Certificate = cert ?? new I2PCertificate( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
-            //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
-            //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
-            //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384 );
-            //Certificate = new I2PCertificate( I2PSigningKey.SigningKeyTypes.DSA_SHA1 );
             PrivateSigningKey = new I2PSigningPrivateKey( Certificate );
             PublicSigningKey = new I2PSigningPublicKey( PrivateSigningKey );
 
@@ -299,26 +327,11 @@ namespace I2PCore.SessionLayer
                     caps["router.version"] = I2PConstants.PROTOCOL_VERSION;
                     caps["stat_uptime"] = "90m";
 
-                    var ntcp = new I2PRouterAddress( ExtAddress, TCPPort, 11, "NTCP" );
-                    var ssu = new I2PRouterAddress( ExtAddress, UDPPort, 5, "SSU" );
-
-                    var ssucaps = "";
-                    if ( SSUHost.PeerTestSupported ) ssucaps += "B";
-                    if ( SSUHost.IntroductionSupported ) ssucaps += "C";
-
-                    ssu.Options["caps"] = ssucaps;
-                    ssu.Options["key"] = FreenetBase64.Encode( IntroKey );
-                    foreach ( var intro in SSUIntroducersInfo )
-                    {
-                        ssu.Options[intro.Key] = intro.Value;
-                    }
-
+                    var addresses = RouterAdresses.Values.ToArray();
                     var result = new I2PRouterInfo(
                         MyRouterIdentity,
                         new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ),
-                        IsFirewalled
-                            ? new I2PRouterAddress[] { ssu }
-                            : new I2PRouterAddress[] { ntcp, ssu },
+                        addresses,
                         caps,
                         PrivateSigningKey );
 
@@ -335,6 +348,22 @@ namespace I2PCore.SessionLayer
         private void ClearCache()
         {
             MyRouterInfoCache = null;
+        }
+
+        readonly ConcurrentDictionary<ITransportProtocol, I2PRouterAddress> RouterAdresses
+            = new ConcurrentDictionary<ITransportProtocol, I2PRouterAddress>();
+
+        public void UpdateAddress( ITransportProtocol proto, I2PRouterAddress addr )
+        {
+            if ( addr is null )
+            {
+                RouterAdresses.TryRemove( proto, out _ );
+                ClearCache();
+                return;
+            }
+
+            RouterAdresses[proto] = addr;
+            ClearCache();
         }
 
         public void SSUReportedAddr( IPAddress extaddr )
@@ -358,7 +387,7 @@ namespace I2PCore.SessionLayer
         public void ApplyNewSettings()
         {
             ClearCache();
-            if ( NetworkSettingsChanged != null ) NetworkSettingsChanged();
+            NetworkSettingsChanged?.Invoke();
         }
 
         internal void UpnpNATPortMapAdded( IPAddress addr, string protocol, int port )
@@ -380,40 +409,6 @@ namespace I2PCore.SessionLayer
             ClearCache();
 
             ApplyNewSettings();
-        }
-
-        List<KeyValuePair<string,string>> SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
-
-        internal void NoIntroducers()
-        {
-            if ( SSUIntroducersInfo.Any() )
-            {
-                SSUIntroducersInfo = new List<KeyValuePair<string, string>>();
-            }
-        }
-
-        internal void SetIntroducers( IEnumerable<IntroducerInfo> introducers )
-        {
-            if ( !introducers.Any() )
-            {
-                NoIntroducers();
-                return;
-            }
-
-            var result = new List<KeyValuePair<string, string>>();
-            var ix = 0;
-
-            foreach( var one in introducers )
-            {
-                result.Add( new KeyValuePair<string, string>( $"ihost{ix}", one.Host.ToString() ) );
-                result.Add( new KeyValuePair<string, string>( $"iport{ix}", one.Port.ToString() ) );
-                result.Add( new KeyValuePair<string, string>( $"ikey{ix}", FreenetBase64.Encode( one.IntroKey ) ) );
-                result.Add( new KeyValuePair<string, string>( $"itag{ix}", one.IntroTag.ToString() ) );
-                ++ix;
-            }
-
-            SSUIntroducersInfo = result;
-            ClearCache();
         }
     }
 }

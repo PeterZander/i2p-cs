@@ -2,6 +2,7 @@
 using I2PCore.Utils;
 using System.Net.Sockets;
 using System.Net;
+using System.Linq;
 
 namespace I2PCore.TransportLayer.NTCP
 {
@@ -13,14 +14,15 @@ namespace I2PCore.TransportLayer.NTCP
 
         public override IPAddress RemoteAddress { get { return OutgoingAddress; } }
 
-        public NTCPClientOutgoing( I2PRouterAddress addr, I2PKeysAndCert dest )
+        public NTCPClientOutgoing( I2PRouterInfo router )
             : base( true )
         {
-            Address = addr;
-            NTCPContext.RemoteRouterIdentity = dest;
+            Address = router.Adresses.First( a => a.TransportStyle == "NTCP"
+                        && a.HaveHostAndPort );
+            NTCPContext.RemoteRouterIdentity = router.Identity;
 
             RemoteDescription = Address.Options["host"];
-            OutgoingAddress = addr.Host;
+            OutgoingAddress = Address.Host;
             OutgoingPort = int.Parse( Address.Options["port"] );
         }
 
@@ -38,8 +40,7 @@ namespace I2PCore.TransportLayer.NTCP
                 throw new FailedToConnectException( ex.ToString() );
             }
 
-            Logging.LogTransport( string.Format( "NTCP +{0}+ connected to {1}",
-                    TransportInstance, result.RemoteEndPoint ) );
+            Logging.LogTransport( $"NTCP +{TransportInstance}+ connected to {result.RemoteEndPoint}" );
 
             return result;
         }

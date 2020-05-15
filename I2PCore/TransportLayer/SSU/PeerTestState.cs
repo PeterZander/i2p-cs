@@ -26,8 +26,7 @@ namespace I2PCore.TransportLayer.SSU
         internal const int PeerTestNonceLifetimeMilliseconds = 20000; 
         
         SSUHost Host;
-        I2PRouterAddress Addr;
-        I2PKeysAndCert Dest;
+        I2PRouterInfo Router;
 
         SSUSession Session;
 
@@ -41,13 +40,12 @@ namespace I2PCore.TransportLayer.SSU
         {
         }
 
-        private PeerTestState( SSUHost host, I2PRouterAddress addr, I2PKeysAndCert dest )
+        private PeerTestState( SSUHost host, I2PRouterInfo router )
         {
             Host = host;
-            Addr = addr;
-            Dest = dest;
+            Router = router;
 
-            Session = (SSUSession)Host.AddSession( addr, dest );
+            Session = (SSUSession)Host.AddSession( router );
             //Session.StartPeerTest( this );
         }
 

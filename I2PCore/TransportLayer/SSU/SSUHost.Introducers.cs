@@ -33,7 +33,7 @@ namespace I2PCore.TransportLayer.SSU
 
                         if ( intros.Any() )
                         {
-                            MyRouterContext.SetIntroducers( intros );
+                            SetIntroducers( intros );
                             ConsiderUpdateIntroducers.Frequency = TickSpan.Minutes( 10 );
                             GatherIntroducersState = GatherIntroducersStates.Established;
                         }
@@ -43,7 +43,7 @@ namespace I2PCore.TransportLayer.SSU
                 case GatherIntroducersStates.Established:
                     ConsiderUpdateIntroducers.Do( () =>
                     {
-                        MyRouterContext.SetIntroducers( SelectIntroducers()
+                        SetIntroducers( SelectIntroducers()
                             .Select( p => p.Left.RemoteIntroducerInfo ) );
                     } );
                     break;

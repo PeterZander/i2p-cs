@@ -151,7 +151,6 @@ namespace I2PCore.TransportLayer.SSU
         private readonly BandwidthStatistics BWStat = new BandwidthStatistics();
 
         internal RouterContext MyRouterContext;
-        IMTUProvider MTUProvider;
         internal MTUConfig MTU;
 
         internal readonly DataDefragmenter Defragmenter = new DataDefragmenter();
@@ -169,7 +168,6 @@ namespace I2PCore.TransportLayer.SSU
                 IPEndPoint remoteep, 
                 I2PRouterAddress remoteaddr, 
                 I2PKeysAndCert rri, 
-                IMTUProvider mtup, 
                 RouterContext rc )
         {
             mOutgoing = true;
@@ -178,7 +176,6 @@ namespace I2PCore.TransportLayer.SSU
             RemoteEP = remoteep;
             RemoteAddr = remoteaddr;
             RemoteRouter = rri;
-            MTUProvider = mtup;
             MyRouterContext = rc;
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
@@ -189,7 +186,7 @@ namespace I2PCore.TransportLayer.SSU
             RemoteIntroKey = new BufLen( FreenetBase64.Decode( RemoteAddr.Options["key"] ) );
             MACKey = RouterContext.Inst.IntroKey; // TODO: Remove
 
-            MTU = MTUProvider.GetMTU( remoteep );
+            MTU = Host.GetMTU( remoteep );
         }
 
         // We are host
@@ -197,20 +194,16 @@ namespace I2PCore.TransportLayer.SSU
                 SSUHost owner,
                 Action<IPEndPoint, BufLen> sendmethod,
                 IPEndPoint remoteep, 
-                IMTUProvider mtup, 
                 RouterContext rc )
         {
             mOutgoing = false;
             Host = owner;
             Sendmethod = sendmethod;
             RemoteEP = remoteep;
-            MTUProvider = mtup;
             MyRouterContext = rc;
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter ) + 10000;
 
             Logging.LogTransport( $"SSUSession: {DebugId} Host instance created." );
-
-            MTU = MTUProvider.GetMTU( remoteep );
 
             SendQueue.Enqueue( ( new DeliveryStatusMessage( (ulong)I2PConstants.I2P_NETWORK_ID ) ).CreateHeader16 );
             SendQueue.Enqueue( ( new DatabaseStoreMessage( MyRouterContext.MyRouterInfo ) ).CreateHeader16 );
@@ -535,7 +528,6 @@ namespace I2PCore.TransportLayer.SSU
         internal void SendDroppedMessageDetected()
         {
             MTU.MTU = Math.Max( MTU.MTUMin, MTU.MTU - 16 );
-            MTUProvider.MTUUsed( RemoteEP, MTU );
         }
 
         internal PeerTest QueuedFirstPeerTestToCharlie = null;

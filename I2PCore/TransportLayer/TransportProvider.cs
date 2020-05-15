@@ -1,17 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Data;
 using I2PCore.TransportLayer.NTCP;
 using System.Threading;
 using I2PCore.Utils;
-using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using System.Net;
 using I2PCore.SessionLayer;
-using I2PCore.TransportLayer.SSU;
 using System.Net.Sockets;
 using static I2PCore.Utils.BufUtils;
 using System.Collections.Concurrent;
@@ -23,7 +20,7 @@ namespace I2PCore.TransportLayer
         protected static Thread Worker;
         public static TransportProvider Inst { get; protected set; }
 
-        public const int ExeptionHistoryLifetimeMinutes = 20;
+        public static readonly TickSpan ExeptionHistoryLifetime = TickSpan.Minutes( 20 );
 
         UnresolvableRouters CurrentlyUnresolvableRouters = new UnresolvableRouters();
         public int CurrentlyUnresolvableRoutersCount { get { return CurrentlyUnresolvableRouters.Count; } }
@@ -42,11 +39,13 @@ namespace I2PCore.TransportLayer
 
         public event Action<ITransport, II2NPHeader> IncomingMessage;
 
+        readonly ITransportProtocol[] TransportProtocols;
+
         TransportProvider()
         {
             CurrentlyUnknownRouters = new UnknownRouterQueue( CurrentlyUnresolvableRouters );
 
-            SsuHost = new SSUHost( RouterContext.Inst, NetDb.Inst.Statistics );
+            TransportProtocols = GetTransportProtocols();
 
             Worker = new Thread( Run )
             {
@@ -63,21 +62,20 @@ namespace I2PCore.TransportLayer
         }
 
         PeriodicAction ActiveConnectionLog = new PeriodicAction( TickSpan.Seconds( 15 ) );
-        PeriodicAction DropOldExceptions = new PeriodicAction( TickSpan.Minutes( ExeptionHistoryLifetimeMinutes ) );
+        PeriodicAction DropOldExceptions = new PeriodicAction( ExeptionHistoryLifetime );
 
         bool Terminated = false;
 
-        SSUHost SsuHost = null;
-        public int SsuHostBlockedIPCount { get { return SsuHost.BlockedIPCount; } }
+        public int SsuHostBlockedIPCount { get { return TransportProtocols.Sum( tp => tp.BlockedRemoteAddressesCount ); } }
 
         private void Run()
         {
             try
             {
-                var ntcphost = new NTCPHost();
-
-                ntcphost.ConnectionCreated += NTCPhost_ConnectionCreated;
-                SsuHost.ConnectionCreated += SSUHost_ConnectionCreated;
+                foreach ( var tp in TransportProtocols )
+                {
+                    tp.ConnectionCreated += TransportProtocol_ConnectionCreated;
+                }
 
                 while ( !Terminated )
                 {
@@ -137,7 +135,10 @@ namespace I2PCore.TransportLayer
                             lock ( AddressesWithExceptions )
                             {
                                 var remove = AddressesWithExceptions.Where( eh =>
-                                    eh.Value.Generated.DeltaToNow.ToMinutes >= ExeptionHistoryLifetimeMinutes ).Select( eh => eh.Key ).ToArray();
+                                                eh.Value.Generated.DeltaToNow > ExeptionHistoryLifetime )
+                                    .Select( eh => eh.Key )
+                                    .ToArray();
+
                                 foreach ( var one in remove ) AddressesWithExceptions.Remove( one );
                             }
                         } );
@@ -156,6 +157,22 @@ namespace I2PCore.TransportLayer
             {
                 Terminated = true;
             }
+        }
+
+        ITransportProtocol[] GetTransportProtocols()
+        {
+            var protocols = AppDomain.CurrentDomain
+                .GetAssemblies()
+                .SelectMany( a => a.GetTypes()
+                                .Where( t => t.IsDefined( 
+                                                typeof( TransportProtocolAttribute ),
+                                                false )
+                                             && typeof( ITransportProtocol ).IsAssignableFrom( t ) ) );
+
+            return protocols
+                    .Select( Activator.CreateInstance )
+                    .Cast<ITransportProtocol>()
+                    .ToArray();
         }
 
         private void Remove( ITransport instance )
@@ -238,47 +255,22 @@ namespace I2PCore.TransportLayer
 
             try
             {
-                var ntcpaddr = ri.Adresses.Where( a => ( a.TransportStyle == "NTCP" ) 
-                            && a.HaveHostAndPort
-                            && ( RouterContext.Inst.UseIpV6 
-                                || a.Options.ValueContains( "host", "." ) ) );
+                var pproviders = TransportProtocols
+                                    .GroupBy( tp => tp.ContactCapability( ri ) )
+                                    .OrderByDescending( cc => (int)cc.Key );
 
-                var ssuaddr = ri.Adresses.Where( a => ( a.TransportStyle == "SSU" ) 
-                            && a.Options.Contains( "key" ) 
-                            && ( RouterContext.Inst.UseIpV6 
-                                || a.Options.ValueContains( "host", "." )
-                                || a.Options.ValueContains( "ihost0", "." ) ) );
+                var pprovider = pproviders.FirstOrDefault()?.Random();
 
-                I2PRouterAddress ra = ssuaddr
-                    .Where( a => a.Options.Contains( "host" ) )
-                    .Random() 
-                        ?? ntcpaddr.Random() 
-                        ?? ssuaddr.Random();
-
-                if ( ra == null )
+                if ( pprovider == null )
                 {
                     Logging.LogTransport(
                         $"TransportProvider: CreateTransport: No usable address found for {ri.Identity.IdentHash.Id32Short}!" );
                     return null;
                 }
 
-                switch ( ra.TransportStyle.ToString() )
-                {
-                    case "SSU":
-                        transport = SsuHost.AddSession( ra, ri.Identity );
-                        break;
+                transport = pprovider.AddSession( ri );
 
-                    case "NTCP":
-                        transport = new NTCPClientOutgoing( ra, ri.Identity );
-                        break;
-
-                    default:
-                        throw new NotImplementedException();
-                }
-
-                Logging.LogTransport(
-                    string.Format( "TransportProvider: Creating new {0} transport {2} to {1}",
-                    ra.TransportStyle, ri.Identity.IdentHash.Id32Short, transport.DebugId ) );
+                Logging.LogTransport( $"TransportProvider: Creating new {transport} to {ri.Identity.IdentHash.Id32Short}" );
 
                 AddTransport( transport );
                 transport.Connect();
@@ -339,18 +331,10 @@ namespace I2PCore.TransportLayer
 
         #region Provider events
 
-        void SSUHost_ConnectionCreated( ITransport transport )
+        void TransportProtocol_ConnectionCreated( ITransport transport )
         {
             Logging.LogTransport(
-                $"TransportProvider: SSU incoming transport {transport.DebugId} added." );
-
-            AddTransport( transport );
-        }
-
-        void NTCPhost_ConnectionCreated( ITransport transport )
-        {
-            Logging.LogTransport(
-                $"TransportProvider: NTCP incoming transport {transport.DebugId} added." );
+                $"TransportProvider: incoming transport {transport.DebugId} added." );
 
             AddTransport( transport );
         }

@@ -85,7 +85,6 @@ namespace I2PCore.TransportLayer.SSU
                                 this, 
                                 Send,
                                 (IPEndPoint)ep, 
-                                MTUProvider, 
                                 MyRouterContext );
 
                         Sessions[sessionendpoint] = session;
@@ -200,12 +199,45 @@ namespace I2PCore.TransportLayer.SSU
         }
 
         DecayingIPBlockFilter IPFilter = new DecayingIPBlockFilter();
-        public int BlockedIPCount { get { return IPFilter.Count; } }
+        public int BlockedRemoteAddressesCount { get { return IPFilter.Count; } }
 
         internal void ReportEPProblem( IPEndPoint ep )
         {
             if ( ep is null ) return;
             IPFilter.ReportProblem( ep.Address );
+        }
+
+        public MTUConfig GetMTU( IPEndPoint ep )
+        {
+            var result = new MTUConfig();
+
+            if ( ep == null )
+            {
+                result.MTU = 1484 - 28; // IPV4 28 byte UDP header
+                result.MTUMax = 1484 - 28;
+                result.MTUMin = 620 - 28;
+                return result;
+            }
+
+            switch ( ep.AddressFamily )
+            {
+                case System.Net.Sockets.AddressFamily.InterNetwork:
+                    result.MTU = 1484 - 28;
+                    result.MTUMax = 1484 - 28;
+                    result.MTUMin = 620 - 28;
+                    break;
+
+                case System.Net.Sockets.AddressFamily.InterNetworkV6:
+                    result.MTU = 1280 - 48;  // IPV6 48 byte UDP header
+                    result.MTUMax = 1472 - 48;
+                    result.MTUMin = 1280 - 48;
+                    break;
+
+                default:
+                    throw new NotImplementedException( $"{ep.AddressFamily} not supported" );
+            }
+
+            return result;
         }
     }
 }

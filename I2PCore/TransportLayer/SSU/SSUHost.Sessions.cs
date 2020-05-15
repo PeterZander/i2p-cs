@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using I2PCore.Data;
+using I2PCore.SessionLayer;
 using I2PCore.Utils;
 
 namespace I2PCore.TransportLayer.SSU
@@ -15,10 +16,17 @@ namespace I2PCore.TransportLayer.SSU
         Dictionary<IPEndPoint, SSUSession> Sessions = new Dictionary<IPEndPoint, SSUSession>( new EPComparer() );
         List<SSUSession> NeedsCpu = new List<SSUSession>();
 
-        public ITransport AddSession( I2PRouterAddress addr, I2PKeysAndCert dest )
+        public ITransport AddSession( I2PRouterInfo router )
         {
             IPEndPoint remoteep = null;
             IPEndPoint key = null;
+
+            var addr = router.Adresses.First( a => ( a.TransportStyle == "SSU" )
+                        && a.Options.Contains( "key" )
+                        && ( RouterContext.Inst.UseIpV6
+                            || a.Options.ValueContains( "host", "." )
+                            || a.Options.ValueContains( "ihost0", "." ) ) );
+            var dest = router.Identity;
 
             if ( addr.HaveHostAndPort )
             {
@@ -50,7 +58,6 @@ namespace I2PCore.TransportLayer.SSU
                     remoteep, 
                     addr, 
                     dest, 
-                    MTUProvider, 
                     MyRouterContext );
 
             if ( key != null )

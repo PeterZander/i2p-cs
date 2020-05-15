@@ -27,22 +27,9 @@ namespace I2PTests
 
         List<II2NPHeader> DataReceived = new List<II2NPHeader>();
 
-        class FixedMTU : IMTUProvider
-        {
-            public MTUConfig GetMTU( IPEndPoint ep ) 
-            {
-                var result = new MTUConfig();
-                result.MTU = 1484 - 28;
-                result.MTUMax = 1484 - 28;
-                result.MTUMin = 620 - 28;
-                return result; 
-            }
-
-            public void MTUUsed( IPEndPoint ep, MTUConfig mtu ) { }
-        }
-
         // This test does not work
         //[Test]
+/*
         public void TestSSU()
         {
             //Logging.LogToFile( "TestSSU.log" );
@@ -198,7 +185,7 @@ namespace I2PTests
 
             Console.WriteLine( sent.First.Value.Message.Payload.ToString( "I500" ) );
             Console.WriteLine( receivedmessages.First.Value.Message.Payload.ToString( "I500" ) );
-            */          
+            *****
 
             foreach ( var sentmsg in sent )
             {
@@ -206,6 +193,7 @@ namespace I2PTests
                     sentmsg.Message.Payload ) );
             }
         }
+        */
 
         [Test]
         public void TestSSUFragmentation()

@@ -6,10 +6,12 @@ using I2PCore.SessionLayer;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
+using I2PCore.Data;
 
 namespace I2PCore.TransportLayer.NTCP
 {
-    public class NTCPHost
+    [TransportProtocol]
+    public class NTCPHost: ITransportProtocol
     {
         Thread Worker;
         bool Terminated = false;
@@ -20,11 +22,15 @@ namespace I2PCore.TransportLayer.NTCP
 
         public NTCPHost()
         {
-            RouterContext.Inst.NetworkSettingsChanged += new Action( NetworkSettingsChanged );
+            RouterContext.Inst.NetworkSettingsChanged += NetworkSettingsChanged;
 
-            Worker = new Thread( () => Run() );
-            Worker.Name = "NTCPHost";
-            Worker.IsBackground = true;
+            UpdateRouterContext();
+
+            Worker = new Thread( Run )
+            {
+                Name = "NTCPHost",
+                IsBackground = true
+            };
             Worker.Start();
         }
 
@@ -99,9 +105,25 @@ namespace I2PCore.TransportLayer.NTCP
 
         bool SettingsChanged = false;
 
+        public int BlockedRemoteAddressesCount => 0;
+
         public void NetworkSettingsChanged()
         {
             SettingsChanged = true;
+            UpdateRouterContext();
+        }
+
+        private void UpdateRouterContext()
+        {
+            if ( RouterContext.Inst.IsFirewalled )
+            {
+                RouterContext.Inst.UpdateAddress( this, null );
+            }
+            else
+            {
+                var addr = new I2PRouterAddress( RouterContext.Inst.ExtAddress, RouterContext.Inst.TCPPort, 11, "NTCP" );
+                RouterContext.Inst.UpdateAddress( this, addr );
+            }
         }
 
         void DoAcceptTcpClientCallback( IAsyncResult ar )
@@ -144,6 +166,18 @@ namespace I2PCore.TransportLayer.NTCP
             {
                 Logging.Log( ex );
             }
+        }
+
+        public ProtocolCapabilities ContactCapability( I2PRouterInfo router )
+        {
+            return router.Adresses.Any( ra => ra.TransportStyle == "NTCP" && ra.HaveHostAndPort )
+                            ? ProtocolCapabilities.Incoming
+                            : ProtocolCapabilities.None;
+        }
+
+        public ITransport AddSession( I2PRouterInfo router )
+        {
+            return new NTCPClientOutgoing( router );
         }
     }
 }
