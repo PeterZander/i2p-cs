@@ -19,7 +19,8 @@ namespace I2PCore.Utils
                 return mFrequency;
             } 
             set 
-            { 
+            {
+                mOriginalFrequency = value;
                 mFrequency = value;
             } 
         }

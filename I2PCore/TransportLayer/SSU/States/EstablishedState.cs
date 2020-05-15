@@ -116,7 +116,7 @@ namespace I2PCore.TransportLayer.SSU
         public override SSUState Run()
         {
             // Idle
-            if ( Timeout( InactivityTimeout ) )
+            if ( Timeout( Session.IsIntroducerConnection ? InactivityTimeout * 3 : InactivityTimeout ) )
             {
                 Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: " +
                     $"Inactivity timeout. Sending SessionDestroyed. " +
