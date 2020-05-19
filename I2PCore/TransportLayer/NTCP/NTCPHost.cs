@@ -171,7 +171,7 @@ namespace I2PCore.TransportLayer.NTCP
         public ProtocolCapabilities ContactCapability( I2PRouterInfo router )
         {
             return router.Adresses.Any( ra => ra.TransportStyle == "NTCP" && ra.HaveHostAndPort )
-                            ? ProtocolCapabilities.Incoming
+                            ? ProtocolCapabilities.IncomingLowPrio
                             : ProtocolCapabilities.None;
         }
 

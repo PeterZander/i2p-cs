@@ -13,7 +13,22 @@ namespace I2PCore.TransportLayer
         /// <summary>
         /// Can only create outgoing connections to host
         /// </summary>
+        OutgoingLowPrio = 35,
+
+        /// <summary>
+        /// Can only create outgoing connections to host
+        /// </summary>
         Outgoing = 40,
+
+        /// <summary>
+        /// Can only create outgoing connections to host
+        /// </summary>
+        OutgoingHighPrio = 45,
+
+        /// <summary>
+        /// Can create outgoing and incoming connections to host
+        /// </summary>
+        IncomingLowPrio = 55,
 
         /// <summary>
         /// Can create outgoing and incoming connections to host
@@ -21,14 +36,39 @@ namespace I2PCore.TransportLayer
         Incoming = 60,
 
         /// <summary>
+        /// Can create outgoing and incoming connections to host
+        /// </summary>
+        IncomingHighPrio = 65,
+
+        /// <summary>
+        /// Can use NAT traversal to connect to host
+        /// </summary>
+        NATTraversalLowPrio = 75,
+
+        /// <summary>
         /// Can use NAT traversal to connect to host
         /// </summary>
         NATTraversal = 80,
 
         /// <summary>
+        /// Can use NAT traversal to connect to host
+        /// </summary>
+        NATTraversalHighPrio = 85,
+
+        /// <summary>
+        /// Can maintain and host virtual networks like NAT taversal including introduction
+        /// </summary>
+        VirtualNetworkCreationLowPrio = 95,
+
+        /// <summary>
         /// Can maintain and host virtual networks like NAT taversal including introduction
         /// </summary>
         VirtualNetworkCreation = 100,
+
+        /// <summary>
+        /// Can maintain and host virtual networks like NAT taversal including introduction
+        /// </summary>
+        VirtualNetworkCreationHighPrio = 105,
     }
 
     public interface ITransportProtocol
