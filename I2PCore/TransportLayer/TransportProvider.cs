@@ -256,7 +256,13 @@ namespace I2PCore.TransportLayer
             try
             {
                 var pproviders = TransportProtocols
-                                    .GroupBy( tp => tp.ContactCapability( ri ) )
+                                    .Select( tp => new
+                                    {
+                                        Provider = tp,
+                                        Capability = tp.ContactCapability( ri )
+                                    } )
+                                    .Where( tp => tp.Capability != ProtocolCapabilities.None )
+                                    .GroupBy( tp => tp.Capability )
                                     .OrderByDescending( cc => (int)cc.Key );
 
                 var pprovider = pproviders.FirstOrDefault()?.Random();
@@ -268,7 +274,7 @@ namespace I2PCore.TransportLayer
                     return null;
                 }
 
-                transport = pprovider.AddSession( ri );
+                transport = pprovider.Provider.AddSession( ri );
 
                 Logging.LogTransport( $"TransportProvider: Creating new {transport} to {ri.Identity.IdentHash.Id32Short}" );
 
