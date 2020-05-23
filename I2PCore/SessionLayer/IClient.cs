@@ -3,7 +3,7 @@ using I2PCore.TunnelLayer;
 
 namespace I2PCore.SessionLayer
 {
-    public interface IClient
+    internal interface IClient
     {
         int InboundTunnelHopCount { get; }
         int OutboundTunnelHopCount { get; }

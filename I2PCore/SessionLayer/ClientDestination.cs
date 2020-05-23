@@ -20,17 +20,23 @@ namespace I2PCore.SessionLayer
     {
         static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 2 );
 
-        public static readonly TickSpan InitiatorInactivityLimit = TickSpan.Minutes( 5 );
+        public static TickSpan InitiatorInactivityLimit = TickSpan.Minutes( 5 );
 
         public int LowWatermarkForNewTags { get; set; } = 7;
         public int NewTagsWhenGenerating { get; set; } = 15;
 
         public delegate void DestinationDataReceived( ClientDestination dest, BufLen data );
+
         /// <summary>
-        /// Data was received by this Destination from a remote Origin.
+        /// Data was received by this Destination.
         /// </summary>
         public event DestinationDataReceived DataReceived;
 
+        /// <summary>
+        /// Used for debugging. Debug messages from the session layer gets tagged
+        /// with this name.
+        /// </summary>
+        /// <value>The name.</value>
         public string Name { get; set; }
 
         /// <summary>
@@ -47,8 +53,14 @@ namespace I2PCore.SessionLayer
         /// </summary>
         public event Action<I2PLeaseSet> SignLeasesRequest;
 
+        /// <summary>
+        /// Client states.
+        /// </summary>
         public enum ClientStates { NoTunnels, NoLeases, Established }
 
+        /// <summary>
+        /// Occurs when client state changed.
+        /// </summary>
         public event Action<ClientDestination, ClientStates> ClientStateChanged;
 
         /// <summary>
@@ -56,10 +68,28 @@ namespace I2PCore.SessionLayer
         /// </summary>
         public delegate void DestinationLookupResult( I2PIdentHash id, I2PLeaseSet ls, object tag );
 
+        /// <summary>
+        /// Gets or sets the inbound tunnel hop count.
+        /// </summary>
+        /// <value>The inbound tunnel hop count.</value>
         public int InboundTunnelHopCount { get; set; } = 3;
+
+        /// <summary>
+        /// Gets or sets the outbound tunnel hop count.
+        /// </summary>
+        /// <value>The outbound tunnel hop count.</value>
         public int OutboundTunnelHopCount { get; set; } = 3;
 
+        /// <summary>
+        /// Gets or sets the target active (not expired) inbound tunnel count.
+        /// </summary>
+        /// <value>Gets or sets the target active (not expired) inbound tunnel count.</value>
         public int TargetInboundTunnelCount { get; set; } = 2;
+
+        /// <summary>
+        /// Gets or sets the target active (not expired) outbound tunnel count.
+        /// </summary>
+        /// <value>Gets or sets the target active (not expired) outbound tunnel count.</value>
         public int TargetOutboundTunnelCount { get; set; } = 2;
 
         /// <summary>
@@ -101,9 +131,9 @@ namespace I2PCore.SessionLayer
         /// <value>The destination.</value>
         public I2PDestination Destination { get; private set; }
 
-        readonly bool PublishDestination;
+        public readonly bool PublishDestination;
 
-        public int InboundTunnelsNeeded
+        int IClient.InboundTunnelsNeeded
         {
             get
             {
@@ -121,7 +151,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public int OutboundTunnelsNeeded
+        int IClient.OutboundTunnelsNeeded
         {
             get
             {
@@ -139,7 +169,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public bool ClientTunnelsStatusOk
+        bool IClient.ClientTunnelsStatusOk
         {
             get
             {
@@ -170,7 +200,13 @@ namespace I2PCore.SessionLayer
         /// <value>The this destination info.</value>
         protected I2PDestinationInfo ThisDestinationInfo { get; private set; }
 
-        public I2PPrivateKey TemporaryPrivateKeyField;
+        private I2PPrivateKey TemporaryPrivateKeyField;
+
+        /// <summary>
+        /// Gets or sets the temporary private key used in the lease set for 
+        /// this Destination.
+        /// </summary>
+        /// <value>The temporary private key.</value>
         public I2PPrivateKey TemporaryPrivateKey
         {
             get => TemporaryPrivateKeyField;
@@ -211,9 +247,11 @@ namespace I2PCore.SessionLayer
             IncommingSessions = new DecryptReceivedSessions( this, TemporaryPrivateKeyField );
         }
 
+        /// <summary>
+        /// Gets the temporary public key used in lease sets for this Destination.
+        /// </summary>
+        /// <value>The temporary public key.</value>
         public I2PPublicKey TemporaryPublicKey { get; private set; }
-
-        protected I2PSessionKey DefaultFakeSession = new I2PSessionKey();
 
         // Let the router sign leases
         internal ClientDestination( I2PDestinationInfo destinfo, bool publishdest )
@@ -249,6 +287,9 @@ namespace I2PCore.SessionLayer
 
         public bool Terminated { get; protected set; } = false;
 
+        /// <summary>
+        /// Shutdown this instance.
+        /// </summary>
         public void Shutdown()
         {
             NetDb.Inst.IdentHashLookup.LeaseSetReceived -= IdentHashLookup_LeaseSetReceived;
@@ -282,13 +323,18 @@ namespace I2PCore.SessionLayer
         }
 
         private ClientStates ClientStateField = ClientStates.NoTunnels;
+
+        /// <summary>
+        /// Gets the state of the client.
+        /// </summary>
+        /// <value>The state of the client.</value>
         public ClientStates ClientState
         {
             get
             {
                 return ClientStateField;
             }
-            set
+            internal set
             {
                 if ( ClientStateField == value ) return;
 
@@ -316,17 +362,17 @@ namespace I2PCore.SessionLayer
                     .Random();
         }
 
-        public void AddOutboundPending( OutboundTunnel tunnel )
+        void IClient.AddOutboundPending( OutboundTunnel tunnel )
         {
             OutboundPending[tunnel] = 0;
         }
 
-        public void AddInboundPending( InboundTunnel tunnel )
+        void IClient.AddInboundPending( InboundTunnel tunnel )
         {
             InboundPending[tunnel] = 0;
         }
 
-        public void TunnelEstablished( Tunnel tunnel )
+        void IClient.TunnelEstablished( Tunnel tunnel )
         {
             RemovePendingTunnel( tunnel );
 
@@ -345,7 +391,7 @@ namespace I2PCore.SessionLayer
             UpdateClientState();
         }
 
-        public void RemoveTunnel( Tunnel tunnel )
+        void IClient.RemoveTunnel( Tunnel tunnel )
         {
             RemovePendingTunnel( tunnel );
             RemovePoolTunnel( tunnel );
@@ -356,7 +402,7 @@ namespace I2PCore.SessionLayer
         PeriodicAction KeepRemotesUpdated = new PeriodicAction( TickSpan.Seconds( 10 ) );
         PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 15 ) );
 
-        public virtual void Execute()
+        void IClient.Execute()
         {
             if ( Terminated ) return;
 
@@ -534,7 +580,7 @@ namespace I2PCore.SessionLayer
 
             if ( ThisDestinationInfo is null )
             {
-                if ( InboundTunnelsNeeded <= 0 )
+                if ( ( (IClient)this ).InboundTunnelsNeeded <= 0 )
                 {
                     try
                     {
@@ -647,6 +693,13 @@ namespace I2PCore.SessionLayer
             return;
         }
 
+        /// <summary>
+        /// Lookups the destination. cb will be called on success or timeout
+        /// with the supplied tag.
+        /// </summary>
+        /// <param name="dest">Destination.</param>
+        /// <param name="cb">Cb.</param>
+        /// <param name="tag">Tag.</param>
         public void LookupDestination(
                 I2PIdentHash dest,
                 DestinationLookupResult cb,
@@ -731,11 +784,6 @@ namespace I2PCore.SessionLayer
             ClientState = ClientStates.Established;
         }
 
-        public ClientStates Send( I2PDestination dest, byte[] buf )
-        {
-            return Send( dest, new BufLen( buf ) );
-        }
-
         class UnsentDest
         {
             public I2PDestination Destination;
@@ -811,6 +859,23 @@ namespace I2PCore.SessionLayer
             return ClientStates.Established;
         }
 
+        /// <summary>
+        /// Send data to the destination.
+        /// </summary>
+        /// <returns>The send.</returns>
+        /// <param name="dest">Destination.</param>
+        /// <param name="buf">Buffer.</param>
+        public ClientStates Send( I2PDestination dest, byte[] buf )
+        {
+            return Send( dest, new BufLen( buf ) );
+        }
+
+        /// <summary>
+        /// Send data to the destination.
+        /// </summary>
+        /// <returns>The send.</returns>
+        /// <param name="dest">Destination.</param>
+        /// <param name="buf">Buffer.</param>
         public ClientStates Send( I2PDestination dest, BufLen buf )
         {
             if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );

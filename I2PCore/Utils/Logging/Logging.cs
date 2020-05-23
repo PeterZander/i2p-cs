@@ -24,6 +24,9 @@ namespace I2PCore.Utils
             Nothing = int.MaxValue
         }
 
+        /// <summary>
+        /// Reads the app config file '.config' for logging settings.
+        /// </summary>
         public static void ReadAppConfig()
         {
             if ( !string.IsNullOrWhiteSpace( CM.AppSettings["LogFileLevel"] ) )
@@ -65,7 +68,14 @@ namespace I2PCore.Utils
         public static LogLevels LogLevel = LogLevels.Warning;
 #endif
 
+        /// <summary>
+        /// Output debug text to System.Console.
+        /// </summary>
         public static bool LogToConsole = false;
+
+        /// <summary>
+        /// Output debug text to System.Diagnostics.Debug.
+        /// </summary>
         public static bool LogToDebug = false;
 
         public static bool TimestampFiles = false;

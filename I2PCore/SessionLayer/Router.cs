@@ -14,52 +14,59 @@ using System.Collections.Concurrent;
 
 namespace I2PCore.SessionLayer
 {
-    public class Router
+    public static class Router
     {
-        public static bool Started { get; protected set; }
+        static readonly object StartedLock = new object();
+        public static bool Started { get; private set; }
 
         static ClientTunnelProvider ClientMgr;
         static ExplorationTunnelProvider ExplorationMgr;
         static TransitTunnelProvider TransitTunnelMgr;
         private static Thread Worker;
 
-        public static event Action<DeliveryStatusMessage> DeliveryStatusReceived;
+        internal static event Action<DeliveryStatusMessage> DeliveryStatusReceived;
 
+        /// <summary>
+        /// Start the router with the current RouterContext settings.
+        /// </summary>
         public static void Start()
         {
-            if ( Started ) return;
-
-            try
+            lock ( StartedLock )
             {
-                var rci = RouterContext.Inst;
-                NetDb.Start();
+                if ( Started ) return;
 
-                Logging.Log( "I: " + RouterContext.Inst.MyRouterInfo.ToString() );
-                Logging.Log( "Published: " + RouterContext.Inst.Published.ToString() );
-
-                Logging.Log( "Connecting..." );
-                TransportProvider.Start();
-                TunnelProvider.Start();
-
-                ClientMgr = new ClientTunnelProvider( TunnelProvider.Inst );
-                ExplorationMgr = new ExplorationTunnelProvider( TunnelProvider.Inst );
-                TransitTunnelMgr = new TransitTunnelProvider( TunnelProvider.Inst );
-
-                Worker = new Thread( Run )
+                try
                 {
-                    Name = "Router",
-                    IsBackground = true
-                };
-                Worker.Start();
+                    var rci = RouterContext.Inst;
+                    NetDb.Start();
 
-                NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
-                NetDb.Inst.IdentHashLookup.LookupFailure += IdentHashLookup_LookupFailure;
+                    Logging.Log( "I: " + RouterContext.Inst.MyRouterInfo.ToString() );
+                    Logging.Log( "Published: " + RouterContext.Inst.Published.ToString() );
 
-                Started = true;
-            }
-            catch ( Exception ex )
-            {
-                Logging.Log( ex );
+                    Logging.Log( "Connecting..." );
+                    TransportProvider.Start();
+                    TunnelProvider.Start();
+
+                    ClientMgr = new ClientTunnelProvider( TunnelProvider.Inst );
+                    ExplorationMgr = new ExplorationTunnelProvider( TunnelProvider.Inst );
+                    TransitTunnelMgr = new TransitTunnelProvider( TunnelProvider.Inst );
+
+                    Worker = new Thread( Run )
+                    {
+                        Name = "Router",
+                        IsBackground = true
+                    };
+                    Worker.Start();
+
+                    NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
+                    NetDb.Inst.IdentHashLookup.LookupFailure += IdentHashLookup_LookupFailure;
+
+                    Started = true;
+                }
+                catch ( Exception ex )
+                {
+                    Logging.Log( ex );
+                }
             }
         }
 
@@ -103,6 +110,14 @@ namespace I2PCore.SessionLayer
         static readonly ConcurrentDictionary<I2PDestination, ClientDestination> RunningDestinations =
             new ConcurrentDictionary<I2PDestination, ClientDestination>();
 
+        /// <summary>
+        /// Create the destination. New lease sets will be automatically signed
+        /// with the key in I2PDestinationInfo.
+        /// </summary>
+        /// <returns>The destination.</returns>
+        /// <param name="destinfo">Destinfo.</param>
+        /// <param name="publish">If set to <c>true</c> publish.</param>
+        /// <param name="alreadyrunning">If set to <c>true</c> alreadyrunning.</param>
         public static ClientDestination CreateDestination( I2PDestinationInfo destinfo, bool publish, out bool alreadyrunning )
         {
             lock ( RunningDestinations )
@@ -120,6 +135,16 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Creates the destination without a private key for signing lease sets.
+        /// Using this constructor you have to subsribe to SignLeasesRequest events
+        /// and sign new lease sets.
+        /// </summary>
+        /// <returns>The destination.</returns>
+        /// <param name="dest">Destination.</param>
+        /// <param name="privkey">Privkey.</param>
+        /// <param name="publish">If set to <c>true</c> publish.</param>
+        /// <param name="alreadyrunning">If set to <c>true</c> alreadyrunning.</param>
         public static ClientDestination CreateDestination( I2PDestination dest, I2PPrivateKey privkey, bool publish, out bool alreadyrunning )
         {
             lock ( RunningDestinations )

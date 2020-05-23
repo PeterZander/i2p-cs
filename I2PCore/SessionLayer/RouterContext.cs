@@ -186,16 +186,29 @@ namespace I2PCore.SessionLayer
             return Path.Combine( RouterPath, filename );
         }
 
+        /// <summary>
+        /// The router settings file containing router id and intro keys.
+        /// If you want to change this, do it before Router.Start() is called.
+        /// </summary>
         public static string RouterSettingsFile = "Router.bin";
 
         static RouterContext StaticInstance;
+        static readonly object StaticInstanceLock = new object();
+
+        /// <summary>
+        /// Singleton access to the instance of RouterContext.
+        /// </summary>
+        /// <value>The inst.</value>
         public static RouterContext Inst
         {
             get
             {
-                if ( StaticInstance != null ) return StaticInstance;
-                StaticInstance = new RouterContext( RouterSettingsFile );
-                return StaticInstance;
+                lock ( StaticInstanceLock )
+                {
+                    if ( StaticInstance != null ) return StaticInstance;
+                    StaticInstance = new RouterContext( RouterSettingsFile );
+                    return StaticInstance;
+                }
             }
             set
             {
@@ -384,6 +397,9 @@ namespace I2PCore.SessionLayer
             ClearCache();
         }
 
+        /// <summary>
+        /// Force recreation of the RouterInfo for this instance.
+        /// </summary>
         public void ApplyNewSettings()
         {
             ClearCache();
