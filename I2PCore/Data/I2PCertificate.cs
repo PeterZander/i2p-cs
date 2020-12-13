@@ -157,6 +157,18 @@ namespace I2PCore.Data
                     case I2PKeyType.KeyTypes.ElGamal2048:
                         return 256;
 
+                    case I2PKeyType.KeyTypes.P256:
+                        return 64;
+
+                    case I2PKeyType.KeyTypes.P384:
+                        return 96;
+
+                    case I2PKeyType.KeyTypes.P521:
+                        return 132;
+
+                    case I2PKeyType.KeyTypes.X25519:
+                        return 32;
+
                     default:
                         throw new NotImplementedException();
                 }
@@ -171,6 +183,18 @@ namespace I2PCore.Data
                 {
                     case I2PKeyType.KeyTypes.ElGamal2048:
                         return 256;
+
+                    case I2PKeyType.KeyTypes.P256:
+                        return 32;
+
+                    case I2PKeyType.KeyTypes.P384:
+                        return 48;
+
+                    case I2PKeyType.KeyTypes.P521:
+                        return 66;
+
+                    case I2PKeyType.KeyTypes.X25519:
+                        return 32;
 
                     default:
                         throw new NotImplementedException();

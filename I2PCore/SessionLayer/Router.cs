@@ -40,8 +40,8 @@ namespace I2PCore.SessionLayer
                     var rci = RouterContext.Inst;
                     NetDb.Start();
 
-                    Logging.Log( "I: " + RouterContext.Inst.MyRouterInfo.ToString() );
-                    Logging.Log( "Published: " + RouterContext.Inst.Published.ToString() );
+                    Logging.Log( $"I: {RouterContext.Inst.MyRouterInfo}" );
+                    Logging.Log( $"Published: {RouterContext.Inst.Published}" );
 
                     Logging.Log( "Connecting..." );
                     TransportProvider.Start();

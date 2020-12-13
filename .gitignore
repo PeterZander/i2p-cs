@@ -1,9 +1,20 @@
 
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.jsons
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
 Thumbs.db
 *.obj
 *.exe
 *.pdb
-*.user
 *.aps
 *.pch
 *.vspscc
@@ -25,7 +36,6 @@ obj/
 [Rr]elease*/
 _ReSharper*/
 [Tt]est[Rr]esult*
-BouncyCastle.Crypto.dll
 .vs
 /Backup
 /packages

@@ -93,8 +93,11 @@ namespace I2PCore.TunnelLayer
             FragBufferReport.Do( delegate()
             {
                 var fbsize = Reassembler.BufferedFragmentCount;
-                Logging.Log( $"{this}: {Destination.Id32Short} Fragment buffer size: {fbsize}" );
-                if ( fbsize > 2000 ) throw new Exception( "BufferedFragmentCount > 2000 !" ); // Trying to fill my memory?
+                if ( fbsize > 0 )
+                {
+                    Logging.Log( $"{this}: {Destination.Id32Short} Fragment buffer size: {fbsize}" );
+                    if ( fbsize > 2000 ) throw new Exception( "BufferedFragmentCount > 2000 !" ); // Trying to fill my memory?
+                }
             } );
 
             return HandleReceiveQueue() && HandleSendQueue();

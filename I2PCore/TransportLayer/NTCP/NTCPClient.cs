@@ -27,8 +27,8 @@ namespace I2PCore.TransportLayer.NTCP
         protected Socket MySocket;
 
         protected Thread Worker;
-        public bool Terminated = false;
-        bool ITransport.Terminated { get { return Terminated; } }
+        CancellationToken MyCancellationToken;
+        bool ITransport.Terminated { get { return MyCancellationToken.IsCancellationRequested; } }
 
         public abstract IPAddress RemoteAddress { get; }
 
@@ -49,7 +49,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         public event Action<ITransport, II2NPHeader> DataBlockReceived;
 
-        public string DebugId { get { return "+" + TransportInstance.ToString() + "+"; } }
+        public string DebugId { get { return $"+{TransportInstance}+"; } }
         public string Protocol { get => "NTCP"; }
         public bool Outgoing { get => mOutgoing; }
         private readonly bool mOutgoing;
@@ -80,11 +80,13 @@ namespace I2PCore.TransportLayer.NTCP
 
         public void Terminate()
         {
-            Terminated = true;
-            if ( Worker != null )
+            try
             {
-                Worker.Abort();
-                if ( !Worker.Join( 100 ) ) Worker.Interrupt();
+                Watchdog.Inst?.Cancel( MyCancellationToken );
+            }
+            catch ( Exception ex )
+            {
+                Logging.LogDebugData( $"NTCP Terminate: {ex}" );
             }
         }
 
@@ -97,7 +99,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         public void Send( I2NPMessage msg )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( MyCancellationToken.IsCancellationRequested ) throw new EndOfStreamEncounteredException();
 
             var sendqlen = SendQueue.Count;
 #if DEBUG
@@ -155,7 +157,7 @@ namespace I2PCore.TransportLayer.NTCP
                 }
                 SendQueue.TryDequeue( out var msg );
 
-                Watchdog.Inst.Ping( Thread.CurrentThread );
+                Watchdog.Inst.Ping( MyCancellationToken );
 
                 data = GenerateData( msg );
             }
@@ -208,7 +210,7 @@ namespace I2PCore.TransportLayer.NTCP
             catch ( Exception ex )
             {
                 Logging.LogDebug( "NTCP SendCompleted TryInitiateSend", ex );
-                Terminated = true;
+                Terminate();
             }
         }
 
@@ -262,7 +264,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         protected void SendRaw( BufLen data )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( MyCancellationToken.IsCancellationRequested ) throw new EndOfStreamEncounteredException();
 
 #if LOG_MUCH_TRANSPORT
             Logging.LogTransport( string.Format( "NTCP {1} Raw sent: {0} bytes [0x{0:X}]", data.Length, DebugId ) );
@@ -274,7 +276,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         internal BufLen BlockReceiveAtLeast( int bytes, int maxlen )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( MyCancellationToken.IsCancellationRequested ) throw new EndOfStreamEncounteredException();
 
             var buf = new byte[Math.Max( maxlen, bytes )];
             var pos = 0;
@@ -299,7 +301,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         internal BufLen BlockReceive( int bytes )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( MyCancellationToken.IsCancellationRequested ) throw new EndOfStreamEncounteredException();
 
             var buf = new byte[bytes];
             var pos = 0;
@@ -345,7 +347,8 @@ namespace I2PCore.TransportLayer.NTCP
                 {
                     NTCPContext.TransportInstance = TransportInstance;
 
-                    Watchdog.Inst.StartMonitor( Thread.CurrentThread, 20000 );
+                    MyCancellationToken = Watchdog.Inst.StartMonitor( 20000 );
+                    MyCancellationToken.Register( () => MySocket?.Shutdown( SocketShutdown.Both ) );
 
                     try
                     {
@@ -354,8 +357,8 @@ namespace I2PCore.TransportLayer.NTCP
                         RemoteDescription = MySocket.RemoteEndPoint.ToString();
 
 #if LOG_MUCH_TRANSPORT
-                        Logging.LogTransport( "My local endpoint IP#   : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Address.ToString() );
-                        Logging.LogTransport( "My local endpoint Port  : " + ( (IPEndPoint)MySocket.LocalEndPoint ).Port.ToString() );
+                        Logging.LogTransport( $"My local endpoint IP#   : {( (IPEndPoint)MySocket.LocalEndPoint ).Address}" );
+                        Logging.LogTransport( $"My local endpoint Port  : {( (IPEndPoint)MySocket.LocalEndPoint ).Port} );
 #endif
 
                         DHNegotiate();
@@ -393,7 +396,7 @@ namespace I2PCore.TransportLayer.NTCP
 
                     DHSucceeded = true;
 
-                    Watchdog.Inst.UpdateTimeout( Thread.CurrentThread, InactivityTimeoutSeconds * 1000 );
+                    Watchdog.Inst.UpdateTimeout( MyCancellationToken, InactivityTimeoutSeconds * 1000 );
 
                     TryInitiateSend();
 
@@ -406,13 +409,13 @@ namespace I2PCore.TransportLayer.NTCP
 
                     var reader = new NTCPReader( MySocket, NTCPContext );
 
-                    while ( !Terminated )
+                    while ( !MyCancellationToken.IsCancellationRequested )
                     {
                         var data = reader.Read();
                         BWStat.DataReceived( data.Length );
                         //Logging.LogTransport( "Read: " + data.Length );
 
-                        Watchdog.Inst.Ping( Thread.CurrentThread );
+                        Watchdog.Inst.Ping( MyCancellationToken );
 
                         if ( reader.NTCPDataSize == 0 )
                         {
@@ -462,8 +465,8 @@ namespace I2PCore.TransportLayer.NTCP
             }
             finally
             {
-                Terminated = true;
-                Watchdog.Inst.StopMonitor( Thread.CurrentThread );
+                Terminate();
+                Watchdog.Inst.StopMonitor( MyCancellationToken );
 
                 try
                 {
@@ -475,7 +478,7 @@ namespace I2PCore.TransportLayer.NTCP
                     Logging.Log( DebugId, ex );
                 }
 
-                Logging.LogTransport( string.Format( "NTCP {0} Shut down. {1}", DebugId, RemoteDescription ) );
+                Logging.LogTransport( $"NTCP {DebugId} Shut down. {RemoteDescription}" );
 
                 try
                 {

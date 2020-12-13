@@ -187,7 +187,9 @@ namespace I2PCore.TunnelLayer
                     }
                 }
 
-                Logging.LogInformation( $"Tunnel bandwidth {tunnel,-40} {tunnel.Bandwidth}" );
+                // TODO: Revert when roslyn is fixed
+                //Logging.LogInformation( $"Tunnel bandwidth {tunnel,-40} {tunnel.Bandwidth}" );
+                Logging.LogInformation( $"Tunnel bandwidth {tunnel,40} {tunnel.Bandwidth}" );
             }
         }
 

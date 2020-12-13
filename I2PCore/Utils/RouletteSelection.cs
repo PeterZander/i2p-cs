@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using I2PCore.Data;
-using I2PCore.Utils;
-using I2PCore.SessionLayer;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("I2PCore.NTests")]
 namespace I2PCore.Utils
 {
     public class RouletteSelection<T,K>

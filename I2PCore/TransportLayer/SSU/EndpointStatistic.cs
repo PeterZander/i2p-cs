@@ -38,9 +38,16 @@ namespace I2PCore.TransportLayer.SSU
 
         public override string ToString()
         {
-            return $"EndpointStatistic: ({Score,10:#0.0}) {Endpoint,-25}, " +
-                $"MinConnectionTime: {MinConnectionTime,-20}, " +
-                $"SessionLengths: {SessionLengths,-23}, " +
+            // TODO: Revert when roslyn is fixed
+            // return $"EndpointStatistic: ({Score,10:#0.0}) {Endpoint,-25}, " +
+            //     $"MinConnectionTime: {MinConnectionTime,-20}, " +
+            //     $"SessionLengths: {SessionLengths,-23}, " +
+            //     $"ConnectionTimeouts: {ConnectionTimeouts,4}, " +
+            //     $"ConnectionSuccess: {ConnectionSuccess,4} " +
+            //     $"RelayIntrosReceived: {RelayIntrosReceived,4}";
+            return $"EndpointStatistic: ({Score,10:#0.0}) {Endpoint,25}, " +
+                $"MinConnectionTime: {MinConnectionTime,20}, " +
+                $"SessionLengths: {SessionLengths,23}, " +
                 $"ConnectionTimeouts: {ConnectionTimeouts,4}, " +
                 $"ConnectionSuccess: {ConnectionSuccess,4} " +
                 $"RelayIntrosReceived: {RelayIntrosReceived,4}";

@@ -14,7 +14,8 @@ namespace I2PCore.TransportLayer.NTCP
     public class NTCPHost: ITransportProtocol
     {
         Thread Worker;
-        bool Terminated = false;
+        readonly CancellationTokenSource MyCancellationTokenSource;
+        readonly CancellationToken MyCancellationToken;
 
         public event Action<ITransport> ConnectionCreated;
 
@@ -22,6 +23,9 @@ namespace I2PCore.TransportLayer.NTCP
 
         public NTCPHost()
         {
+            MyCancellationTokenSource = new CancellationTokenSource();
+            MyCancellationToken = MyCancellationTokenSource.Token;
+
             RouterContext.Inst.NetworkSettingsChanged += NetworkSettingsChanged;
 
             UpdateRouterContext();
@@ -38,7 +42,7 @@ namespace I2PCore.TransportLayer.NTCP
         {
             try
             {
-                while ( !Terminated )
+                while ( !MyCancellationToken.IsCancellationRequested )
                 {
                     var listener = CreateListener();
 
@@ -46,13 +50,13 @@ namespace I2PCore.TransportLayer.NTCP
                     {
                         listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
 
-                        while ( !Terminated )
+                        while ( !MyCancellationToken.IsCancellationRequested )
                         {
                             Thread.Sleep( 2000 );
 
                             lock ( Clients )
                             {
-                                var terminated = Clients.Where( c => c.Terminated ).ToArray();
+                                var terminated = Clients.Where( c => ( (ITransport)c ).Terminated ).ToArray();
                                 foreach ( var one in terminated )
                                 {
                                     Clients.Remove( one );
@@ -63,17 +67,16 @@ namespace I2PCore.TransportLayer.NTCP
                             {
                                 SettingsChanged = false;
 
-                                listener.Shutdown( SocketShutdown.Both );
-                                listener.Close();
+                                CloseListener( listener );
 
                                 Thread.Sleep( 3000 );
 
                                 listener = CreateListener();
                                 listener.BeginAccept( new AsyncCallback( DoAcceptTcpClientCallback ), listener );
 
-                                Logging.LogInformation( "NTCPHost: Running with new network settings. " +
-                                    listener.LocalEndPoint.ToString() + ":" + RouterContext.Inst.TCPPort.ToString() + 
-                                    " (" + RouterContext.Inst.ExtAddress.ToString() + ")" );
+                                Logging.LogInformation( $"NTCPHost: Running with new network settings. " +
+                                    $"{listener.LocalEndPoint}:{RouterContext.Inst.TCPPort}" + 
+                                    $" ({RouterContext.Inst.ExtAddress})" );
                             }
                         }
                     }
@@ -85,11 +88,12 @@ namespace I2PCore.TransportLayer.NTCP
                     {
                         Logging.Log( ex );
                     }
+
+                    CloseListener( listener );
                 }
             }
             finally
             {
-                Terminated = true;
                 Worker = null;
             }
         }
@@ -101,6 +105,11 @@ namespace I2PCore.TransportLayer.NTCP
             listener.Bind( new IPEndPoint( RouterContext.Inst.LocalInterface, RouterContext.Inst.TCPPort ) );
             listener.Listen( 20 );
             return listener;
+        }
+        private static void CloseListener( Socket listener )
+        {
+            listener.Shutdown( SocketShutdown.Both );
+            listener.Close();
         }
 
         bool SettingsChanged = false;

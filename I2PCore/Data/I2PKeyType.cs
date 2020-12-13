@@ -14,7 +14,11 @@ namespace I2PCore.Data
         public enum KeyTypes : ushort
         {
             Invalid = ushort.MaxValue,
-            ElGamal2048 = 0
+            ElGamal2048 = 0,
+            P256 = 1,
+            P384 = 2,
+            P521 = 3,
+            X25519 = 4,
         }
 
         // Replace when ElGamal is optional

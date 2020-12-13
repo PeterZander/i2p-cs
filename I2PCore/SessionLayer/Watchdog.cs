@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,10 +20,19 @@ namespace I2PCore.SessionLayer
             /// </summary>
             public int Timeout;
             public DateTime LastCheckin;
+            public CancellationTokenSource CTSource;
+            public readonly int DebugId;
+
+            static int LastDebugId = 0;
+
+            public MonitoredInfo()
+            {
+                DebugId = ++LastDebugId;
+            }
         }
 
-        Dictionary<Thread, MonitoredInfo> Watched = new Dictionary<Thread, MonitoredInfo>();
-        Dictionary<Thread, DateTime> PingQueue = new Dictionary<Thread, DateTime>();
+        ConcurrentDictionary<CancellationToken, MonitoredInfo> Watched = new ConcurrentDictionary<CancellationToken, MonitoredInfo>();
+        ConcurrentDictionary<CancellationToken, DateTime> PingQueue = new ConcurrentDictionary<CancellationToken, DateTime>();
 
         protected Watchdog()
         {
@@ -43,45 +53,36 @@ namespace I2PCore.SessionLayer
                     {
                         Thread.Sleep( 2000 );
 
-                        Thread[] pings;
+                        var pings = PingQueue
+                                    .Select( p => p.Key )
+                                    .ToArray();
 
-                        lock ( PingQueue )
+                        PingQueue.Clear();
+
+                        var now = DateTime.Now;
+                        foreach ( var one in pings.ToArray() )
                         {
-                            pings = PingQueue.Select( p => p.Key ).ToArray();
-                            PingQueue.Clear();
+                            if ( Watched.TryGetValue( one, out var v ) ) v.LastCheckin = now;
                         }
 
-                        lock ( Watched )
-                        {
-                            var now = DateTime.Now;
-                            foreach ( var one in pings ) if ( Watched.ContainsKey( one ) ) Watched[one].LastCheckin = now;
-                        }
-
-                        KeyValuePair<Thread, MonitoredInfo>[] selection;
-                        lock ( Watched )
-                        {
-                            selection = Watched.Where( mi => ( DateTime.Now - mi.Value.LastCheckin ).TotalMilliseconds > mi.Value.Timeout ).ToArray();
-                        }
+                        var selection = Watched
+                                    .Where( mi => 
+                                            ( DateTime.Now - mi.Value.LastCheckin ).TotalMilliseconds > mi.Value.Timeout )
+                                    .ToArray();
 
                         foreach ( var one in selection )
                         {
-                            Logging.Log( "Watchdog. Killing thread: " + one.Key.ManagedThreadId.ToString() );
+                            Logging.Log( $"Watchdog. Killing thread: {one.Value.DebugId}" );
                             try
                             {
-                                one.Key.Abort();
-                                if ( !one.Key.Join( 300 ) )
+                                if ( Watched.TryRemove( one.Key, out var v ) )
                                 {
-                                    one.Key.Interrupt();
-                                }
-
-                                lock ( Watched )
-                                {
-                                    Watched.Remove( one.Key );
+                                    v.CTSource.Cancel();
                                 }
                             }
                             catch ( Exception ex )
                             {
-                                Logging.Log( "Watchdog: " + ex.ToString() );
+                                Logging.Log( $"Watchdog: {ex}" );
                             }
                         }
                     }
@@ -101,39 +102,43 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public void StartMonitor( Thread thread, int timeoutms )
+        public CancellationToken StartMonitor( int timeoutms )
         {
-            Logging.Log( "Watchdog. Start monitoring thread: " + thread.ManagedThreadId.ToString() );
-            lock ( Watched )
+            var mi = new MonitoredInfo()
             {
-                if ( Watched.ContainsKey( thread ) ) throw new InvalidOperationException( "Thread already watched!" );
-                Watched[thread] = new MonitoredInfo() { Timeout = timeoutms, LastCheckin = DateTime.Now };
-            }
+                Timeout = timeoutms,
+                LastCheckin = DateTime.Now,
+                CTSource = new CancellationTokenSource(),
+            };
+            var result = mi.CTSource.Token;
+            Logging.Log( $"Watchdog. Start monitoring thread: {mi.DebugId}" );
+            Watched.TryAdd( result, mi );
+
+            return result;
         }
 
-        public void StopMonitor( Thread thread )
+        public void StopMonitor( CancellationToken ct )
         {
-            Logging.Log( "Watchdog. Stop monitoring thread: " + thread.ManagedThreadId.ToString() );
-            lock ( Watched )
-            {
-                Watched.Remove( thread );
-            }
+            if ( !Watched.TryRemove( ct, out var mi ) ) return;
+            Logging.Log( $"Watchdog. Stop monitoring thread: {mi.DebugId}" );
         }
 
-        public void UpdateTimeout( Thread thread, int timeoutms )
+        public void UpdateTimeout( CancellationToken ct, int timeoutms )
         {
-            lock ( Watched )
-            {
-                if ( !Watched.ContainsKey( thread ) ) throw new InvalidOperationException( "Thread not watched!" );
-                var mi = Watched[thread];
-                mi.Timeout = timeoutms;
-                mi.LastCheckin = DateTime.Now;
-            }
+            if ( !Watched.TryGetValue( ct, out var mi ) ) throw new InvalidOperationException( "Thread not watched!" );
+            mi.Timeout = timeoutms;
+            mi.LastCheckin = DateTime.Now;
         }
 
-        public void Ping( Thread thread )
+        public void Cancel( CancellationToken ct )
         {
-            lock ( PingQueue ) PingQueue[thread] = DateTime.MinValue;
+            if ( !Watched.TryGetValue( ct, out var mi ) ) throw new InvalidOperationException( "Thread not watched!" );
+            mi.CTSource.Cancel();
+        }
+
+        public void Ping( CancellationToken ct )
+        {
+            PingQueue[ct] = DateTime.MinValue;
         }
     }
 }
