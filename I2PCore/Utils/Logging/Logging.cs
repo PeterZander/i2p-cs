@@ -94,6 +94,7 @@ namespace I2PCore.Utils
                 Store = dest;
                 Store.Name = name;
             }
+            LogDebug( $"LogToStore: {dest.Name}" );
         }
 
         public static void LogToFile( string filename )

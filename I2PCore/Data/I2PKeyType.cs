@@ -14,6 +14,7 @@ namespace I2PCore.Data
         public enum KeyTypes : ushort
         {
             Invalid = ushort.MaxValue,
+            NotImplemented = ushort.MaxValue - 1,
             ElGamal2048 = 0,
             P256 = 1,
             P384 = 2,
@@ -62,6 +63,52 @@ namespace I2PCore.Data
             return $"I2PKeyType {GetType().Name}" +
                 $"Key : {KeySizeBits} bits, {KeySizeBytes} bytes." +
                 $"Key : {Key}";
+        }
+        public static int PublicKeyLength( I2PKeyType.KeyTypes kt )
+        {
+            switch ( kt )
+            {
+                case I2PKeyType.KeyTypes.ElGamal2048:
+                    return 256;
+
+                case I2PKeyType.KeyTypes.P256:
+                    return 64;
+
+                case I2PKeyType.KeyTypes.P384:
+                    return 96;
+
+                case I2PKeyType.KeyTypes.P521:
+                    return 132;
+
+                case I2PKeyType.KeyTypes.X25519:
+                    return 32;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        public static int PrivateKeyLength( I2PKeyType.KeyTypes kt )
+        {
+            switch ( kt )
+            {
+                case I2PKeyType.KeyTypes.ElGamal2048:
+                    return 256;
+
+                case I2PKeyType.KeyTypes.P256:
+                    return 32;
+
+                case I2PKeyType.KeyTypes.P384:
+                    return 48;
+
+                case I2PKeyType.KeyTypes.P521:
+                    return 66;
+
+                case I2PKeyType.KeyTypes.X25519:
+                    return 32;
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
     }
 }

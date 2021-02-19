@@ -737,7 +737,7 @@ namespace I2PCore.TunnelLayer
                 HandleReceivedTunnelBuildReply( obtunnel, msg );
 
 #if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {header.MessageId:X8}." );
+                Logging.LogDebug( () => $"HandleTunnelBuildReply: MsgId match {msg.MessageId:X8}." );
 #endif
             }
 

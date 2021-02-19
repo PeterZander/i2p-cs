@@ -14,12 +14,13 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         [Flags]
         public enum LookupTypes: byte { 
-            Tunnel = 0x01, 
-            Encryption = 0x02,
-            Normal = 0x00, 
-            LeaseSet = 0x04, 
-            RouterInfo = 0x08, 
-            Exploration = 0x0C, 
+            Tunnel          = 0b00000001, 
+            Encryption      = 0b00000010,
+            Normal          = 0b00000000, 
+            LeaseSet        = 0b00000100,
+            RouterInfo      = 0b00001000,
+            Exploration     = 0b00001100,
+            ECIES           = 0b00010000,
         }
 
         I2PIdentHash CachedKey;
@@ -115,16 +116,29 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             I2PIdentHash tunnelgw,
             I2PTunnelId tunnelid,
             LookupTypes flags, 
-            IEnumerable<I2PIdentHash> excludelist )
+            IEnumerable<I2PIdentHash> excludelist,
+            DatabaseLookupKeyInfo keyinfo = null )
         {
             var excludecount = excludelist == null ? 0 : excludelist.Count();
 
-            AllocateBuffer( 2 * 32 + 1 + 4 + 2 + 32 * excludecount );
+            var keyandtagsize = keyinfo is null ? 0 : keyinfo.ReplyKey.Length + 1 + keyinfo.Tags.Sum( t => t.Length );
+
+            AllocateBuffer( 2 * 32 + 1 + 4 + 2 + 32 * excludecount + keyandtagsize );
             var writer = new BufRefLen( Payload );
 
             writer.Write( key.Hash );
             writer.Write( tunnelgw.Hash );
-            writer.Write8( (byte)( (byte)flags | (byte)LookupTypes.Tunnel ) );
+
+            var forceflags = flags | LookupTypes.Tunnel;
+            if ( keyinfo != null )
+            {
+                forceflags &= ~LookupTypes.Encryption & ~LookupTypes.ECIES;
+
+                forceflags |= keyinfo.EncryptionFlag ? LookupTypes.Encryption : 0;
+                forceflags |= keyinfo.ECIESFlag ? LookupTypes.ECIES : 0;
+            }
+            writer.Write8( (byte)forceflags );
+
             writer.Write32( tunnelid );
 
             if ( excludecount > 0 )
@@ -140,7 +154,14 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 writer.Write16( 0 );
             }
 
-            //dest.Add( 0 ); // Tags
+            if ( keyinfo is null ) return;
+
+            writer.Write( keyinfo.ReplyKey );
+            writer.Write8( (byte)keyinfo.Tags.Length );
+            foreach( var tag in keyinfo.Tags )
+            {
+                writer.Write( tag );
+            }
         }
 
         public DatabaseLookupMessage( 
@@ -170,8 +191,6 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             {
                 writer.Write16( 0 );
             }
-
-            //dest.Add( 0 ); // Tags
         }
 
         void UpdateCachedFields( BufRef reader )

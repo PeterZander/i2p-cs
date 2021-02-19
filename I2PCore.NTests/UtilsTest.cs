@@ -177,6 +177,23 @@ namespace I2PTests
         }
 
         [Test]
+        public void TestRandomDouble()
+        {
+            var values = Enumerable
+                    .Range( 0, 10000 )
+                    .Select( i => BufUtils.RandomDouble() )
+                    .ToArray();
+
+            var expecteddev = Math.Sqrt( 1.0 / 12 );
+
+            Assert.IsTrue( values.All( b => b >= 0.0 && b < 1.0 ) );
+            Assert.IsTrue( Math.Abs( values.Average() - 0.5 ) < 0.02 );
+
+            var sddiff = values.Select( v => (float) v).StdDev() - expecteddev;
+            Assert.IsTrue( Math.Abs( sddiff ) < 0.01 );
+        }
+
+        [Test]
         public void TestRandom()
         {
             var values = Enumerable
@@ -189,7 +206,6 @@ namespace I2PTests
 
             Assert.IsTrue( bag.All( b => values.Any( i => i == b ) ) );
         }
-
         [Test]
         public void TestShuffle()
         {
@@ -197,6 +213,49 @@ namespace I2PTests
             var bag = ints.Select( i => BufUtils.RandomDouble( 1 ) ).ToArray();
             var shuffled = bag.Shuffle().ToArray();
             Assert.IsTrue( bag.All( b => shuffled.Any( i => i == b ) ) );
+        }
+
+        class TWI
+        {
+            public bool IsDisposed { get; protected set; } = false;
+        }
+
+        class TWId : TWI, IDisposable
+        {
+            void IDisposable.Dispose()
+            {
+                IsDisposed = true;
+            }
+        }
+
+        [Test]
+        public void TestTimeWindowDictionary()
+        {
+            var twd = new TimeWindowDictionary<int, TWI>( TickSpan.Seconds( 1 ) );
+
+            var oneinstance = new TWI();
+
+            twd[1] = oneinstance;
+            twd[100] = oneinstance;
+            twd[101] = oneinstance;
+            Assert.IsFalse( twd[1].IsDisposed );
+
+            System.Threading.Thread.Sleep( 1100 );
+
+            Assert.IsFalse( oneinstance.IsDisposed );
+            Assert.IsFalse( twd.TryGetValue( 1, out _ ) );
+
+            oneinstance = new TWId();
+
+            twd[2] = oneinstance;
+            Assert.IsFalse( twd[2].IsDisposed );
+
+            System.Threading.Thread.Sleep( 1100 );
+
+            Assert.IsFalse( twd.TryGetValue( 2, out _ ) );
+
+            ( (IDisposable)twd ).Dispose();
+            Assert.IsTrue( oneinstance.IsDisposed );
         }
     }
 }

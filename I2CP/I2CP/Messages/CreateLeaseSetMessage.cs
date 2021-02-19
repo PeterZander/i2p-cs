@@ -11,7 +11,6 @@ namespace I2P.I2CP.Messages
     public class CreateLeaseSetMessage: I2CPMessage
     {
         public ushort SessionId;
-        public I2PLeaseInfo Info;
         public I2PSigningPrivateKey DSAPrivateSigningKey;
         public I2PPrivateKey PrivateKey;
         public I2PLeaseSet Leases;
@@ -19,12 +18,11 @@ namespace I2P.I2CP.Messages
         public CreateLeaseSetMessage( 
             I2PDestination dest,
             ushort sessionid, 
-            I2PLeaseInfo info,
+            I2PLeaseSet ls,
             List<I2PLease> leases ): base( ProtocolMessageType.CreateLS )
         {
             SessionId = sessionid;
-            Info = info;
-            Leases = new I2PLeaseSet( dest, leases, info );
+            Leases = ls;
         }
 
         public CreateLeaseSetMessage( BufRef reader, I2CPSession session ) 

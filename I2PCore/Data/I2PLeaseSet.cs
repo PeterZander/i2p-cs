@@ -1,49 +1,49 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
+using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
 
 namespace I2PCore.Data
 {
-    public class I2PLeaseSet: I2PType
+    public class I2PLeaseSet: I2PType, ILeaseSet
     {
-        public I2PDestination Destination;
-        public I2PPublicKey PublicKey;
+        public DatabaseStoreMessage.MessageContent MessageType { get => DatabaseStoreMessage.MessageContent.LeaseSet; }
+
+        public I2PDestination Destination { get; private set; }
+        public I2PPublicKey PublicKey { get; private set; }
         public I2PSigningPublicKey PublicSigningKey;
 
-        public IEnumerable<I2PLease> Leases { get => LeasesField; }
+        public IEnumerable<ILease> Leases { get => LeasesField; }
 
         private readonly List<I2PLease> LeasesField = 
                 new List<I2PLease>();
 
         public I2PSignature Signature;
 
-        public I2PLeaseSet( I2PDestination dest, IEnumerable<I2PLease> leases, I2PLeaseInfo info )
+        public I2PLeaseSet(
+                I2PDestination dest,
+                IEnumerable<I2PLease> leases,
+                I2PPublicKey pubkey,
+                I2PSigningPublicKey spubkey,
+                I2PSigningPrivateKey sprivkey )
         {
             Destination = dest;
 
+            PublicKey = pubkey;
+            PublicSigningKey = spubkey;
+
             if ( leases != null && leases.Any() )
             {
-                foreach ( var lease in leases )
-                {
-                    LeasesField.Add( lease );
-                }
+                LeasesField.AddRange( leases );
             }
 
-            if ( info != null )
+            if ( sprivkey != null && ( Leases?.Any() ?? false ) )
             {
-                PublicKey = info.PublicKey;
-                PublicSigningKey = info.PublicSigningKey;
-
-                if ( info.PrivateSigningKey != null )
-                {
-                    Signature = new I2PSignature(
-                        new BufRefLen(
-                            CreateSignature( info.PrivateSigningKey ) ),
-                        info.PrivateSigningKey.Certificate );
-                }
+                Signature = new I2PSignature(
+                    new BufRefLen(
+                        CreateSignature( sprivkey ) ),
+                    sprivkey.Certificate );
             }
         }
 
@@ -60,9 +60,14 @@ namespace I2PCore.Data
             }
 
             Signature = new I2PSignature( reader, Destination.Certificate );
+
+            if ( !VerifySignature( Destination.SigningPublicKey ) )
+            {
+                throw new SignatureCheckFailureException();
+            }
         }
 
-        public void AddLease( I2PLease lease )
+        public void AddLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDate enddate )
         {
             RemoveExpired();
 
@@ -84,7 +89,7 @@ namespace I2PCore.Data
                 }
             }
 
-            LeasesField.Add( lease );
+            LeasesField.Add( new I2PLease( tunnelgw, tunnelid, enddate ) );
         }
 
         public void RemoveExpired()
@@ -100,7 +105,7 @@ namespace I2PCore.Data
             }
         }
 
-        public void RemoveLease( I2PIdentHash tunnelgw, uint tunnelid )
+        public void RemoveLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid )
         {
             var remove = LeasesField
                     .Where( l => 
@@ -135,12 +140,12 @@ namespace I2PCore.Data
                 }
 
                 var signfields = new List<BufLen>
-            {
-                new BufLen( Destination.ToByteArray() ),
-                PublicKey.Key,
-                PublicSigningKey.Key,
-                BufUtils.To8BL( (byte)LeasesField.Count )
-            };
+                {
+                    new BufLen( Destination.ToByteArray() ),
+                    PublicKey.Key,
+                    PublicSigningKey.Key,
+                    BufUtils.To8BL( (byte)LeasesField.Count )
+                };
 
                 foreach ( var lease in LeasesField )
                 {
@@ -206,12 +211,20 @@ namespace I2PCore.Data
         /// UTC of the largest EndDate for a lease
         /// </summary>
         /// <value>The end of life.</value>
-        public DateTime EndOfLife
+        public DateTime Expire
         {
             get
             {
                 if ( !Leases?.Any() ?? true ) return DateTime.UtcNow;
-                return (DateTime)Leases.Max( l => l.EndDate );
+                return (DateTime)LeasesField.Max( l => l.EndDate );
+            }
+        }
+
+        public IEnumerable<I2PPublicKey> PublicKeys
+        {
+            get
+            {
+                return new I2PPublicKey[] { PublicKey };
             }
         }
 
@@ -219,6 +232,10 @@ namespace I2PCore.Data
         {
             return $"I2PLeaseSet [{Leases?.Count()}]: {Destination?.IdentHash.Id32Short} " +
                 $"{string.Join( ",", LeasesField )}";
+        }
+        byte[] ILeaseSet.ToByteArray()
+        {
+            return this.ToByteArray();
         }
     }
 }

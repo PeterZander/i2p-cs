@@ -1,13 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Security;
-using System.IO;
 using I2PCore.Utils;
 using Org.BouncyCastle.Asn1.Nist;
-using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Crypto.Parameters;
 
 namespace I2PCore.Data

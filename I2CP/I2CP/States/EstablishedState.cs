@@ -52,7 +52,6 @@ namespace I2CP.I2CP.States
 
                         var newdest = Router.CreateDestination(
                              csm.Config.Destination,
-                             null,
                              !csm.Config.DontPublishLeaseSet,
                              out var alreadyrunning );
 
@@ -89,11 +88,26 @@ namespace I2CP.I2CP.States
                         Logging.LogDebug( $"{this}: {clsm} {clsm.PrivateKey}" );
 
                         var s = Session.SessionIds[clsm.SessionId];
-                        s.PrivateKey = clsm.PrivateKey;
-                        s.MyDestination.TemporaryPrivateKey = clsm.PrivateKey;
-
-                        s.LeaseInfo = clsm.Info;
+                        s.MyDestination.PrivateKeys = new List<I2PPrivateKey>() { clsm.PrivateKey };
                         s.MyDestination.SignedLeases = clsm.Leases;
+
+                        Session.SendPendingLeaseUpdates( true );
+                        break;
+
+                    case CreateLeaseSet2Message cls2m:
+                        Logging.LogDebug( $"{this}: {cls2m} {cls2m.PrivateKeys?.Count}" );
+
+                        var s2 = Session.SessionIds[cls2m.SessionId];
+
+                        s2.MyDestination.PrivateKeys = new List<I2PPrivateKey>( cls2m.PrivateKeys );
+                        if ( cls2m.Leases != null )
+                        {
+                            s2.MyDestination.SignedLeases = cls2m.Leases;
+                        }
+                        else
+                        {
+                            s2.MyDestination.SignedLeases = cls2m.Leases2;
+                        }
 
                         Session.SendPendingLeaseUpdates( true );
                         break;
@@ -132,18 +146,28 @@ namespace I2CP.I2CP.States
                             lookuphash = hlum.Hash;
                         }
 
-                        if ( hlum.SessionId == 0xFFFF )
+                        if ( hlum.SessionId == 0xFFFF || hlum.SessionId == 0 )
                         {
-                            Router.LookupDestination(
-                                    lookuphash,
-                                    HandleHostLookupResult,
+                            var ls = NetDb.Inst.FindLeaseSet( lookuphash );
+
+                            if ( NetDb.IsLeasesGood( ls ) )
+                            {
+                                HandleHostLookupResult( lookuphash, ls,
                                     new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
+                            }
+                            else
+                            {
+                                Router.LookupDestination(
+                                        lookuphash,
+                                        HandleHostLookupResult,
+                                        new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
+                            }
                         }
                         else
                         {
-                            var s2 = Session.SessionIds[hlum.SessionId];
+                            var s3 = Session.SessionIds[hlum.SessionId];
 
-                            s2.MyDestination.LookupDestination(
+                            s3.MyDestination.LookupDestination(
                                     lookuphash,
                                     HandleHostLookupResult,
                                     new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );
@@ -247,7 +271,7 @@ namespace I2CP.I2CP.States
             }
         }
 
-        private void HandleHostLookupResult( I2PIdentHash hash, I2PLeaseSet ls, object o )
+        private void HandleHostLookupResult( I2PIdentHash hash, ILeaseSet ls, object o )
         {
             if ( Session.Terminated ) return;
 
@@ -258,8 +282,8 @@ namespace I2CP.I2CP.States
             if ( ls != null )
             {
                 Session.Send( new HostReplyMessage( 
-                        hlinfo.SessionId, 
-                        hlinfo.RequestId, 
+                        hlinfo.SessionId,
+                        hlinfo.RequestId,
                         ls.Destination ) );
                 return;
             }
@@ -270,7 +294,7 @@ namespace I2CP.I2CP.States
                         HostLookupResults.Failure ) );
         }
 
-        void HandleDestinationLookupResult( I2PIdentHash hash, I2PLeaseSet ls, object o )
+        void HandleDestinationLookupResult( I2PIdentHash hash, ILeaseSet ls, object o )
         {
             if ( Session.Terminated ) return;
 

@@ -45,27 +45,26 @@ namespace I2PCore
                         a.Options.TryGet( "host" )?.ToString().Contains( "." ) ?? false ) );
             Logging.LogDebug( $"NetDb: Only IPV6: {onlyipv6.Count()}" );
 
-            var ntcp = RouterInfos
-                .Where( ri =>
-                    ri.Value.Router.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
-            Logging.LogDebug( $"NetDb: NTCP: {ntcp.Count()}" );
+            var transportstyles = RouterInfos
+                .SelectMany( ri => ri.Value.Router.Adresses.Select( a => a.TransportStyle.ToString() ) )
+                .Distinct();
 
-            var ssu = RouterInfos
-                .Where( ri =>
-                    ri.Value.Router.Adresses.Any( a => a.TransportStyle == "SSU" ) );
-            Logging.LogDebug( $"NetDb: SSU: {ssu.Count()}" );
+            foreach ( var style in transportstyles )
+            {
+                var ts = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Router.Adresses.Any( a => a.TransportStyle == style ) );
+                Logging.LogDebug( $"NetDb: {style}: {ts.Count()}" );
+            }
 
-            var onlyntcp = RouterInfos
-                .Where( ri =>
-                    ri.Value.Router.Adresses.Any( a => a.TransportStyle == "NTCP" )
-                        && !ri.Value.Router.Adresses.Any( a => a.TransportStyle == "SSU" ) );
-            Logging.LogDebug( $"NetDb: Only NTCP: {onlyntcp.Count()}" );
-
-            var onlyssu = RouterInfos
-                .Where( ri =>
-                    ri.Value.Router.Adresses.Any( a => a.TransportStyle == "SSU" )
-                        && !ri.Value.Router.Adresses.Any( a => a.TransportStyle == "NTCP" ) );
-            Logging.LogDebug( $"NetDb: Only SSU: {onlyssu.Count()}" );
+            foreach ( var style in transportstyles )
+            {
+                var onlyts = RouterInfos
+                    .Where( ri =>
+                        ri.Value.Router.Adresses.Any( a => a.TransportStyle == style )
+                            && ri.Value.Router.Adresses.All( a => a.TransportStyle == style ) );
+                Logging.LogDebug( $"NetDb: Only {style}: {onlyts.Count()}" );
+            }
         }
 
         private void ShowProbabilityProfile()

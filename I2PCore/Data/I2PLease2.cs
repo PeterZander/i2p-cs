@@ -3,36 +3,36 @@ using I2PCore.Utils;
 
 namespace I2PCore.Data
 {
-    public class I2PLease : I2PType, ILease
+    public class I2PLease2 : I2PType, ILease
     {
-        public static readonly TickSpan LeaseLifetime = TickSpan.Minutes( 10 );
+        public const int DefaultLeaseLifetimeSeconds = 10 * 60;
 
         public I2PIdentHash TunnelGw { get; private set; }
         public I2PTunnelId TunnelId { get; private set; }
-        public I2PDate EndDate { get; private set; }
+        public I2PDateShort EndDate { get; private set; }
 
-        public I2PLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDate enddate )
+        public I2PLease2( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDateShort enddate )
         {
             TunnelGw = tunnelgw;
             TunnelId = tunnelid;
             EndDate = enddate;
         }
 
-        public I2PLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid )
+        public I2PLease2( I2PIdentHash tunnelgw, I2PTunnelId tunnelid )
         {
             TunnelGw = tunnelgw;
             TunnelId = tunnelid;
-            EndDate = new I2PDate( 
+            EndDate = new I2PDateShort( 
                 DateTime.UtcNow 
-                    + TimeSpan.FromSeconds( LeaseLifetime.ToSeconds ) );
+                    + TimeSpan.FromSeconds( DefaultLeaseLifetimeSeconds ) );
         }
 
-        public I2PLease( BufRef reader )
+        public I2PLease2( BufRef reader )
         {
             TunnelGw = new I2PIdentHash( reader );
             TunnelId = new I2PTunnelId( reader );
 
-            EndDate = new I2PDate( reader );
+            EndDate = new I2PDateShort( reader );
         }
 
         public void Write( BufRefStream dest )
@@ -47,7 +47,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return $"I2PLease GW {TunnelGw.Id32Short}, Id {TunnelId}, Exp {EndDate}";
+            return $"I2PLease2 GW {TunnelGw.Id32Short}, Id {TunnelId}, Exp {EndDate}";
         }
     }
 }

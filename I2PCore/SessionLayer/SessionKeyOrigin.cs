@@ -81,8 +81,8 @@ namespace I2PCore.SessionLayer
 
         public ClientStates Send( 
                     OutboundTunnel outtunnel, 
-                    I2PLeaseSet remoteleases,
-                    I2PLeaseSet publishedleases,
+                    ILeaseSet remoteleases,
+                    ILeaseSet publishedleases,
                     Func<InboundTunnel> replytunnelsel,
                     bool needsleaseupdate,
                     params GarlicClove[] cloves )
@@ -198,9 +198,15 @@ namespace I2PCore.SessionLayer
 
                 var garlic = new Garlic( newcloves );
 
+                // Use enum value as priority
+                var pkey = remoteleases.PublicKeys
+                            .Where( pk => pk.Certificate.PublicKeyType == I2PKeyType.KeyTypes.ElGamal2048 ) // TODO: Currently supported
+                            .OrderByDescending( pk => (ushort)pk.Certificate.PublicKeyType )
+                            .FirstOrDefault();
+
                 egmsg = Garlic.EGEncryptGarlic(
                         garlic,
-                        remoteleases.PublicKey,
+                        pkey,
                         newtags.SessionKey,
                         new List<I2PSessionTag>( newtags.Tags.Select( t => t.Key ) ) );
             }

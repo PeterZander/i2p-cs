@@ -25,7 +25,10 @@ namespace I2PCore.Data
         {
             DateMilliseconds = val;
         }
-
+        public I2PDate( BufRef reader )
+        {
+            DateMilliseconds = reader.ReadFlip64();
+        }
         public I2PDate( I2PDate date )
         {
             DateMilliseconds = date.DateMilliseconds;
@@ -36,11 +39,6 @@ namespace I2PCore.Data
         public I2PDate( DateTime dt )
         {
             DateMilliseconds = (UInt64)( dt - RefDate ).TotalMilliseconds;
-        }
-
-        public I2PDate( BufRef buf )
-        {
-            DateMilliseconds = buf.ReadFlip64();
         }
 
         public void Write( BufRefStream dest )

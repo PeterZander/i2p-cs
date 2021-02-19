@@ -22,7 +22,7 @@ namespace I2PCore.SessionLayer
         public class DestLeaseInfo
         {
             public int LookupFailures = 0;
-            public I2PLeaseSet LeaseSet;
+            public ILeaseSet LeaseSet;
             internal TickCounter LastUse = TickCounter.Now;
             internal TickCounter LastUpdate = new TickCounter();
         }
@@ -40,7 +40,7 @@ namespace I2PCore.SessionLayer
         /// This is used for destinations we have actively looked up.
         /// </summary>
         /// <param name="ls">Ls.</param>
-        public void LeaseSetReceived( I2PLeaseSet ls )
+        public void LeaseSetReceived( ILeaseSet ls )
         {
             if ( !Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
             {
@@ -63,7 +63,7 @@ namespace I2PCore.SessionLayer
         /// This is for any received lease update
         /// </summary>
         /// <param name="ls">Ls.</param>
-        internal void PassiveLeaseSetUpdate( I2PLeaseSet ls )
+        internal void PassiveLeaseSetUpdate( ILeaseSet ls )
         {
             if ( Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
             {

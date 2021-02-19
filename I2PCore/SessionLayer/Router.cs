@@ -118,7 +118,10 @@ namespace I2PCore.SessionLayer
         /// <param name="destinfo">Destinfo.</param>
         /// <param name="publish">If set to <c>true</c> publish.</param>
         /// <param name="alreadyrunning">If set to <c>true</c> alreadyrunning.</param>
-        public static ClientDestination CreateDestination( I2PDestinationInfo destinfo, bool publish, out bool alreadyrunning )
+        public static ClientDestination CreateDestination(
+                I2PDestinationInfo destinfo,
+                bool publish,
+                out bool alreadyrunning )
         {
             lock ( RunningDestinations )
             {
@@ -138,14 +141,16 @@ namespace I2PCore.SessionLayer
         /// <summary>
         /// Creates the destination without a private key for signing lease sets.
         /// Using this constructor you have to subsribe to SignLeasesRequest events
-        /// and sign new lease sets.
+        /// and sign new lease sets, and update PrivateKeys as needed.
         /// </summary>
         /// <returns>The destination.</returns>
         /// <param name="dest">Destination.</param>
-        /// <param name="privkey">Privkey.</param>
         /// <param name="publish">If set to <c>true</c> publish.</param>
         /// <param name="alreadyrunning">If set to <c>true</c> alreadyrunning.</param>
-        public static ClientDestination CreateDestination( I2PDestination dest, I2PPrivateKey privkey, bool publish, out bool alreadyrunning )
+        public static ClientDestination CreateDestination(
+                I2PDestination dest,
+                bool publish,
+                out bool alreadyrunning )
         {
             lock ( RunningDestinations )
             {
@@ -155,7 +160,7 @@ namespace I2PCore.SessionLayer
                     return runninginst;
                 }
 
-                var newclient = new ClientDestination( dest, privkey, publish );
+                var newclient = new ClientDestination( dest, publish );
                 RunningDestinations[dest] = newclient;
                 ClientMgr.AttachClient( newclient );
                 alreadyrunning = false;
@@ -213,19 +218,23 @@ namespace I2PCore.SessionLayer
 
         internal static void HandleDatabaseStore( DatabaseStoreMessage ds )
         {
-            if ( ds.RouterInfo == null && ds.LeaseSet == null ) throw new ArgumentException( "DatabaseStore without Router or Lease info!" );
+            if ( ds.RouterInfo == null && ds.LeaseSet == null )
+            {
+                Logging.LogDebug( "DatabaseStore without Router or Lease info!" );
+                return;
+            }
 
             if ( ds.RouterInfo != null )
             {
 #if LOG_ALL_TUNNEL_TRANSFER
-                //Logging.Log( "HandleDatabaseStore: DatabaseStore RouterInfo" + ds.ToString() );
+                Logging.Log( $"HandleDatabaseStore: DatabaseStore RouterInfo {ds}" );
 #endif
                 NetDb.Inst.AddRouterInfo( ds.RouterInfo );
             }
             else
             {
 #if LOG_ALL_TUNNEL_TRANSFER
-                //Logging.Log( "HandleDatabaseStore: DatabaseStore LeaseSet" + ds.ToString() );
+                Logging.Log( $"HandleDatabaseStore: DatabaseStore LeaseSet {ds}" );
 #endif
                 NetDb.Inst.AddLeaseSet( ds.LeaseSet );
             }
@@ -321,7 +330,8 @@ namespace I2PCore.SessionLayer
         internal static void StartDestLookup(
                 I2PIdentHash hash,
                 DestinationLookupResult cb,
-                object tag )
+                object tag,
+                Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
         {
             lock ( UnresolvedDestinations )
             {
@@ -333,7 +343,7 @@ namespace I2PCore.SessionLayer
                 } );
             }
 
-            NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash );
+            NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash, keygen );
         }
 
         public static void LookupDestination( 
@@ -342,7 +352,7 @@ namespace I2PCore.SessionLayer
                 object tag = null )
         {
             if ( cb == null ) return;
-            StartDestLookup( hash, cb, tag );
+            StartDestLookup( hash, cb, tag, null );
         }
 
         static void IdentHashLookup_LookupFailure( I2PIdentHash key )
@@ -364,7 +374,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        static void IdentHashLookup_LeaseSetReceived( I2PLeaseSet ls )
+        static void IdentHashLookup_LeaseSetReceived( ILeaseSet ls )
         {
             var key = ls.Destination.IdentHash;
 

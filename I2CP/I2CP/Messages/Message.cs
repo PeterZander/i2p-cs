@@ -42,6 +42,8 @@ namespace I2P.I2CP.Messages
             RequestVarLS = 37,
             HostLookup = 38,
             HostLookupReply = 39,
+            CreateLeaseSet2Message_Deprecated = 40,
+            CreateLeaseSet2Message = 41,
         }
 
         public readonly ProtocolMessageType MessageType;

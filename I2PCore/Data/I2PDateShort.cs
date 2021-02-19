@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using I2PCore.Utils;
-using System.IO;
 
 namespace I2PCore.Data
 {
@@ -17,14 +13,23 @@ namespace I2PCore.Data
         {
         }
 
-        private I2PDateShort( uint val )
+        public I2PDateShort( uint val )
         {
             DateSeconds = val;
         }
 
+        public I2PDateShort( BufRef reader )
+        {
+            DateSeconds = reader.ReadFlip32();
+        }
         public I2PDateShort( I2PDateShort date )
         {
             DateSeconds = date.DateSeconds;
+        }
+
+        public I2PDateShort( I2PDate date )
+        {
+            DateSeconds = (uint)( (ulong)date / 1000 );
         }
 
         public static readonly DateTime RefDate = new DateTime( 1970, 1, 1 );
@@ -36,7 +41,17 @@ namespace I2PCore.Data
 
         public void Write( BufRefStream dest )
         {
-            dest.Write( BufUtils.Flip64B( DateSeconds ) );
+            dest.Write( BufUtils.Flip32B( DateSeconds ) );
+        }
+
+        public static explicit operator DateTime( I2PDateShort ds )
+        {
+            return RefDate + TimeSpan.FromSeconds( ds.DateSeconds );
+        }
+
+        public static explicit operator uint( I2PDateShort ds )
+        {
+            return ds.DateSeconds;
         }
 
         public override string ToString()

@@ -271,11 +271,18 @@ namespace I2PCore
         {
             var inactive = Statistics.GetInactive();
 
-            var old = RouterInfos.Where( ri =>
-                ( DateTime.Now - (DateTime)ri.Value.Router.PublishedDate ).TotalDays > 1 )
-                    .Select( p => p.Key );
+            var now = DateTime.UtcNow;
+            var old = RouterInfos
+                .Select( ri => new 
+                    {
+                        Id = ri.Key,
+                        Router = ri.Value.Router,
+                        Days = ( now - (DateTime)ri.Value.Router.PublishedDate ).TotalDays 
+                    } )
+                .Where( info => info.Days > 1.0 )
+                .ToArray();
 
-            inactive.UnionWith( old );
+            inactive.UnionWith( old.Select( info => info.Id ) );
 
             if ( RouterInfos.Count - inactive.Count < 400 )
             {

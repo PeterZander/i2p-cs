@@ -325,26 +325,26 @@ namespace I2PCore.Utils
 
         #region Misc often needed utils
 
-        static SecureRandom Rnd = new SecureRandom();
+        static System.Security.Cryptography.RandomNumberGenerator Rnd = System.Security.Cryptography.RandomNumberGenerator.Create();
 
         public static void Randomize( this byte[] buf, int offset, int length )
         {
-            Rnd.NextBytes( buf, offset, length );
+            Rnd.GetBytes( buf, offset, length );
         }
 
         public static void Randomize( this byte[] buf )
         {
-            Rnd.NextBytes( buf );
+            Rnd.GetBytes( buf );
         }
 
         public static void Randomize( this BufRefLen buf )
         {
-            Rnd.NextBytes( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
+            Rnd.GetBytes( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
         }
 
         public static void Randomize( this BufLen buf )
         {
-            Rnd.NextBytes( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
+            Rnd.GetBytes( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
         }
 
         public static V RandomValue<K,V>( this IDictionary<K,V> dic )
@@ -416,55 +416,55 @@ namespace I2PCore.Utils
             if ( bytes == 0 ) return ZeroArray;
 
             byte[] buf = new byte[bytes];
-            Rnd.NextBytes( buf );
+            Rnd.GetBytes( buf );
             return buf;
         }
 
         public static byte[] RandomNZ( int bytes )
         {
+            if ( bytes == 0 ) return ZeroArray;
+
             byte[] buf = new byte[bytes];
-            Rnd.NextBytes( buf );
-            for ( int i = 0; i < buf.Length; ++i )
-            {
-                if ( buf[i] == 0 )
-                {
-                    buf[i] = (byte)( ( RandomUint() | 0x01 ) & 0xFF );
-                }
-            }
+            Rnd.GetNonZeroBytes( buf );
             return buf;
         }
 
         public static uint RandomUint()
         {
-            return (uint)Rnd.Next();
+            var buf = new byte[4];
+            Rnd.GetBytes( buf );
+            return BitConverter.ToUInt32( buf, 0 );
         }
 
         public static uint RandomUintNZ()
         {
-            uint result;
-
-            do
-            {
-                result = BufUtils.RandomUint();
-
-            } while ( result == 0 );
-
-            return result;
+            var buf = new byte[4];
+            Rnd.GetNonZeroBytes( buf );
+            return BitConverter.ToUInt32( buf, 0 );
         }
 
         public static int RandomInt( int max )
         {
-            return Rnd.Next( max );
+            var buf = new byte[4];
+            Rnd.GetBytes( buf );
+            return Math.Abs( BitConverter.ToInt32( buf, 0 ) % max );
         }
 
         public static float RandomFloat( float max )
         {
-            return (float)( Rnd.NextDouble() * max );
+            return (float)RandomDouble() * max;
         }
 
         public static double RandomDouble( double max )
         {
-            return Rnd.NextDouble() * max;
+            return RandomDouble() * max;
+        }
+        public static double RandomDouble()
+        {
+            var buf = new byte[8];
+            Rnd.GetBytes( buf );
+            var result = BitConverter.ToInt64( buf ) & 0x001fffffffffffff;
+            return (double)result / (double)( 1L << 53 );
         }
 
         public static void Populate<T>( this IList<T> list, T value )

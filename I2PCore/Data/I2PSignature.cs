@@ -1,16 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.IO;
 using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto.Digests;
-using Org.BouncyCastle.Crypto.Signers;
-using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Utils;
-using Chaos.NaCl;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Crypto;
@@ -212,7 +206,7 @@ namespace I2PCore.Data
 
         public static bool DoVerifyEdDSASHA512Ed25519( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )
         {
-            return Chaos.NaCl.Ed25519.Verify( 
+            return Chaos.NaCl.Ed25519.Verify(
                         signed.Sig.ToByteArray(), 
                         bufs.SelectMany( b => 
                                 b

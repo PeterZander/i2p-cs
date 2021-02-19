@@ -1,15 +1,10 @@
 ﻿#define USE_BC_GZIP
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using I2PCore.Data;
 using I2PCore.Utils;
 using System.IO;
-using System.IO.Compression;
-using Org.BouncyCastle.Utilities.Encoders;
-using I2PCore.TunnelLayer.I2NP.Data;
 
 namespace I2PCore.TunnelLayer.I2NP.Messages
 {
@@ -19,11 +14,11 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         public enum MessageContent: byte 
         { 
-            RouterInfo = 0, 
-            LeaseSet = 1, 
-            LeaseSet2 = 3, 
-            EncryptedLeaseSet = 5, 
-            MetaLeaseSet = 7 
+            RouterInfo          = 0b000,
+            LeaseSet            = 0b001,
+            LeaseSet2           = 0b011, 
+            EncryptedLeaseSet   = 0b101,
+            MetaLeaseSet        = 0b111,
         }
 
         public DatabaseStoreMessage( 
@@ -78,7 +73,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         }
 
         public DatabaseStoreMessage( 
-                I2PLeaseSet leaseset, 
+                ILeaseSet leaseset, 
                 uint replytoken, 
                 I2PIdentHash replygw, 
                 I2PTunnelId replytunnelid )
@@ -89,7 +84,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             var writer = new BufRefLen( Payload );
 
             writer.Write( leaseset.Destination.IdentHash.Hash );
-            writer.Write8( (byte)MessageContent.LeaseSet );
+            writer.Write8( (byte)leaseset.MessageType );
             writer.Write32( replytoken );
             if ( replytoken != 0 )
             {
@@ -105,24 +100,24 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             UpdateCachedFields( (BufRefLen)Payload );
         }
 
-        public DatabaseStoreMessage( I2PLeaseSet leaseset ): this( leaseset, 0, null, 0 )
+        public DatabaseStoreMessage( ILeaseSet leaseset ): this( leaseset, 0, null, 0 )
         {
         }
 
-        I2PIdentHash CachedKey;
-        MessageContent CachedContent;
+        I2PIdentHash CachedRouterId;
+        MessageContent CachedContentType;
         uint CachedReplyToken;
         uint CachedReplyTunnelId;
         I2PIdentHash CachedReplyGateway;
         I2PRouterInfo CachedRouterInfo;
-        I2PLeaseSet CachedLeaseSet;
+        ILeaseSet CachedLeaseSet;
 
         public I2PIdentHash Key 
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
-                return CachedKey;
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                return CachedRouterId;
             }
         }
 
@@ -130,8 +125,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
-                return CachedContent;
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                return CachedContentType;
             }
         }
 
@@ -139,7 +134,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
                 return CachedReplyToken;
             }
         }
@@ -148,7 +143,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
                 return CachedReplyTunnelId;
             }
         }
@@ -157,7 +152,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
                 return CachedReplyGateway;
             }
         }
@@ -166,16 +161,16 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
                 return CachedRouterInfo;
             }
         }
 
-        public I2PLeaseSet LeaseSet
+        public ILeaseSet LeaseSet
         { 
             get 
             { 
-                if ( CachedKey == null ) UpdateCachedFields( new BufRefLen( Payload ) );
+                if ( CachedRouterId == null ) UpdateCachedFields( new BufRefLen( Payload ) );
                 return CachedLeaseSet;
             }
         }
@@ -189,8 +184,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         void UpdateCachedFields( BufRef reader )
         {
-            CachedKey = new I2PIdentHash( reader );
-            CachedContent = reader.Read8() == 0 ? MessageContent.RouterInfo : MessageContent.LeaseSet;
+            CachedRouterId = new I2PIdentHash( reader );
+            CachedContentType = (MessageContent)reader.Read8();
             CachedReplyToken = reader.Read32();
             if ( CachedReplyToken != 0 )
             {
@@ -198,7 +193,9 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 CachedReplyGateway = new I2PIdentHash( reader );
             }
 
-            switch ( CachedContent )
+            //Logging.LogDebug( $"DatabaseStoreMessage: {CachedContentType}, {CachedRouterId?.Id32Short}, {CachedReplyToken}" );
+
+            switch ( CachedContentType )
             {
                 case MessageContent.RouterInfo:
                     var length = reader.ReadFlip16();
@@ -226,10 +223,12 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 case MessageContent.LeaseSet:
                     CachedLeaseSet = new I2PLeaseSet( reader );
                     break;
-                    /*
+
                 case MessageContent.LeaseSet2:
+                    CachedLeaseSet = new I2PLeaseSet2( reader );
                     break;
 
+                    /*
                 case MessageContent.EncryptedLeaseSet:
                     break;
 
@@ -237,7 +236,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                     break;
                     */
                 default:
-                    throw new InvalidDataException( $"DatabaseStoreMessage: {CachedContent} not supported" );
+                    /* TODO: Fix NetDb.Inst.Statistics.DestinationInformationFaulty( CachedRouterId ); */
+                    throw new InvalidDataException( $"DatabaseStoreMessage: {CachedContentType} not supported for destination {CachedRouterId.Id32Short}" );
             }
         }
 
@@ -248,7 +248,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             result.AppendLine( $"DatabaseStore {Content}, key {Key.Id32Short}" );
             result.AppendLine( $"Reply token {ReplyToken}, tunnel {ReplyTunnelId}, GW {ReplyGateway}" );
 
-            switch ( CachedContent )
+            switch ( CachedContentType )
             {
                 case MessageContent.RouterInfo:
                     result.AppendLine( $"{RouterInfo}" );
@@ -257,6 +257,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 case MessageContent.LeaseSet:
                     result.AppendLine( $"{LeaseSet}" );
                     break;
+
                 case MessageContent.LeaseSet2:
                     result.AppendLine( $"LeaseSet2" );
                     break;

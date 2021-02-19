@@ -82,13 +82,23 @@ namespace I2PCore.TransportLayer.SSU
             Session.SharedKey = sessionkey;
             Session.MACKey = mackey;
 
-            var ipaddr = new IPAddress( SCMessage.Address.ToByteArray() );
-            ushort port = SCMessage.Port.PeekFlip16( 0 );
-            Session.SignOnTimeB = SCMessage.SignOnTime.Peek32( 0 );
-            var btime = SSUHost.SSUDateTime( BufUtils.Flip32( Session.SignOnTimeB ) );
 
-            Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId} : Received SessionCreated. {tstime.ToString()} : {btime}" );
-            Session.Host.ReportedAddress( ipaddr );
+            try
+            {
+                var ipaddr = new IPAddress( SCMessage.Address.ToByteArray() );
+                ushort port = SCMessage.Port.PeekFlip16( 0 );
+                Session.SignOnTimeB = SCMessage.SignOnTime.Peek32( 0 );
+                var btime = SSUHost.SSUDateTime( BufUtils.Flip32( Session.SignOnTimeB ) );
+
+                Logging.LogTransport( $"SSU SessionRequestState {Session.DebugId} : Received SessionCreated. {tstime.ToString()} : {btime}" );
+                Session.Host.ReportedAddress( ipaddr );
+            }
+            catch( ArgumentException ex )
+            {
+                Logging.LogDebug( $"SSU SessionRequestState ArgumentException {ex.Message} Addr: {SCMessage.Address}" );
+                
+                throw;
+            }
 
             if ( !I2PSignature.SupportedSignatureType( Session.RemoteRouter.Certificate.SignatureType ) )
                 throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId} : " +

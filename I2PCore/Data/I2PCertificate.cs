@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.IO;
 using I2PCore.Utils;
-using I2PCore.Data;
 
 namespace I2PCore.Data
 {
@@ -41,6 +37,8 @@ namespace I2PCore.Data
             }
         }
 
+        int NotImplementedPublicKeyLength;
+
         public ushort PayloadLength { get { return Data.PeekFlip16( 1 ); } protected set { Data.PokeFlip16( value, 1 ); } }
         public BufLen Payload { get { return new BufLen( Data, 3, PayloadLength ); } }
         public BufLen PayloadExtraKeySpace 
@@ -62,49 +60,62 @@ namespace I2PCore.Data
 
         public I2PCertificate( I2PSigningKey.SigningKeyTypes signkeytype )
         {
+            ushort pllen = 0;
+
+            switch ( signkeytype )
+            {
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
+                case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    pllen = 4;
+                    break;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
+                    pllen = 4 + 4;
+                    break;
+            }
+
             switch ( signkeytype )
             {
                 case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
                     Data = new BufLen( new byte[3] );
+                    PayloadLength = pllen;
                     CType = CertTypes.NULL;
                     break;
 
-                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
-                    Data = new BufLen( new byte[3 + 4] );
+                default:
+                    Data = new BufLen( new byte[3 + pllen] );
+                    PayloadLength = pllen;
                     CType = CertTypes.KEY;
-                    PayloadLength = 4;
-                    KEYSignatureType = I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256;
+                    KEYSignatureType = signkeytype;
                     break;
+            }
+        }
 
-                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
-                    Data = new BufLen( new byte[3 + 4] );
-                    CType = CertTypes.KEY;
-                    PayloadLength = 4;
-                    KEYSignatureType = I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384;
-                    break;
+        public I2PCertificate( I2PPublicKey.KeyTypes keytype, int keylen = -1 )
+        {
+            Data = new BufLen( new byte[7] { (byte)CertTypes.KEY, 2, 0, 0, 0, 0, 0 } );
 
-                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
-                    Data = new BufLen( new byte[3 + 4 + 4] );
-                    CType = CertTypes.KEY;
-                    PayloadLength = 4 + 4;
-                    KEYSignatureType = I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521;
-                    break;
-
-                case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                    Data = new BufLen( new byte[3 + 4] );
-                    CType = CertTypes.KEY;
-                    PayloadLength = 4;
-                    KEYSignatureType = I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519;
+            switch ( keytype )
+            {
+                case I2PKeyType.KeyTypes.ElGamal2048:
+                case I2PKeyType.KeyTypes.P256:
+                case I2PKeyType.KeyTypes.P384:
+                case I2PKeyType.KeyTypes.P521:
+                case I2PKeyType.KeyTypes.X25519:
+                    KEYPublicKeyType = keytype;
                     break;
 
                 default:
-                    throw new NotImplementedException();
+                    KEYPublicKeyType = I2PKeyType.KeyTypes.NotImplemented;
+                    NotImplementedPublicKeyLength = keylen;
+                    break;
             }
         }
 
         public I2PCertificate( BufRef buf )
         {
-            Data = new BufLen( buf, 0, 3 );
+            Data = new BufLen( buf, 0, 3 ); // Get CertLength
             Data = buf.ReadBufLen( CertLength );
         }
 
@@ -152,49 +163,31 @@ namespace I2PCore.Data
         {
             get
             {
-                switch ( PublicKeyType )
-                {
-                    case I2PKeyType.KeyTypes.ElGamal2048:
-                        return 256;
+                var pkt = PublicKeyType;
+                if ( pkt == I2PKeyType.KeyTypes.NotImplemented ) return NotImplementedPublicKeyLength;
 
-                    case I2PKeyType.KeyTypes.P256:
-                        return 64;
-
-                    case I2PKeyType.KeyTypes.P384:
-                        return 96;
-
-                    case I2PKeyType.KeyTypes.P521:
-                        return 132;
-
-                    case I2PKeyType.KeyTypes.X25519:
-                        return 32;
-
-                    default:
-                        throw new NotImplementedException();
-                }
+                return I2PKeyType.PublicKeyLength( pkt );
             }
         }
-
         public int PrivateKeyLength
         {
             get
             {
-                switch ( PublicKeyType )
+                return I2PKeyType.PrivateKeyLength( PublicKeyType );
+            }
+        }
+
+        public int SigningPublicKeyLength
+        {
+            get
+            {
+                switch ( CType )
                 {
-                    case I2PKeyType.KeyTypes.ElGamal2048:
-                        return 256;
+                    case CertTypes.NULL:
+                        return 128;
 
-                    case I2PKeyType.KeyTypes.P256:
-                        return 32;
-
-                    case I2PKeyType.KeyTypes.P384:
-                        return 48;
-
-                    case I2PKeyType.KeyTypes.P521:
-                        return 66;
-
-                    case I2PKeyType.KeyTypes.X25519:
-                        return 32;
+                    case CertTypes.KEY:
+                        return I2PSigningKey.SigningPublicKeyLength( SignatureType );
 
                     default:
                         throw new NotImplementedException();
@@ -212,81 +205,7 @@ namespace I2PCore.Data
                         return 20;
 
                     case CertTypes.KEY:
-                        switch ( SignatureType )
-                        {
-                            case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
-                                return 20;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
-                                return 32;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
-                                return 48;
-
-                            case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                                return 32;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
-                                return 66;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
-                                return 512;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
-                                return 768;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
-                                return 1024;
-
-                            default:
-                                throw new NotImplementedException();
-                        }
-
-                    default:
-                        throw new NotImplementedException();
-                }
-            }
-        }
-
-        public int SigningPublicKeyLength
-        {
-            get
-            {
-                switch ( CType )
-                {
-                    case CertTypes.NULL:
-                        return 128;
-
-                    case CertTypes.KEY:
-                        switch ( SignatureType )
-                        {
-                            case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
-                                return 128;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
-                                return 64;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
-                                return 96;
-
-                            case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                                return 32;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
-                                return 132;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
-                                return 256;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
-                                return 384;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
-                                return 512;
-
-                            default:
-                                throw new NotImplementedException();
-                        }
+                        return I2PSigningKey.SigningPrivateKeyLength( SignatureType );
 
                     default:
                         throw new NotImplementedException();
@@ -304,35 +223,7 @@ namespace I2PCore.Data
                         return 40;
 
                     case CertTypes.KEY:
-                        switch ( SignatureType )
-                        {
-                            case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
-                                return 40;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
-                                return 64;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
-                                return 96;
-
-                            case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                                return 64;
-
-                            case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
-                                return 132;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
-                                return 256;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
-                                return 384;
-
-                            case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
-                                return 512;
-
-                            default:
-                                throw new NotImplementedException();
-                        }
+                        return I2PSigningKey.SignatureLength( SignatureType );
 
                     default:
                         throw new NotImplementedException();
@@ -355,7 +246,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return $"{CType} {KEYPublicKeyType} {SignatureType}";
+            return $"{CType} {PublicKeyType} {SignatureType}";
         }
     }
 }

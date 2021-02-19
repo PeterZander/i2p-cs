@@ -61,5 +61,101 @@ namespace I2PCore.Data
                 Key = new BufLen( key, 0, KeySizeBytes );
             }
         }
+        public static int SigningPublicKeyLength( I2PSigningKey.SigningKeyTypes skt )
+        {
+            switch ( skt )
+            {
+                case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
+                    return 128;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
+                    return 64;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
+                    return 96;
+
+                case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    return 32;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
+                    return 132;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
+                    return 256;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
+                    return 384;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
+                    return 512;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        public static int SigningPrivateKeyLength( I2PSigningKey.SigningKeyTypes skt )
+        {
+            switch ( skt )
+            {
+                case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
+                    return 20;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
+                    return 32;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
+                    return 48;
+
+                case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    return 32;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
+                    return 66;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
+                    return 512;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
+                    return 768;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
+                    return 1024;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        public static int SignatureLength( I2PSigningKey.SigningKeyTypes skt )
+        {
+            switch ( skt )
+            {
+                case I2PSigningKey.SigningKeyTypes.DSA_SHA1:
+                    return 40;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
+                    return 64;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
+                    return 96;
+
+                case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    return 64;
+
+                case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
+                    return 132;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
+                    return 256;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA384_3072:
+                    return 384;
+
+                case I2PSigningKey.SigningKeyTypes.RSA_SHA512_4096:
+                    return 512;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
     }
 }

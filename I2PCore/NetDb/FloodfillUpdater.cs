@@ -23,7 +23,7 @@ namespace I2PCore
         {
             public readonly TickCounter Start = new TickCounter();
             public readonly I2PIdentHash IdentToUpdate;
-            public readonly I2PLeaseSet LeaseSet;
+            public readonly ILeaseSet LeaseSet;
 
             public I2PIdentHash CurrentTargetFF { get; set; }
 
@@ -41,7 +41,7 @@ namespace I2PCore
                 IdentToUpdate = id;
             }
 
-            public FFUpdateRequestInfo( I2PIdentHash ff, uint token, I2PLeaseSet ls, int retries )
+            public FFUpdateRequestInfo( I2PIdentHash ff, uint token, ILeaseSet ls, int retries )
             {
                 CurrentTargetFF = ff;
                 Token = token;
@@ -104,7 +104,7 @@ namespace I2PCore
             }
         }
 
-        public void TrigUpdateLeaseSet( I2PLeaseSet leaseset )
+        public void TrigUpdateLeaseSet( ILeaseSet leaseset )
         {
             StartNewUpdatesLeaseSet( leaseset );
         }
@@ -139,11 +139,11 @@ namespace I2PCore
             }
         }
 
-        void StartNewUpdatesLeaseSet( I2PLeaseSet ls )
+        void StartNewUpdatesLeaseSet( ILeaseSet ls )
         {
             // old lease sets are out of date
             while ( OutstandingRequests.TryRemove( 
-                    OutstandingRequests.Where( r => r.Value?.LeaseSet == ls )
+                    OutstandingRequests.Where( r => r.Value?.LeaseSet?.Destination.IdentHash == ls.Destination.IdentHash )
                         .Select( r => r.Key )
                         .FirstOrDefault(),
                     out var _ ) )
@@ -199,7 +199,7 @@ namespace I2PCore
         private void SendLeaseSetUpdateGarlic(
                 I2PIdentHash ffdest,
                 I2PPublicKey pubkey,
-                I2PLeaseSet ls,
+                ILeaseSet ls,
                 uint token )
         {
             // If greater than zero, a DeliveryStatusMessage
@@ -219,8 +219,7 @@ namespace I2PCore
                 return;
             }
 
-            var ds = new DatabaseStoreMessage( ls );
-            var delivstatus = new DeliveryStatusMessage( token );
+            var ds = new DatabaseStoreMessage( ls, token, replytunnel.TunnelGw, replytunnel.TunnelId );
 
             // As explained on the network database page, local LeaseSets are sent to floodfill 
             // routers in a Database Store Message wrapped in a Garlic Message so it is not 
@@ -228,9 +227,7 @@ namespace I2PCore
 
             var garlic = new Garlic(
                         new GarlicClove(
-                            new GarlicCloveDeliveryLocal( ds ) ),
-                        new GarlicClove(
-                            new GarlicCloveDeliveryTunnel( delivstatus, replytunnel.TunnelGw, replytunnel.TunnelId ) )
+                            new GarlicCloveDeliveryLocal( ds ) )
                     );
 
             var egmsg = Garlic.EGEncryptGarlic( garlic, pubkey, new I2PSessionKey(), null );

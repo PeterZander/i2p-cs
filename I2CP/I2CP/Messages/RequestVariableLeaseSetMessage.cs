@@ -10,9 +10,9 @@ namespace I2P.I2CP.Messages
     public class RequestVariableLeaseSetMessage: I2CPMessage
     {
         public ushort SessionId;
-        public List<I2PLease> Leases = new List<I2PLease>();
+        public List<ILease> Leases = new List<ILease>();
 
-        public RequestVariableLeaseSetMessage( ushort sessionid, IEnumerable<I2PLease> leases )
+        public RequestVariableLeaseSetMessage( ushort sessionid, IEnumerable<ILease> leases )
             : base( ProtocolMessageType.RequestVarLS )
         {
             SessionId = sessionid;
@@ -38,9 +38,11 @@ namespace I2P.I2CP.Messages
             writer.Write8( (byte)Leases.Count );
             dest.Write( header );
 
-            for ( int i = 0; i < Leases.Count; ++i )
+            foreach( var ls in Leases )
             {
-                Leases[i].Write( dest );
+                ls.TunnelGw.Write( dest );
+                ls.TunnelId.Write( dest );
+                new I2PDate( ls.Expire ).Write( dest );
             }
         }
     }

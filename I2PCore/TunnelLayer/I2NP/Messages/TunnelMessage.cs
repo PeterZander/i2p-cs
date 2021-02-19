@@ -63,12 +63,6 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         public override void Distribute( Tunnel tunnel )
         {
-#if LOG_ALL_TUNNEL_TRANSFER
-            if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x2317 ) ) )
-            {
-                Logging.LogDebug( $"EndpointTunnel {Destination.Id32Short} TunnelData Router :\r\n{one.Header.MessageType}" );
-            }
-#endif
             try
             {
                 tunnel.Bandwidth.DataSent( Message.Payload.Length );
@@ -100,12 +94,6 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
         public override void Distribute( Tunnel tunnel )
         {
-#if LOG_ALL_TUNNEL_TRANSFER
-            if ( FilterMessageTypes.Update( new HashedItemGroup( Destination, 0x6375 ) ) )
-            {
-                Logging.LogDebug( $"EndpointTunnel {Destination.Id32Short} TunnelData Tunnel :\r\n{one.Header.MessageType}" );
-            }
-#endif
             try
             {
                 var gwmsg = new TunnelGatewayMessage( Message, Tunnel );

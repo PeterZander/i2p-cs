@@ -6,8 +6,8 @@ using System.Threading;
 using I2PCore.Utils;
 using I2PCore.SessionLayer;
 using System.Net;
-using I2P.Streaming;
 using System.Collections.Generic;
+using I2P.Streaming;
 using static I2P.Streaming.StreamingPacket;
 using static I2P.I2CP.Messages.I2CPMessage;
 using static System.Configuration.ConfigurationManager;
@@ -84,7 +84,12 @@ namespace I2PEchoClient
             var remotedest = new I2PIdentHash( destb32 );
 
             MyDestinationInfo = new I2PDestinationInfo( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
-            UnpublishedDestination = Router.CreateDestination( MyDestinationInfo, false, out _ );
+
+            UnpublishedDestination = Router.CreateDestination(
+                    MyDestinationInfo, 
+                    false, 
+                    out _ );
+
             UnpublishedDestination.DataReceived += MyDestination_DataReceived;
             UnpublishedDestination.Name = "UnpublishedDestination";
 

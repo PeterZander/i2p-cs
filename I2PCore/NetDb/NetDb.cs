@@ -26,8 +26,8 @@ namespace I2PCore
         ConcurrentDictionary<I2PIdentHash, RouterEntry> FloodfillInfos =
                 new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
 
-        TimeWindowDictionary<I2PIdentHash, I2PLeaseSet> LeaseSets =
-            new TimeWindowDictionary<I2PIdentHash, I2PLeaseSet>( I2PLease.LeaseLifetime * 2 );
+        TimeWindowDictionary<I2PIdentHash, ILeaseSet> LeaseSets =
+            new TimeWindowDictionary<I2PIdentHash, ILeaseSet>( I2PLease.LeaseLifetime * 2 );
         Dictionary<I2PString, I2PString> ConfigurationSettings = new Dictionary<I2PString, I2PString>();
 
         protected static Thread Worker;
@@ -40,7 +40,7 @@ namespace I2PCore
         RouletteSelection<I2PRouterInfo, I2PIdentHash> RouletteNonFloodFill;
 
         public delegate void NetworkDatabaseRouterInfoUpdated( I2PRouterInfo info );
-        public delegate void NetworkDatabaseLeaseSetUpdated( I2PLeaseSet ls );
+        public delegate void NetworkDatabaseLeaseSetUpdated( ILeaseSet ls );
         public delegate void NetworkDatabaseDatabaseSearchReplyReceived( DatabaseSearchReplyMessage dsm );
 
         public event NetworkDatabaseRouterInfoUpdated RouterInfoUpdates;
@@ -184,7 +184,11 @@ namespace I2PCore
 
         public bool AddRouterInfo( I2PRouterInfo info )
         {
-            if ( !ValidateRI( info ) ) return false;
+            if ( !ValidateRI( info ) )
+            {
+                Logging.LogDebugData( $"NetDb: RouterInfo failed validation: {info}" );
+                return false;
+            }
 
             if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
             {
@@ -292,17 +296,11 @@ namespace I2PCore
             }
         }
 
-        public void AddLeaseSet( I2PLeaseSet leaseset )
+        public void AddLeaseSet( ILeaseSet leaseset )
         {
-            if ( !leaseset.VerifySignature( leaseset.Destination.SigningPublicKey ) )
-            {
-                Logging.LogWarning( $"LeaseSet {0} signature verification failed." );
-                return;
-            }
-
             if ( LeaseSets.TryGetValue( leaseset.Destination.IdentHash, out var extls ) )
             {
-                if ( extls.EndOfLife > leaseset.EndOfLife )
+                if ( extls.Expire > leaseset.Expire )
                 {
                     return;
                 }
@@ -313,9 +311,25 @@ namespace I2PCore
             if ( LeaseSetUpdates != null ) ThreadPool.QueueUserWorkItem( a => LeaseSetUpdates( leaseset ) );
         }
 
-        public I2PLeaseSet FindLeaseSet( I2PIdentHash dest )
+        public ILeaseSet FindLeaseSet( I2PIdentHash dest )
         {
             return LeaseSets[dest];
+        }
+
+        public static bool IsLeasesGood( ILeaseSet ls )
+        {
+            if ( ls != null )
+            {
+                if ( ls.Leases?.Any() ?? false )
+                {
+                    var max = ls.Leases.Max( l => l.Expire );
+                    if ( ( max - DateTime.UtcNow ).TotalMinutes > 3 )
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public IEnumerable<I2PRouterInfo> Find( IEnumerable<I2PIdentHash> hashes )

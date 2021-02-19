@@ -6,8 +6,8 @@ using System.Threading;
 using I2PCore.Utils;
 using I2PCore.SessionLayer;
 using System.Net;
-using I2P.Streaming;
 using System.Collections.Generic;
+using I2P.Streaming;
 using static I2P.Streaming.StreamingPacket;
 using static I2P.I2CP.Messages.I2CPMessage;
 using static System.Configuration.ConfigurationManager;
@@ -83,7 +83,11 @@ namespace I2PEchoServer
             var destb32 = AppSettings["Destination"];
             MyDestinationInfo = new I2PDestinationInfo( destb32 );
 
-            PublishedDestination = Router.CreateDestination( MyDestinationInfo, true, out _ );
+            PublishedDestination = Router.CreateDestination(
+                        MyDestinationInfo,
+                        true,
+                        out _ );
+
             PublishedDestination.DataReceived += MyDestination_DataReceived;
             PublishedDestination.Name = "PublishedDestination";
 

@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Security;
-using System.IO;
+﻿using Org.BouncyCastle.Math;
 using I2PCore.Utils;
+using System;
 
 namespace I2PCore.Data
 {
@@ -13,11 +8,19 @@ namespace I2PCore.Data
     {
         public I2PPublicKey( I2PPrivateKey priv ): base( priv.Certificate )
         {
-            Key = new BufLen( I2PConstants
-                    .ElGamalG.ModPow( 
-                        priv.ToBigInteger(), 
-                        I2PConstants.ElGamalP )
-                            .ToByteArrayUnsigned() );
+            switch( Certificate.PublicKeyType )
+            {
+                case KeyTypes.ElGamal2048:
+                    Key = new BufLen( I2PConstants
+                            .ElGamalG.ModPow( 
+                                priv.ToBigInteger(), 
+                                I2PConstants.ElGamalP )
+                                    .ToByteArrayUnsigned() );
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
 
         public I2PPublicKey( BufRef buf, I2PCertificate cert ) : base( buf, cert ) { }

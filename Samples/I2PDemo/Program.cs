@@ -1,4 +1,4 @@
-﻿#define MANUAL_SIGN
+﻿#define NOMANUAL_SIGN
 
 using System;
 using I2PCore.Data;
@@ -11,6 +11,8 @@ using System.Net;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace I2PDemo
 {
@@ -28,9 +30,9 @@ namespace I2PDemo
         {
             PeriodicAction SendInterval = new PeriodicAction( TickSpan.Seconds( 20 ) );
 
-            Logging.ReadAppConfig();
             Logging.LogToDebug = false;
             Logging.LogToConsole = true;
+            Logging.ReadAppConfig();
 
             RouterContext.RouterSettingsFile = "I2PDemo.bin";
 
@@ -135,7 +137,6 @@ namespace I2PDemo
             RouterContext.Inst.ApplyNewSettings();
 
             var pnp = new UPnp();
-            Thread.Sleep( 5000 ); // Give UPnp a chance
 
             Router.Start();
 
@@ -146,18 +147,35 @@ namespace I2PDemo
 #if MANUAL_SIGN
             PublishedDestination = Router.CreateDestination(
                     MyDestination, 
-                    MyDestinationInfo.PrivateKey, 
                     true,
                     out _ ); // Publish our destinaiton
             PublishedDestination.SignLeasesRequest += MyDestination_SignLeasesRequest;
+            
+            PublishedDestination.GenerateTemporaryKeys();
 #else
-            PublishedDestination = Router.CreateDestination( MyDestinationInfo, true, out _ ); // Publish our destinaiton
+            // Publish our destinaiton
+            PublishedDestination = Router.CreateDestination(
+                MyDestinationInfo,
+                true, out _ );
 #endif
+            
             PublishedDestination.DataReceived += MyDestination_DataReceived;
             PublishedDestination.Name = "PublishedDestination";
 
+            var ls = new I2PLeaseSet( MyDestinationInfo.Destination, null, 
+                    MyDestinationInfo.Destination.PublicKey,
+                    MyDestinationInfo.Destination.SigningPublicKey,
+                    MyDestinationInfo.PrivateSigningKey );
+
+            // Caller
+            
             MyOriginInfo = new I2PDestinationInfo( I2PSigningKey.SigningKeyTypes.DSA_SHA1 );
-            MyOrigin = Router.CreateDestination( MyOriginInfo, false, out _ );
+
+            MyOrigin = Router.CreateDestination(
+                    MyOriginInfo,
+                    false,
+                    out _ );
+
             MyOrigin.ClientStateChanged += MyOrigin_ClientStateChanged;
             MyOrigin.DataReceived += MyOrigin_DataReceived;
             MyOrigin.Name = "MyOrigin";
@@ -234,20 +252,19 @@ namespace I2PDemo
             Logging.LogInformation( $"Program {MyOrigin}: data received. {data:15}" );
         }
 
-        static void MyDestination_SignLeasesRequest( I2PLeaseSet ls )
+        static void MyDestination_SignLeasesRequest( ClientDestination dest, IEnumerable<ILease> ls )
         {
             Logging.LogInformation( $"Program {MyDestination}: Signing {ls} for publishing" );
+            PublishedDestination.PrivateKeys = new List<I2PPrivateKey>( new I2PPrivateKey[] { MyDestinationInfo.PrivateKey } );
             PublishedDestination.SignedLeases = new I2PLeaseSet(
                     MyDestination,
-                    ls.Leases,
-                    new I2PLeaseInfo(
-                        MyDestination.PublicKey,
-                        ls.PublicSigningKey,
-                        null,
-                        MyDestinationInfo.PrivateSigningKey ) );
+                    ls.Select( l => new I2PLease( l.TunnelGw, l.TunnelId, new I2PDate( l.Expire ) ) ),
+                    MyDestination.PublicKey,
+                    MyDestination.SigningPublicKey,
+                    MyDestinationInfo.PrivateSigningKey );
         }
 
-        static void LookupResult( I2PIdentHash hash, I2PLeaseSet ls, object o )
+        static void LookupResult( I2PIdentHash hash, ILeaseSet ls, object o )
         {
             Logging.LogInformation( $"Program {MyOrigin}: LookupResult {hash.Id32Short} {ls}" );
 

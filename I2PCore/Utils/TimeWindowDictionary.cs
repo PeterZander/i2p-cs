@@ -7,7 +7,7 @@ using System.Text;
 
 namespace I2PCore.Utils
 {
-    public class TimeWindowDictionary<T, V> : IEnumerable<KeyValuePair<T, V>> where V : class 
+    public class TimeWindowDictionary<T, V> : IDisposable, IEnumerable<KeyValuePair<T, V>> where V : class
     {
         TickSpan MemorySpan;
         ConcurrentDictionary<T, KeyValuePair<V, TickCounter>> Memory = 
@@ -77,7 +77,7 @@ namespace I2PCore.Utils
             {
                 if ( pair.Value.DeltaToNow > MemorySpan )
                 {
-                    Memory.TryRemove( ident, out _ );
+                    RemoveAndDispose( ident, out _ );
                     value = null;
                     return false;
                 }
@@ -104,7 +104,7 @@ namespace I2PCore.Utils
             {
                 if ( pair.Value.DeltaToNow > MemorySpan )
                 {
-                    Memory.TryRemove( ident, out _ );
+                    RemoveAndDispose( ident, out _ );
                     return null;
                 }
                 return pair.Key;
@@ -120,7 +120,20 @@ namespace I2PCore.Utils
                 Cleanup();
             }
 
-            return Memory.TryRemove( ident, out _ );
+            return RemoveAndDispose( ident, out _ );
+        }
+
+        protected bool RemoveAndDispose( T ident, out V value )
+        {
+            var result = Memory.TryRemove( ident, out var removed );
+            value = removed.Key;
+
+            if ( value is IDisposable )
+            {
+                ( (IDisposable)value ).Dispose();
+            }
+
+            return result;
         }
 
         public bool TryRemove( T ident, out V value )
@@ -130,8 +143,8 @@ namespace I2PCore.Utils
                 Cleanup();
             }
 
-            var result = Memory.TryRemove( ident, out var val );
-            value = val.Key;
+            var result = RemoveAndDispose( ident, out var val );
+            value = val;
             return result;
         }
 
@@ -161,7 +174,7 @@ namespace I2PCore.Utils
             {
                 if ( identpair.Value.Value.DeltaToNow > MemorySpan )
                 {
-                    Memory.TryRemove( identpair.Key, out _ );
+                    RemoveAndDispose( identpair.Key, out _ );
                 }
             }
         }
@@ -183,6 +196,14 @@ namespace I2PCore.Utils
                     .AsEnumerable()
                     .Select( p => new KeyValuePair<T, V>( p.Key, p.Value.Key ) )
                     .GetEnumerator();
+        }
+
+        void IDisposable.Dispose()
+        {
+            foreach ( var identpair in Memory.ToArray() )
+            {
+                RemoveAndDispose( identpair.Key, out _ );
+            }
         }
         #endregion
     }

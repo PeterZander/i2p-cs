@@ -49,9 +49,9 @@ namespace I2PCore.SessionLayer
         /// <summary>
         /// New inbound tunnels was established. To be able to publish them
         /// the user of the router must sign the leases and assign to SignedLeases
-        /// as no signing key is available to the router.
+        /// as the private temporary key is not available to the router.
         /// </summary>
-        public event Action<I2PLeaseSet> SignLeasesRequest;
+        public event Action<ClientDestination, IEnumerable<ILease>> SignLeasesRequest;
 
         /// <summary>
         /// Client states.
@@ -66,7 +66,7 @@ namespace I2PCore.SessionLayer
         /// <summary>
         /// ls is null if lookup failed.
         /// </summary>
-        public delegate void DestinationLookupResult( I2PIdentHash id, I2PLeaseSet ls, object tag );
+        public delegate void DestinationLookupResult( I2PIdentHash id, ILeaseSet ls, object tag );
 
         /// <summary>
         /// Gets or sets the inbound tunnel hop count.
@@ -96,18 +96,58 @@ namespace I2PCore.SessionLayer
         /// Currently established Leases for this Destination.
         /// </summary>
         /// <value>The leases.</value>
-        public I2PLeaseSet EstablishedLeases { get; private set; }
+        public IEnumerable<ILease> EstablishedLeases
+        {
+            get
+            {
+                return EstablishedLeasesField;
+            }
+        }
+        protected List<ILease> EstablishedLeasesField = new List<ILease>();
+
+        /// <summary>
+        /// Temporary public keys matching the <see cref="T:I2PCore.SessionLayer.ClientDestination.PrivateKeys"/>.
+        /// These keys are included when new LeaseSets are generated if automatic LeaseSet signing is used.
+        /// </summary>
+        public List<I2PPublicKey> PublicKeys { get; set; }
+
+        private List<I2PPrivateKey> PrivateKeysField;
+
+        /// <summary>
+        /// Temporary private keys matching the <see cref="T:I2PCore.SessionLayer.ClientDestination.PublicKeys"/>
+        /// supplied with our LeaseSet. These keys are used to decrypt incomming commmunication.
+        /// </summary>
+        public List<I2PPrivateKey> PrivateKeys 
+        { 
+            get => PrivateKeysField; 
+            set
+            {
+                PrivateKeysField = value;
+                IncommingSessions.PrivateKeys = value;
+            }
+        }
+
+        public void GenerateTemporaryKeys()
+        {
+            var tmpprivkey = new I2PPrivateKey( new I2PCertificate( I2PKeyType.KeyTypes.ElGamal2048 ) );
+            var tmppubkey = new I2PPublicKey( tmpprivkey );
+
+            PrivateKeys = new List<I2PPrivateKey>() { tmpprivkey };
+            PublicKeys = new List<I2PPublicKey>() { tmppubkey };
+        }
 
         /// <summary>
         /// Currently signed Leases for this Destination.
+        /// If you are manually signing, <see cref="T:I2PCore.SessionLayer.ClientDestination.PrivateKeys"/>
+        /// must be assigned as well at startup, or when the temporary keys change.
         /// </summary>
-        /// <value>The leases.</value>
-        public I2PLeaseSet SignedLeases
+        /// <value>The lease set.</value>
+        public ILeaseSet SignedLeases
         {
             get => SignedLeasesField;
             set
             {
-#if DEBUG
+#if DEBUG_TMP
                 if ( !value.VerifySignature( Destination.SigningPublicKey ) )
                 {
                     throw new ArgumentException( "Lease set signature error" );
@@ -123,7 +163,7 @@ namespace I2PCore.SessionLayer
                 }
             }
         }
-        public I2PLeaseSet SignedLeasesField = null;
+        public ILeaseSet SignedLeasesField = null;
 
         /// <summary>
         /// I2P Destination address for this instance.
@@ -200,89 +240,33 @@ namespace I2PCore.SessionLayer
         /// <value>The this destination info.</value>
         protected I2PDestinationInfo ThisDestinationInfo { get; private set; }
 
-        private I2PPrivateKey TemporaryPrivateKeyField;
-
-        /// <summary>
-        /// Gets or sets the temporary private key used in the lease set for 
-        /// this Destination.
-        /// </summary>
-        /// <value>The temporary private key.</value>
-        public I2PPrivateKey TemporaryPrivateKey
+        // Sign leases yourself
+        internal ClientDestination(
+                I2PDestination dest,
+                bool publishdest )
         {
-            get => TemporaryPrivateKeyField;
+            Destination = dest;
+            PublishDestination = publishdest;
 
-            set
-            {
-                if ( value is null )
-                {
-                    if ( TemporaryPrivateKeyField is null )
-                    {
-                        UpdateTemporaryPrivateKey( 
-                                new I2PPrivateKey( I2PKeyType.DefaultAsymetricKeyCert ) );
-                    }
-                    return;
-                }
+            IncommingSessions = new DecryptReceivedSessions( this );
+            MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
 
-                if ( value == TemporaryPrivateKeyField ) return;
+            EstablishedLeasesField = new List<ILease>();
 
-                UpdateTemporaryPrivateKey( value );
-            }
+            NetDb.Inst.LeaseSetUpdates += NetDb_LeaseSetUpdates;
+            NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
+
+            ReadAppConfig();
         }
-
-        private void UpdateTemporaryPrivateKey( I2PPrivateKey privkey )
-        {
-            TemporaryPrivateKeyField = privkey;
-            TemporaryPublicKey = new I2PPublicKey( TemporaryPrivateKeyField );
-
-            var dli = new I2PLeaseInfo(
-                                    TemporaryPublicKey,
-                                    Destination.SigningPublicKey,
-                                    null,
-                                    ThisDestinationInfo?.PrivateSigningKey );
-            EstablishedLeases = new I2PLeaseSet(
-                Destination,
-                EstablishedLeases?.Leases,
-                dli );
-
-            IncommingSessions = new DecryptReceivedSessions( this, TemporaryPrivateKeyField );
-        }
-
-        /// <summary>
-        /// Gets the temporary public key used in lease sets for this Destination.
-        /// </summary>
-        /// <value>The temporary public key.</value>
-        public I2PPublicKey TemporaryPublicKey { get; private set; }
 
         // Let the router sign leases
-        internal ClientDestination( I2PDestinationInfo destinfo, bool publishdest )
+        internal ClientDestination(
+                I2PDestinationInfo destinfo,
+                bool publishdest ): this( destinfo.Destination, publishdest )
         {
-            PublishDestination = publishdest;
             ThisDestinationInfo = destinfo;
-            Destination = ThisDestinationInfo.Destination;
 
-            TemporaryPrivateKey = null;
-            MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
-
-            NetDb.Inst.LeaseSetUpdates += NetDb_LeaseSetUpdates;
-            NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
-
-            ReadAppConfig();
-        }
-
-        // Sign leases yourself
-        internal ClientDestination( I2PDestination dest, I2PPrivateKey privkey, bool publishdest )
-        {
-            PublishDestination = publishdest;
-            ThisDestinationInfo = null;
-            Destination = dest;
-
-            TemporaryPrivateKey = privkey;
-            MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
-
-            NetDb.Inst.LeaseSetUpdates += NetDb_LeaseSetUpdates;
-            NetDb.Inst.IdentHashLookup.LeaseSetReceived += IdentHashLookup_LeaseSetReceived;
-
-            ReadAppConfig();
+            GenerateTemporaryKeys();
         }
 
         public bool Terminated { get; protected set; } = false;
@@ -353,11 +337,11 @@ namespace I2PCore.SessionLayer
             return TunnelProvider.SelectTunnel<OutboundTunnel>( OutboundEstablishedPool.Keys );
         }
 
-        public static I2PLease SelectLease( I2PLeaseSet ls )
+        public static ILease SelectLease( ILeaseSet ls )
         {
             return ls
                     .Leases
-                    .OrderByDescending( l => (ulong)l.EndDate )
+                    .OrderByDescending( l => l.Expire )
                     .Take( 2 )
                     .Random();
         }
@@ -573,10 +557,8 @@ namespace I2PCore.SessionLayer
 
         internal void AddTunnelToEstablishedLeaseSet( InboundTunnel tunnel )
         {
-            EstablishedLeases.AddLease(
-                new I2PLease(
-                    tunnel.Destination,
-                    tunnel.GatewayTunnelId ) );
+            EstablishedLeasesField.Add( new I2PLease2( tunnel.Destination,
+                            tunnel.GatewayTunnelId ) );
 
             if ( ThisDestinationInfo is null )
             {
@@ -584,7 +566,7 @@ namespace I2PCore.SessionLayer
                 {
                     try
                     {
-                        SignLeasesRequest?.Invoke( EstablishedLeases );
+                        SignLeasesRequest?.Invoke( this, EstablishedLeasesField );
                     }
                     catch ( Exception ex )
                     {
@@ -594,21 +576,23 @@ namespace I2PCore.SessionLayer
             }
             else
             {
+                if ( !EstablishedLeases.Any() ) return;
+
                 // Auto sign
-                SignedLeases = new I2PLeaseSet(
+                SignedLeases = new I2PLeaseSet2(
                     Destination,
-                    EstablishedLeases.Leases,
-                    new I2PLeaseInfo(
-                        TemporaryPublicKey,
-                        Destination.SigningPublicKey,
-                        null,
-                        ThisDestinationInfo.PrivateSigningKey ) );
+                    EstablishedLeases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId ) ),
+                    PublicKeys,
+                    Destination.SigningPublicKey,
+                    ThisDestinationInfo.PrivateSigningKey );
             }
         }
 
         internal virtual void RemoveTunnelFromEstablishedLeaseSet( InboundTunnel tunnel )
         {
-            EstablishedLeases.RemoveLease( tunnel.Destination, tunnel.GatewayTunnelId );
+            EstablishedLeasesField = new List<ILease>( 
+                EstablishedLeasesField
+                    .Where( l => l.TunnelGw != tunnel.Destination || l.TunnelId != tunnel.GatewayTunnelId ) );
         }
 
         private void UpdateNetworkWithPublishedLeases()
@@ -708,7 +692,7 @@ namespace I2PCore.SessionLayer
             if ( cb is null ) return;
 
             var lls = MyRemoteDestinations.GetLeases( dest, true );
-            if ( lls != null && IsLeasesGood( lls.LeaseSet ) )
+            if ( lls != null && NetDb.IsLeasesGood( lls.LeaseSet ) )
             {
                 cb?.Invoke( dest, lls.LeaseSet, tag );
                 return;
@@ -716,34 +700,18 @@ namespace I2PCore.SessionLayer
 
             var ls = NetDb.Inst.FindLeaseSet( dest );
 
-            if ( IsLeasesGood( ls ) )
+            if ( NetDb.IsLeasesGood( ls ) )
             {
                 cb?.Invoke( dest, ls, tag );
                 return;
             }
 
-            Router.StartDestLookup( dest, cb, tag );
-        }
-
-        private static bool IsLeasesGood( I2PLeaseSet ls )
-        {
-            if ( ls != null )
-            {
-                if ( ls.Leases?.Any() ?? false )
-                {
-                    var max = ls.Leases.Max( l => l.EndDate );
-                    if ( ( (DateTime)max - DateTime.UtcNow ).TotalMinutes > 3 )
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            Router.StartDestLookup( dest, cb, tag, IncommingSessions.KeyGenerator );
         }
 
         protected void HandleDestinationLookupResult(
                 I2PIdentHash hash,
-                I2PLeaseSet ls,
+                ILeaseSet ls,
                 object tag )
         {
             if ( ls is null )
@@ -825,7 +793,7 @@ namespace I2PCore.SessionLayer
         ClientStates CheckSendPreconditions(
                 I2PIdentHash dest,
                 out OutboundTunnel outtunnel,
-                out I2PLeaseSet leaseset )
+                out ILeaseSet leaseset )
         {
             if ( InboundEstablishedPool.IsEmpty )
             {
@@ -913,7 +881,7 @@ namespace I2PCore.SessionLayer
 
             var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
 
-            var newestlease = remoteleases.EndOfLife;
+            var newestlease = remoteleases.Expire;
             var leasehorizon = newestlease - DateTime.UtcNow;
             if ( leasehorizon < MinLeaseLifetime )
             {
@@ -958,13 +926,13 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        void NetDb_LeaseSetUpdates( I2PLeaseSet ls )
+        void NetDb_LeaseSetUpdates( ILeaseSet ls )
         {
             MyRemoteDestinations.PassiveLeaseSetUpdate( ls );
             SendUnsentMessages( ls.Destination.IdentHash );
         }
 
-        private void IdentHashLookup_LeaseSetReceived( I2PLeaseSet ls )
+        private void IdentHashLookup_LeaseSetReceived( ILeaseSet ls )
         {
             ThreadPool.QueueUserWorkItem( a =>
                 MyRemoteDestinations.LeaseSetReceived( ls ) );

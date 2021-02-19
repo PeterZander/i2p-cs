@@ -15,25 +15,31 @@ namespace I2PCore.Data
         public I2PSigningPrivateKey( I2PCertificate cert ) 
             : base( new BufLen( BufUtils.RandomBytes( cert.SigningPrivateKeyLength ) ), cert ) 
         {
-            if ( cert.SignatureType == SigningKeyTypes.EdDSA_SHA512_Ed25519 )
+            switch( cert.SignatureType )
             {
-                ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                    break;
             }
         }
 
         public I2PSigningPrivateKey( BufRef reader, I2PCertificate cert ) : base( reader, cert ) 
         {
-            if ( cert.SignatureType == SigningKeyTypes.EdDSA_SHA512_Ed25519 )
+            switch( cert.SignatureType )
             {
-                ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                    break;
             }
         }
 
         public I2PSigningPrivateKey( BigInteger key, I2PCertificate cert ) : base( key, cert ) 
         {
-            if ( cert.SignatureType == SigningKeyTypes.EdDSA_SHA512_Ed25519 )
+            switch( cert.SignatureType )
             {
-                ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
+                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
+                    break;
             }
         }
 

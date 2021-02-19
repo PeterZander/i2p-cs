@@ -90,6 +90,12 @@ namespace I2PCore.Utils
             LengthField += newbuf.Length;
         }
 
+        public void Write( BufLen buf )
+        {
+            Bufs.AddLast( (BufRefLen)buf );
+            LengthField += buf.Length;
+        }
+
         public void Write( BufRefLen buf )
         {
             Bufs.AddLast( buf );

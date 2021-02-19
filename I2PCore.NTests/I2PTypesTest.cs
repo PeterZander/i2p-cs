@@ -2,6 +2,7 @@
 using I2PCore.Data;
 using I2PCore.Utils;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace I2PTests
 {
@@ -113,15 +114,44 @@ namespace I2PTests
             var dest = destinfo.Destination;
 
             var leases = Enumerable.Range( 1, 8 ).Select( i => new I2PLease( new I2PIdentHash( true ), new I2PTunnelId() ) );
-            var ls = new I2PLeaseSet( dest, leases, new I2PLeaseInfo( destinfo ) );
+            var ls = new I2PLeaseSet( dest, leases, dest.PublicKey, dest.SigningPublicKey, destinfo.PrivateSigningKey );
 
             Assert.IsTrue( ls.VerifySignature( dest.SigningPublicKey ) );
 
             var ls2 = new I2PLeaseSet( new BufRefLen( ls.ToByteArray() ) );
             Assert.IsTrue( ls2.VerifySignature( dest.SigningPublicKey ) );
 
-            var ls3 = new I2PLeaseSet( ls2.Destination, ls2.Leases, new I2PLeaseInfo( destinfo ) );
+            var ls3 = new I2PLeaseSet(
+                    ls2.Destination, 
+                    ls2.Leases.Select( l => 
+                        new I2PLease( l.TunnelGw, l.TunnelId, new I2PDate( l.Expire ) ) ),
+                    dest.PublicKey, dest.SigningPublicKey, destinfo.PrivateSigningKey );
+
             Assert.IsTrue( ls3.VerifySignature( dest.SigningPublicKey ) );
+
+            Assert.IsTrue( new BufLen( ls.ToByteArray() ) == new BufLen( ls3.ToByteArray() ) );
+        }
+        [Test]
+        public void TestI2PLeaseSet2()
+        {
+            var destinfo = new I2PDestinationInfo( I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
+            var dest = destinfo.Destination;
+
+            var leases = Enumerable.Range( 1, 8 ).Select( i => new I2PLease2( new I2PIdentHash( true ), new I2PTunnelId() ) );
+            var ls = new I2PLeaseSet2( dest, leases, new I2PPublicKey[] { dest.PublicKey }, dest.SigningPublicKey, destinfo.PrivateSigningKey );
+
+            //Assert.IsTrue( ls.VerifySignature( dest.SigningPublicKey ) );
+
+            var ls2 = new I2PLeaseSet2( new BufRefLen( ls.ToByteArray() ) );
+            //Assert.IsTrue( ls2.VerifySignature( dest.SigningPublicKey ) );
+
+            var ls3 = new I2PLeaseSet2(
+                    ls2.Destination, 
+                    ls2.Leases.Select( l => 
+                        new I2PLease2( l.TunnelGw, l.TunnelId, new I2PDateShort( l.Expire ) ) ),
+                    new List<I2PPublicKey>( ls2.PublicKeys ), dest.SigningPublicKey, destinfo.PrivateSigningKey );
+
+            //Assert.IsTrue( ls3.VerifySignature( dest.SigningPublicKey ) );
 
             Assert.IsTrue( new BufLen( ls.ToByteArray() ) == new BufLen( ls3.ToByteArray() ) );
         }

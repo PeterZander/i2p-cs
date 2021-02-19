@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2P.I2CP.Messages;
 using I2PCore.Data;
-using Org.BouncyCastle.Utilities.Encoders;
 using I2PCore.Utils;
 using System.Net.Sockets;
 using I2P.I2CP.States;
@@ -13,7 +11,6 @@ using I2PCore;
 using System.Collections.Concurrent;
 using static I2P.I2CP.Messages.I2CPMessage;
 using I2PCore.SessionLayer;
-using static I2P.I2CP.Messages.SessionStatusMessage;
 using static I2PCore.SessionLayer.ClientDestination;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -30,8 +27,6 @@ namespace I2P.I2CP
         public uint MessageId { get => ++MessageIdField; }
 
         public I2PSessionConfig Config { get; set; }
-        public I2PPrivateKey PrivateKey { get; internal set; }
-        public I2PLeaseInfo LeaseInfo { get; internal set; }
 
         public ClientDestination MyDestination { get; internal set; }
     }
@@ -132,14 +127,21 @@ namespace I2P.I2CP
 
                     LastReception.SetNow();
 
-                    var nextstate = CurrentState.MessageReceived(
-                        GetMessage(
-                            new BufRefLen( recvbuf, 0, readlen + 5 ).Clone() ) );
-
-                    if ( nextstate != CurrentState )
+                    try
                     {
-                        Logging.LogDebug( $"{this}: Changed state from {CurrentState} to {nextstate}" );
-                        CurrentState = nextstate;
+                        var msg = GetMessage(
+                                new BufRefLen( recvbuf, 0, readlen + 5 ).Clone() );
+
+                        var nextstate = CurrentState.MessageReceived( msg );
+                        if ( nextstate != CurrentState )
+                        {
+                            Logging.LogDebug( $"{this}: Changed state from {CurrentState} to {nextstate}" );
+                            CurrentState = nextstate;
+                        }
+                    }
+                    catch ( Exception ex )
+                    {
+                        Logging.LogWarning( $"{this} {ex}" );
                     }
                 }
             }
@@ -272,7 +274,7 @@ namespace I2P.I2CP
                 writer.WriteFlip32( (uint)data.Length );
                 writer.Write8( (byte)msg.MessageType );
 
-                Logging.LogDebugData( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
+                Logging.LogDebug( $"{this} SendOneMessage: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
 
                 MyTcpClient.Client.BeginSend(
                     new List<ArraySegment<byte>> {
@@ -304,32 +306,6 @@ namespace I2P.I2CP
                         }
                     },
                     this );
-            }
-            catch ( Exception ex )
-            {
-                Logging.LogDebug( $"{this} {ex}" );
-                Terminate();
-            }
-        }
-
-        internal void Send2( I2CPMessage msg )
-        {
-            try
-            {
-                lock ( MyStream )
-                {
-                    var header = new byte[5];
-                    var writer = new BufRefLen( header );
-                    var data = msg.ToByteArray();
-                    writer.WriteFlip32( (uint)data.Length );
-                    writer.Write8( (byte)msg.MessageType );
-
-                    Logging.LogDebugData( $"{this} Send: {msg.MessageType} {new BufLen( header ):h} {new BufLen( data ):20}" );
-
-                    MyStream.Write( header, 0, 5 );
-                    MyStream.Write( data, 0, data.Length );
-                    MyStream.Flush();
-                }
             }
             catch ( Exception ex )
             {
@@ -430,19 +406,19 @@ namespace I2P.I2CP
             }
 
             public ushort PendingSessionUpdate = 0;
-            public I2PLeaseSet PendingUpdate = null;
+            public List<ILease> PendingUpdate = null;
         }
 
-        internal void MyDestination_SignLeasesRequest( I2PLeaseSet ls )
+        internal void MyDestination_SignLeasesRequest( ClientDestination dest, IEnumerable<ILease> leases )
         {
-            Logging.LogDebug( $"{this} MyDestination_SignLeasesRequest: Received signed leases {ls}" );
+            Logging.LogDebug( $"{this} MyDestination_SignLeasesRequest: Received sign leases {leases?.Count()}" );
 
             lock ( PendingLeaseUpdate )
             {
-                var sessid = FindSession( ls.Destination );
+                var sessid = FindSession( dest );
                 if ( sessid == null )
                 {
-                    PendingLeaseUpdate.PendingUpdate = ls;
+                    PendingLeaseUpdate.PendingUpdate = new List<ILease>( leases );
                     PendingLeaseUpdate.PendingSessionUpdate = 0;
                     return;
                 }
@@ -455,14 +431,14 @@ namespace I2P.I2CP
 
                 if ( PendingLeaseUpdate.UpdateInProgress )
                 {
-                    PendingLeaseUpdate.PendingUpdate = ls;
+                    PendingLeaseUpdate.PendingUpdate = new List<ILease>( leases );
                     PendingLeaseUpdate.PendingSessionUpdate = sessid.SessionId;
                     return;
                 }
 
                 Send( new RequestVariableLeaseSetMessage(
                         sessid.SessionId,
-                        sessid.MyDestination.EstablishedLeases.Leases ) );
+                        sessid.MyDestination.EstablishedLeases ) );
 
                 PendingLeaseUpdate.UpdateInProgress = true;
             }
@@ -488,11 +464,11 @@ namespace I2P.I2CP
                 var sessionid = PendingLeaseUpdate.PendingSessionUpdate;
                 if ( sessionid == 0 ) sessionid = SessionIds.First().Key;
 
-                Logging.LogDebug( $"{this} SendPendingLeaseUpdates: Sending leases {ls}" );
+                Logging.LogDebug( $"{this} SendPendingLeaseUpdates: Sending leases {ls?.Count()}" );
 
                 Send( new RequestVariableLeaseSetMessage(
                         sessionid,
-                        ls.Leases ) );
+                        ls ) );
 
                 PendingLeaseUpdate.UpdateInProgress = true;
             }
@@ -503,7 +479,7 @@ namespace I2P.I2CP
             var pmt = (ProtocolMessageType)data[4];
             data.Seek( 5 );
 
-            Logging.LogDebugData( $"{this} GetMessage: Received message {pmt}, {data.Length} bytes." );
+            Logging.LogDebug( $"{this} GetMessage: Received message {pmt}, {data.Length} bytes." );
 
             switch ( pmt )
             {
@@ -518,6 +494,9 @@ namespace I2P.I2CP
 
                 case ProtocolMessageType.CreateLS:
                     return new CreateLeaseSetMessage( data, this );
+
+                case ProtocolMessageType.CreateLeaseSet2Message:
+                    return new CreateLeaseSet2Message( data, this );
 
                 case ProtocolMessageType.SendMessage:
                     break;

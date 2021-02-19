@@ -119,9 +119,6 @@ namespace I2PRouter
 
             RouterContext.Inst.ApplyNewSettings();
 
-            //var pnp = new UPnp();
-            //Thread.Sleep( 5000 ); // Give UPnp a chance
-
             Router.Start();
 
             Logging.LogInformation( $"I2P router starting" );

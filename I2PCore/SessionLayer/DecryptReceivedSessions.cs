@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using I2PCore.Data;
 using I2PCore.Utils;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.TunnelLayer.I2NP.Data;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace I2PCore.SessionLayer
 {
@@ -17,7 +14,7 @@ namespace I2PCore.SessionLayer
     /// </summary>
     public class DecryptReceivedSessions
     {
-        readonly I2PPrivateKey PrivateKey;
+        public List<I2PPrivateKey> PrivateKeys { get; set; }
 
         TimeWindowDictionary<I2PSessionTag, I2PSessionKey> SessionTags = 
                 new TimeWindowDictionary<I2PSessionTag, I2PSessionKey>( TickSpan.Minutes( 15 ) );
@@ -25,10 +22,9 @@ namespace I2PCore.SessionLayer
         protected CbcBlockCipher Cipher = new CbcBlockCipher( new AesEngine() );
         readonly object Owner;
 
-        public DecryptReceivedSessions( object owner, I2PPrivateKey key )
+        public DecryptReceivedSessions( object owner )
         {
             Owner = owner;
-            PrivateKey = key;
         }
 
         public Garlic DecryptMessage( GarlicMessage message )
@@ -37,7 +33,7 @@ namespace I2PCore.SessionLayer
 
             var (aesblock,sessionkey) = Garlic.RetrieveAESBlock( 
                     message, 
-                    PrivateKey, 
+                    PrivateKeys.First( pk => pk.Certificate.PublicKeyType == I2PKeyType.KeyTypes.ElGamal2048 ), 
                     ( stag ) =>
                     {
                         return SessionTags.TryRemove( stag, out var sessionkeyfound ) ? sessionkeyfound : null;
@@ -66,6 +62,21 @@ namespace I2PCore.SessionLayer
             }
 
             return new Garlic( (BufRefLen)aesblock.Payload );
+        }
+
+        public DatabaseLookupKeyInfo KeyGenerator( I2PIdentHash ffrouterid )
+        {
+            var newtag = new I2PSessionTag();
+            var newkey = new I2PSessionKey();
+            SessionTags[newtag] = newkey;
+
+            return new DatabaseLookupKeyInfo
+            {
+                EncryptionFlag = true,
+                ECIESFlag = false,
+                ReplyKey = newkey.Key,
+                Tags = new BufLen[] { newtag.Value }
+            };
         }
     }
 }

@@ -18,14 +18,15 @@ namespace I2PCore
     {
         public readonly TickSpan DatabaseLookupWaitTime = TickSpan.Seconds( 10 );
         public const int DatabaseLookupRetries = 3;
-        public const int DatabaseLookupSelectFloodfillCount = 2;
+        public const int DatabaseLookupSelectFloodfillCountRI = 1;
+        public const int DatabaseLookupSelectFloodfillCountLS = 2;
 
         PeriodicAction CheckForTimouts = new PeriodicAction( TickSpan.Seconds( 3 ) );
         PeriodicAction ExploreNewRouters = new PeriodicAction( TickSpan.Seconds( 45 ) );
 
         public delegate void IdentResolverResultFail( I2PIdentHash key );
         public delegate void IdentResolverResultRouterInfo( I2PRouterInfo ri );
-        public delegate void IdentResolverResultLeaseSet( I2PLeaseSet ls );
+        public delegate void IdentResolverResultLeaseSet( ILeaseSet ls );
 
         public event IdentResolverResultFail LookupFailure;
         public event IdentResolverResultRouterInfo RouterInfoReceived;
@@ -40,15 +41,16 @@ namespace I2PCore
             public int WaitingFor;
             public int Retries;
             public TickCounter LastQuery = TickCounter.MaxDelta;
+            public Func<I2PIdentHash,DatabaseLookupKeyInfo> KeyGenerator { get; set; }
 
             public ConcurrentBag<I2PIdentHash> AlreadyQueried = new ConcurrentBag<I2PIdentHash>();
 
-            public IdentUpdateRequestInfo( I2PIdentHash id, DatabaseLookupMessage.LookupTypes lookuptype )
+            public IdentUpdateRequestInfo( I2PIdentHash id, DatabaseLookupMessage.LookupTypes lookuptype, int outstanding )
             {
                 IdentKey = id;
                 LookupType = lookuptype;
                 Retries = 0;
-                WaitingFor = DatabaseLookupSelectFloodfillCount;
+                WaitingFor = outstanding;
             }
         }
 
@@ -73,7 +75,8 @@ namespace I2PCore
                         inprogress = false;
                         return new IdentUpdateRequestInfo(
                                 ident,
-                                DatabaseLookupMessage.LookupTypes.RouterInfo );
+                                DatabaseLookupMessage.LookupTypes.RouterInfo,
+                                DatabaseLookupSelectFloodfillCountRI );
                     } );
 
             if ( inprogress )
@@ -91,7 +94,7 @@ namespace I2PCore
             SendRIDatabaseLookup( ident, updateinfo );
         }
 
-        public void LookupLeaseSet( I2PIdentHash ident )
+        public void LookupLeaseSet( I2PIdentHash ident, Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
         {
             bool inprogress = true;
 
@@ -102,7 +105,11 @@ namespace I2PCore
                         inprogress = false;
                         return new IdentUpdateRequestInfo(
                                 ident,
-                                DatabaseLookupMessage.LookupTypes.LeaseSet );
+                                DatabaseLookupMessage.LookupTypes.LeaseSet,
+                                DatabaseLookupSelectFloodfillCountLS )
+                                {
+                                    KeyGenerator = keygen
+                                };
                     } );
 
             if ( inprogress )
@@ -120,7 +127,7 @@ namespace I2PCore
 #if LOG_ALL_IDENT_LOOKUPS
             StringBuilder foundrouters = new StringBuilder();
 #else
-            string foundrouters = "";
+            var foundrouters = dsm?.Peers?.Count;
 #endif
 
             foreach ( var router in dsm.Peers )
@@ -148,25 +155,25 @@ namespace I2PCore
             if ( info.Retries <= DatabaseLookupRetries )
             {
 #if LOG_ALL_IDENT_LOOKUPS
-                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} resulted in alternative servers to query {2}. Retrying.",
+                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} resulted in alternative servers to query '{2}'. Retrying.",
                     ( info.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ),
                     dsm.Key.Id32Short, foundrouters ) );
 #endif
 
                 if ( info.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo )
                 {
-                    SendRIDatabaseLookup( info.IdentKey, info );
                     info.LastQuery = TickCounter.Now;
+                    SendRIDatabaseLookup( info.IdentKey, info );
                 }
                 else
                 {
-                    SendLSDatabaseLookup( info.IdentKey, info );
                     info.LastQuery = TickCounter.Now;
+                    SendLSDatabaseLookup( info.IdentKey, info );
                 }
             }
             else
             {
-                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} resulted in alternative server to query {2}. Lookup failed.",
+                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} resulted in alternative servers to query '{2}'. Lookup failed.",
                     ( info.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ),
                     dsm.Key.Id32Short, foundrouters ) );
 
@@ -175,22 +182,39 @@ namespace I2PCore
             }
         }
 
-        void NetDb_LeaseSetUpdates( I2PLeaseSet ls )
+        void NetDb_LeaseSetUpdates( ILeaseSet ls )
         {
-            if ( !OutstandingQueries.TryRemove( ls.Destination.IdentHash, out var info ) ) return;
+            if ( !OutstandingQueries.TryRemove( ls.Destination.IdentHash, out var info ) )
+            {
+#if LOG_ALL_IDENT_LOOKUPS
+                Logging.Log( $"IdentResolver: Lookup of LeaseSet " +
+                    $"{ls.Destination.IdentHash.Id32Short} succeeded " +
+                    $"but is no longer monitored." );
+#endif
+                return;
+            }
 
-            Logging.Log( string.Format( "IdentResolver: Lookup of LeaseSet {0} succeeded. {1}", 
-                ls.Destination.IdentHash.Id32Short, info.Start.DeltaToNow ) );
+            Logging.Log( $"IdentResolver: Lookup of LeaseSet " +
+                $"{ls.Destination.IdentHash.Id32Short} succeeded. {info.Start.DeltaToNow}" );
 
             if ( LeaseSetReceived != null ) ThreadPool.QueueUserWorkItem( a => LeaseSetReceived( ls ) );
         }
 
         void NetDb_RouterInfoUpdates( I2PRouterInfo ri )
         {
-            if ( !OutstandingQueries.TryRemove( ri.Identity.IdentHash, out var info ) ) return;
+            if ( !OutstandingQueries.TryRemove( ri.Identity.IdentHash, out var info ) )
+            {
+#if LOG_ALL_IDENT_LOOKUPS
+                Logging.Log( $"IdentResolver: Lookup of RouterInfo " +
+                    $"{ri.Identity.IdentHash.Id32Short} succeeded " +
+                    $"but is no longer monitored." );
+#endif
+                return;
+            }
 
-            Logging.Log( string.Format( "IdentResolver: Lookup of RouterInfo {0} succeeded. {1}", 
-                ri.Identity.IdentHash.Id32Short, info.Start.DeltaToNow ) );
+            Logging.Log( $"IdentResolver: Lookup of RouterInfo " +
+                $"{ri.Identity.IdentHash.Id32Short} succeeded. {info.Start.DeltaToNow}" );
+
             if ( RouterInfoReceived != null ) ThreadPool.QueueUserWorkItem( a => RouterInfoReceived( ri ) );
         }
 
@@ -215,7 +239,7 @@ namespace I2PCore
             }
 
             ff.Shuffle();
-            ff = ff.Take( DatabaseLookupSelectFloodfillCount ).ToArray();
+            ff = ff.Take( DatabaseLookupSelectFloodfillCountRI ).ToArray();
 
             foreach ( var oneff in ff )
             {
@@ -258,10 +282,15 @@ namespace I2PCore
             var getnext = DateTime.UtcNow.Hour >= 23;
             var ff = NetDb.Inst.GetClosestFloodfill( 
                     ident, 
-                    DatabaseLookupSelectFloodfillCount + 2 * info.Retries, 
+                    DatabaseLookupSelectFloodfillCountLS + 2 * info.Retries, 
                     info.AlreadyQueried, 
                     getnext )
-                .Select( r => new { Id = r, NetDb.Inst.Statistics[r].Score } );
+                .Select( r => new 
+                    {
+                        Id = r,
+                        RInfo = NetDb.Inst[r],
+                        NetDb.Inst.Statistics[r].Score
+                    } );
 
 #if LOG_ALL_IDENT_LOOKUPS
             StringBuilder foundrouters = new StringBuilder();
@@ -270,14 +299,16 @@ namespace I2PCore
             foreach ( var router in ff )
             {
                 foundrouters.AppendFormat( "{0}{1}{2}", ( foundrouters.Length != 0 ? ", " : "" ), 
-                    router.Id32Short, 
-                    FreenetBase64.Encode( router.Hash ) );
+                    router.Id.Id32Short, 
+                    FreenetBase64.Encode( router.Id.Hash ) );
                 foundrouterskeys.AppendFormat( "{0}{1}{2}", ( foundrouterskeys.Length != 0 ? ", " : "" ), 
-                    router.Id32Short,
-                    FreenetBase64.Encode( router.RoutingKey.Hash ) );
+                    router.Id.Id32Short,
+                    FreenetBase64.Encode( router.Id.RoutingKey.Hash ) );
             }
             var st = foundrouters.ToString();
             var st2 = foundrouterskeys.ToString();
+            Logging.LogDebugData( $"IdentResolver: foundrouters: {st}" );
+            Logging.LogDebugData( $"IdentResolver: foundrouterskeys: {st}" );
 #endif
 
             if ( !ff.Any() )
@@ -287,26 +318,37 @@ namespace I2PCore
             }
 
             var minscore = ff.Min( r => r.Score );
+            var fflist = ff.ToList();
 
-            for ( int i = 0; i < DatabaseLookupSelectFloodfillCount; ++i )
+            for ( int i = 0; i < DatabaseLookupSelectFloodfillCountLS; ++i )
             {
-                var oneff = ff
-                        .RandomWeighted( r => r.Score - minscore + 0.1 )
-                        .Id;
+                var oneff = fflist
+                        .RandomWeighted( r => r.Score - minscore + 0.1 );
+                fflist.Remove( oneff );
+
+                var oneffid = oneff.Id;
+
                 try
                 {
                     var msg = new DatabaseLookupMessage(
                                 ident,
                                 replytunnel.Destination, replytunnel.GatewayTunnelId,
-                                DatabaseLookupMessage.LookupTypes.LeaseSet, null );
+                                DatabaseLookupMessage.LookupTypes.LeaseSet, null, info.KeyGenerator?.Invoke( oneff.Id ) );
 
-                    outtunnel.Send( new TunnelMessageRouter( msg, oneff ) );
+                    var garlic = new Garlic(
+                                new GarlicClove(
+                                    new GarlicCloveDeliveryLocal( msg ) )
+                            );
 
-                    info.AlreadyQueried.Add( oneff );
+                    var egmsg = Garlic.EGEncryptGarlic( garlic, oneff.RInfo.Identity.PublicKey, new I2PSessionKey(), null );
 
-#if !LOG_ALL_IDENT_LOOKUPS
+                    outtunnel.Send( new TunnelMessageRouter( egmsg, oneffid ) );
+
+                    info.AlreadyQueried.Add( oneffid );
+
+#if LOG_ALL_IDENT_LOOKUPS
                     Logging.Log( $"IdentResolver: LeaseSet query {msg.Key.Id32Short} " +
-                        $"sent to {oneff.Id32Short}. Dist: {oneff ^ msg.Key.RoutingKey}" );
+                        $"sent to {oneffid.Id32Short}. Dist: {oneffid ^ msg.Key.RoutingKey}" );
 #endif
                 }
                 catch ( Exception ex )
@@ -348,7 +390,7 @@ namespace I2PCore
 
             var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null, false )
                     .Shuffle()
-                    .Take( DatabaseLookupSelectFloodfillCount )
+                    .Take( DatabaseLookupSelectFloodfillCountRI )
                     .ToArray();
 
             foreach ( var oneff in ff )
@@ -360,7 +402,7 @@ namespace I2PCore
                             new I2PIdentHash[] { new I2PIdentHash( false ) } );
 
 #if LOG_ALL_IDENT_LOOKUPS
-                Logging.Log( "IdentResolver: Random router lookup " + ident.Id32Short + " sent to " + oneff.Id32Short );
+                Logging.Log( $"IdentResolver: Random router lookup {ident.Id32Short} sent to {oneff.Id32Short}" );
 #endif
                 try
                 {
@@ -381,28 +423,28 @@ namespace I2PCore
                 .Select( i => i.Value )
                 .ToArray();
 
-            foreach ( var item in timeout ) OutstandingQueries.TryRemove( item.IdentKey, out _ );
-
-            var retry = OutstandingQueries.Where( i => 
-                    i.Value.Start.DeltaToNow > DatabaseLookupWaitTime )
-                .Select( i => i.Value )
-                .ToArray();
-
             foreach ( var one in timeout )
             {
-                Logging.Log( string.Format( "IdentResolver: {0} lookup {1} failed with timeout.",
+                OutstandingQueries.TryRemove( one.IdentKey, out _ );
+
+                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} failed with timeout.",
                     ( one.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ), 
                     one.IdentKey.Id32Short ) );
 
                 if ( LookupFailure != null ) ThreadPool.QueueUserWorkItem( a => LookupFailure( one.IdentKey ) );
             }
 
+            var retry = OutstandingQueries.Where( i =>
+                    i.Value.Start.DeltaToNow > DatabaseLookupWaitTime )
+                .Select( i => i.Value )
+                .ToArray();
+
             foreach ( var one in retry )
             {
                 ++one.Retries;
 
 #if LOG_ALL_IDENT_LOOKUPS
-                Logging.Log( string.Format( "IdentResolver: {0} lookup {1} failed with timeout Retry {2}.",
+                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} failed with timeout Retry {2}.",
                     ( one.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ),
                     one.IdentKey.Id32Short, one.Retries ) );
 #endif

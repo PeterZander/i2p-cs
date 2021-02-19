@@ -124,7 +124,7 @@ namespace I2PCore.TunnelLayer
         public virtual void MessageReceived( I2NPMessage msg, int recvdatasize )
         {
 #if LOG_ALL_TUNNEL_TRANSFER
-            Logging.LogDebug( $"{this}: MessageReceived {msg.Message}" );
+            Logging.LogDebug( $"{this}: MessageReceived {msg}" );
 #endif
             Bandwidth.DataReceived( recvdatasize );
 

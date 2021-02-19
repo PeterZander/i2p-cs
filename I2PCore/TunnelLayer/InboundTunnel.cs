@@ -151,7 +151,7 @@ namespace I2PCore.TunnelLayer
 
                 case I2NPMessage.MessageTypes.DeliveryStatus:
 #if LOG_ALL_TUNNEL_TRANSFER
-                    Logging.LogDebug( $"{this}: DeliveryStatus: {msg.Message}" );
+                    Logging.LogDebug( $"{this}: DeliveryStatus: {msg}" );
 #endif
 
                     ThreadPool.QueueUserWorkItem( cb =>

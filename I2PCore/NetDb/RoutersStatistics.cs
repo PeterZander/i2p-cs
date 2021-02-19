@@ -239,7 +239,10 @@ namespace I2PCore
 
         bool NodeInactive( RouterStatistics d )
         {
-            if ( d.InformationFaulty > 0 ) return true;
+            if ( d.InformationFaulty > 0 ) 
+            {
+                return true;
+            }
 
             var result =
                 ( d.FailedTunnelTest > 8 && d.FailedTunnelTest > 3 * d.SuccessfulTunnelTest ) ||

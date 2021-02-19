@@ -405,11 +405,14 @@ namespace I2PTests
                 new I2PLease[] {
                     new I2PLease( new I2PIdentHash( true ), new I2PTunnelId() )
                 },
-                new I2PLeaseInfo( originfo ) );
+                origdest.PublicKey,
+                origdest.SigningPublicKey,
+                originfo.PrivateSigningKey );
 
             var origko = new TestSessionKeyOrigin( null, origdest, destdest );
 
-            var recv = new DecryptReceivedSessions( "recv", originfo.PrivateKey );
+            var recv = new DecryptReceivedSessions( "recv" );
+            recv.PrivateKeys = new List<I2PPrivateKey>() { originfo.PrivateKey };
 
             CaptureOutTunnel outtunnel = new CaptureOutTunnel( 
                     new TunnelOwner(), 
@@ -521,7 +524,9 @@ namespace I2PTests
         [Test]
         public void TestBiggerEncodeDecode()
         {
-            var recv = new DecryptReceivedSessions( this, Private );
+            /*
+            var recv = new DecryptReceivedSessions( this );
+            recv.CurrentLeaseSet =
 
             var origdsmessage = new DeliveryStatusMessage( 0x425c );
             var datamessage = new DataMessage( new BufLen( BufUtils.RandomBytes( 16000 ) ) );
@@ -530,7 +535,6 @@ namespace I2PTests
             var origmessage3 = CreateDatabaseStoreMessage();
             var origmessage4 = CreateDatabaseStoreMessage();
 
-            /*
             var msg1eg = session.CreateMessage(
                 Me,
                 new GarlicCloveDeliveryTunnel(
@@ -589,7 +593,7 @@ namespace I2PTests
         [Test]
         public void TestTooBigEncodeDecode()
         {
-            var recv = new DecryptReceivedSessions( this, Private );
+            var recv = new DecryptReceivedSessions( this );
 
             /*
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 65000 ) ) );
