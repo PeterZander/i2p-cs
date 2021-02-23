@@ -11,7 +11,7 @@ namespace I2P.I2CP.Messages
     public class CreateLeaseSetMessage: I2CPMessage
     {
         public ushort SessionId;
-        public I2PSigningPrivateKey DSAPrivateSigningKey;
+        public BufLen DSAPrivateSigningKey;
         public I2PPrivateKey PrivateKey;
         public I2PLeaseSet Leases;
 
@@ -32,9 +32,7 @@ namespace I2P.I2CP.Messages
 
             var cert = session.SessionIds[SessionId].Config.Destination.Certificate;
 
-            DSAPrivateSigningKey = new I2PSigningPrivateKey( 
-                    reader, 
-                    new I2PCertificate( I2PSigningKey.SigningKeyTypes.DSA_SHA1 ) );
+            DSAPrivateSigningKey = reader.ReadBufLen( 20 );
 
             PrivateKey = new I2PPrivateKey( reader, cert );
             Leases = new I2PLeaseSet( reader );

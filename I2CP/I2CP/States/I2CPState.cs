@@ -1,16 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using I2PCore;
 using I2PCore.Utils;
-using System.Net;
-using I2PCore.Data;
-using I2PCore.SessionLayer;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2P.I2CP.Messages;
-using I2PCore;
 
 namespace I2P.I2CP.States
 {

@@ -300,7 +300,7 @@ namespace I2PTests
             var sessionkey = new I2PSessionKey();
             var sessiontag = new I2PSessionTag();
 
-            var cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
+            var cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null, null );
             var egdata = I2NPMessage.Clone( cg );
 
             var (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, (t) => sessionkey );
@@ -315,7 +315,7 @@ namespace I2PTests
                 tags.Add( new I2PSessionTag() );
             }
 
-            cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null );
+            cg = Garlic.AESEncryptGarlic( garlic, sessionkey, sessiontag, null, null );
             egdata = I2NPMessage.Clone( cg );
 
             (aesblock, sk) = Garlic.RetrieveAESBlock( egdata, Private, ( t ) => sessionkey );
@@ -343,27 +343,17 @@ namespace I2PTests
             }
         }
 
-        public class CaptureOutTunnel: OutboundTunnel
-        {
-            public ConcurrentQueue<TunnelMessage> SendQueueAccess { get => SendQueue; }
-
-            public CaptureOutTunnel( ITunnelOwner owner, TunnelConfig config ): base( owner, config, 3 )
-            {
-
-            }
-        }
-
-        class TestSessionKeyOrigin : SessionKeyOrigin
+        class TestEGAESSessionKeyOrigin : EGAESSessionKeyOrigin
         {
             public void DeliveryStatusReceived( DeliveryStatusMessage msg )
             {
                 InboundTunnel_DeliveryStatusReceived( msg );
             }
 
-            public TestSessionKeyOrigin( 
+            public TestEGAESSessionKeyOrigin( 
                     ClientDestination owner,
                     I2PDestination mydest, 
-                    I2PDestination remotedest )
+                    I2PIdentHash remotedest )
                         : base( owner, mydest, remotedest )
             {
 
@@ -396,11 +386,7 @@ namespace I2PTests
                     I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519 );
             var origdest = originfo.Destination;
 
-            var destinfo = new I2PDestinationInfo(
-                    I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
-            var destdest = destinfo.Destination;
-
-            var publishedleases = new I2PLeaseSet(
+            var origpublishedleases = new I2PLeaseSet(
                 origdest,
                 new I2PLease[] {
                     new I2PLease( new I2PIdentHash( true ), new I2PTunnelId() )
@@ -409,12 +395,25 @@ namespace I2PTests
                 origdest.SigningPublicKey,
                 originfo.PrivateSigningKey );
 
-            var origko = new TestSessionKeyOrigin( null, origdest, destdest );
+            var destinfo = new I2PDestinationInfo(
+                    I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256 );
+            var destdest = destinfo.Destination;
 
-            var recv = new DecryptReceivedSessions( "recv" );
-            recv.PrivateKeys = new List<I2PPrivateKey>() { originfo.PrivateKey };
+            var destpublishedleases = new I2PLeaseSet(
+                destdest,
+                new I2PLease[] {
+                    new I2PLease( new I2PIdentHash( true ), new I2PTunnelId() )
+                },
+                destdest.PublicKey,
+                destdest.SigningPublicKey,
+                destinfo.PrivateSigningKey );
 
-            CaptureOutTunnel outtunnel = new CaptureOutTunnel( 
+            var origko = new TestEGAESSessionKeyOrigin( null, origdest, destdest.IdentHash );
+
+            var recv = new EGAESDecryptReceivedSessions( "recv" );
+            recv.PrivateKeys = new List<I2PPrivateKey>() { destinfo.PrivateKey };
+
+            var outtunnel = new OutboundTunnel( 
                     new TunnelOwner(), 
                     new TunnelConfig(
                         TunnelConfig.TunnelDirection.Outbound,
@@ -424,8 +423,8 @@ namespace I2PTests
                             new HopInfo(
                                 Destination,
                                 new I2PTunnelId() )
-                        }
-                    ) ) );
+                        } ) ),
+                    3 );
 
             var replytunnel = new ZeroHopTunnel(
                     new TunnelOwner(),
@@ -437,18 +436,16 @@ namespace I2PTests
                             new HopInfo( Destination, new I2PTunnelId() )
                         } ) ) );
 
-            for ( int i = 0; i < 100; ++i )
+            for ( int i = 0; i < 500; ++i )
             {
-                origko.Send( 
-                        outtunnel, 
-                        publishedleases,
-                        publishedleases,
-                        () => replytunnel,
+                var tmsg = origko.Encrypt(
+                        destpublishedleases.PublicKeys,
+                        origpublishedleases,
+                        replytunnel,
                         false,
                         cloves.ToArray() );
 
-                Assert.IsTrue( outtunnel.SendQueueAccess.TryDequeue( out var tmsg ) );
-                var recgarlic = recv.DecryptMessage( (GarlicMessage)tmsg.Message );
+                var recgarlic = recv.DecryptMessage( new GarlicMessage( (BufRefLen)tmsg.Payload.Clone() ) );
 
                 Assert.IsTrue( 
                         cloves.All( origclove => 
@@ -593,7 +590,7 @@ namespace I2PTests
         [Test]
         public void TestTooBigEncodeDecode()
         {
-            var recv = new DecryptReceivedSessions( this );
+            var recv = new EGAESDecryptReceivedSessions( this );
 
             /*
             var datamessage = new DataMessage( new BufLen( BufUtils.Random( 65000 ) ) );

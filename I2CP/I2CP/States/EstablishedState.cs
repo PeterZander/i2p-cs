@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 using I2P.I2CP.Messages;
 using I2PCore;
@@ -12,9 +11,7 @@ using I2PCore.SessionLayer;
 using static I2P.I2CP.Messages.SessionStatusMessage;
 using static I2P.I2CP.Messages.MessageStatusMessage;
 using static I2PCore.SessionLayer.ClientDestination;
-using static I2PCore.Data.I2PSessionConfig;
 using static I2P.I2CP.Messages.HostReplyMessage;
-using System.Threading;
 using static I2P.I2CP.Messages.I2CPMessage;
 
 namespace I2CP.I2CP.States

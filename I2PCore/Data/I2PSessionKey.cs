@@ -6,6 +6,9 @@ using I2PCore.Utils;
 
 namespace I2PCore.Data
 {
+    /// <summary>
+    /// This structure is used for symmetric AES256 encryption and decryption.
+    /// </summary>
     public class I2PSessionKey : I2PType, IComparable<I2PSessionKey>, IEqualityComparer<I2PSessionKey>
     {
         public readonly BufLen Key;

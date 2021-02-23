@@ -12,8 +12,10 @@ namespace I2PCore.SessionLayer
     /// <summary>
     /// Decrypts currently received EG/AES Sessions with tags.
     /// </summary>
-    public class DecryptReceivedSessions
+    public class EGAESDecryptReceivedSessions
     {
+        public const int TagLimit = 100;
+
         public List<I2PPrivateKey> PrivateKeys { get; set; }
 
         TimeWindowDictionary<I2PSessionTag, I2PSessionKey> SessionTags = 
@@ -22,7 +24,7 @@ namespace I2PCore.SessionLayer
         protected CbcBlockCipher Cipher = new CbcBlockCipher( new AesEngine() );
         readonly object Owner;
 
-        public DecryptReceivedSessions( object owner )
+        public EGAESDecryptReceivedSessions( object owner )
         {
             Owner = owner;
         }
@@ -31,7 +33,7 @@ namespace I2PCore.SessionLayer
         {
             var egdata = message.EGData;
 
-            var (aesblock,sessionkey) = Garlic.RetrieveAESBlock( 
+            var (aesblock,sessionkey) = Garlic.RetrieveAESBlock(
                     message, 
                     PrivateKeys.First( pk => pk.Certificate.PublicKeyType == I2PKeyType.KeyTypes.ElGamal2048 ), 
                     ( stag ) =>
@@ -49,15 +51,23 @@ namespace I2PCore.SessionLayer
             Logging.LogDebug( $"{Owner} ReceivedSessions: Working Aes block received. {SessionTags.Count()} tags available." );
 #endif
 
-            if ( sessionkey != null && aesblock.Tags.Count > 0 )
+            if ( aesblock?.Tags?.Count > 0 )
             {
 #if LOG_ALL_LEASE_MGMT
                 Logging.LogDebug( $"{Owner} ReceivedSessions: {aesblock.Tags.Count} new tags received." );
 #endif
+                var currenttagcount = SessionTags.Count();
+
                 foreach ( var onetag in aesblock.Tags )
                 {
+                    if ( currenttagcount >= TagLimit ) break;
+
                     SessionTags[new I2PSessionTag( new BufRef( onetag ) )] = 
-                        sessionkey;
+                            aesblock?.NewSessionKey is null 
+                                ? sessionkey
+                                : aesblock?.NewSessionKey;
+
+                    ++currenttagcount;
                 }
             }
 

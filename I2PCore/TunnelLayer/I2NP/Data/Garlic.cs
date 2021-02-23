@@ -159,6 +159,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
                 Garlic msg,
                 I2PSessionKey sessionkey,
                 I2PSessionTag tag,
+                I2PSessionKey newsessionkey,
                 List<I2PSessionTag> newtags )
         {
             var cipher = new CbcBlockCipher( new AesEngine() );
@@ -173,7 +174,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
 
             // AES block
             var aesstart = new BufLen( writer );
-            var aesblock = new GarlicAESBlock( writer, newtags, null, new BufRefLen( payload ) );
+            var aesblock = new GarlicAESBlock( writer, newtags, newsessionkey, new BufRefLen( payload ) );
 
             var pivh = I2PHashSHA256.GetHash( tag.Value );
 

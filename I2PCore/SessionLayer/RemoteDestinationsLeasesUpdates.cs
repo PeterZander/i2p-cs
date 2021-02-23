@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using I2PCore.Data;
 using I2PCore.Utils;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
-using I2PCore.TunnelLayer.I2NP.Messages;
-using I2PCore.TunnelLayer.I2NP.Data;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 
 namespace I2PCore.SessionLayer
@@ -29,9 +23,9 @@ namespace I2PCore.SessionLayer
 
         ConcurrentDictionary<I2PIdentHash, DestLeaseInfo> Subscribers =
                 new ConcurrentDictionary<I2PIdentHash, DestLeaseInfo>();
-        private readonly object Owner;
+        private readonly ClientDestination Owner;
 
-        public RemoteDestinationsLeasesUpdates( object owner )
+        public RemoteDestinationsLeasesUpdates( ClientDestination owner )
         {
             Owner = owner;
         }
@@ -42,6 +36,17 @@ namespace I2PCore.SessionLayer
         /// <param name="ls">Ls.</param>
         public void LeaseSetReceived( ILeaseSet ls )
         {
+            if ( ls.Destination.IdentHash == Owner.Destination.IdentHash )
+            {
+                // that is me
+#if LOG_ALL_LEASE_MGMT
+                Logging.LogDebug(
+                    $"{Owner}: RemoteDestinationsLeasesUpdates: " +
+                    $"LeaseSetReceived: discarding my lease set." );
+#endif
+                return;
+            }
+
             if ( !Subscribers.TryGetValue( ls.Destination.IdentHash, out var info ) )
             {
                 Logging.LogDebug(
@@ -106,7 +111,18 @@ namespace I2PCore.SessionLayer
 
         public DestLeaseInfo GetLeases( I2PIdentHash d, bool updateactivity = true )
         {
+        again:
             var result = Subscribers.TryGetValue( d, out var ls ) ? ls : null;
+
+            if ( result is null )
+            {
+                var cachedls = NetDb.Inst.FindLeaseSet( d );
+                if ( cachedls != null )
+                {
+                    LeaseSetReceived( cachedls );
+                    goto again;
+                }
+            }
 
             if ( result != null && updateactivity )
             {

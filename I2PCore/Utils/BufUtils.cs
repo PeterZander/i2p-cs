@@ -361,8 +361,11 @@ namespace I2PCore.Utils
 
         public static T Random<T>( this IEnumerable<T> src )
         {
-            return src.Skip( RandomInt( src.Count() ) ).Take( 1 ).FirstOrDefault();
+            var count = src.Count();
+            if ( count <= 0 ) return default( T );
+            return src.Skip( RandomInt( count ) ).Take( 1 ).FirstOrDefault();
         }
+        public static bool EqualsDefaultValue<T>( T value ) => EqualityComparer<T>.Default.Equals( value, default(T) );
 
         // Expects all weights > 0
         public static T RandomWeighted<T>(

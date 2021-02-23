@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Data;
-using System.IO;
+﻿using I2PCore.Data;
 using I2PCore.Utils;
 
 namespace I2P.I2CP.Messages

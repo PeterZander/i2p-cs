@@ -271,7 +271,7 @@ namespace I2PCore.TunnelLayer
             var limit = PassTestTimePerHop.ToMilliseconds * probe.TotalHops;
             var pass = testms < limit;
 
-            Logging.LogDebug( string.Format( "TunnelTester: DeliveryStatus received. Test with {0} and {1}: {2}. {3:0} vs {4} ms",
+            Logging.LogDebugData( string.Format( "TunnelTester: DeliveryStatus received. Test with {0} and {1}: {2}. {3:0} vs {4} ms",
                 run.TunnelUnderTest.TunnelDebugTrace, probe.Partner.TunnelDebugTrace,
                 ( pass ? "Success" : "Fail" ),
                 testms, limit ) );

@@ -15,6 +15,8 @@ namespace I2PCore.Utils
 
         TickCounter LastCleanup = TickCounter.Now;
 
+        public int SecondsBetweenCleanup { get; set; } = 240;
+
         public TimeWindowDictionary( TickSpan span )
         {
             MemorySpan = span;
@@ -49,35 +51,41 @@ namespace I2PCore.Utils
             }
         }
 
-        public void Set( T ident, V value )
+        void CheckCleanupTimeout()
         {
-            if ( LastCleanup.DeltaToNowSeconds > 240 )
+            if ( LastCleanup.DeltaToNowSeconds > SecondsBetweenCleanup )
             {
                 Cleanup();
             }
+        }
+
+        public void Set( T ident, V value )
+        {
+            CheckCleanupTimeout();
+
+            RemoveAndDispose( ident );
+            Memory[ident] = new KeyValuePair<V, TickCounter>( value, TickCounter.Now );
+        }
+
+        public void Touch( T ident )
+        {
+            CheckCleanupTimeout();
 
             if ( Memory.TryGetValue( ident, out var pair ) )
             {
                 pair.Value.SetNow();
             }
-            else
-            {
-                Memory[ident] = new KeyValuePair<V, TickCounter>( value, TickCounter.Now );
-            }
         }
 
         public bool TryGetValue( T ident, out V value )
         {
-            if ( LastCleanup.DeltaToNowSeconds > 240 )
-            {
-                Cleanup();
-            }
+            CheckCleanupTimeout();
 
             if ( Memory.TryGetValue( ident, out var pair ) )
             {
                 if ( pair.Value.DeltaToNow > MemorySpan )
                 {
-                    RemoveAndDispose( ident, out _ );
+                    RemoveAndDispose( ident );
                     value = null;
                     return false;
                 }
@@ -95,16 +103,13 @@ namespace I2PCore.Utils
         /// </summary>
         public V Get( T ident )
         {
-            if ( LastCleanup.DeltaToNowSeconds > 240 )
-            {
-                Cleanup();
-            }
+            CheckCleanupTimeout();
 
             if ( Memory.TryGetValue( ident, out var pair ) )
             {
                 if ( pair.Value.DeltaToNow > MemorySpan )
                 {
-                    RemoveAndDispose( ident, out _ );
+                    RemoveAndDispose( ident );
                     return null;
                 }
                 return pair.Key;
@@ -115,36 +120,44 @@ namespace I2PCore.Utils
 
         public bool Remove( T ident )
         {
-            if ( LastCleanup.DeltaToNowSeconds > 240 )
-            {
-                Cleanup();
-            }
-
-            return RemoveAndDispose( ident, out _ );
+            CheckCleanupTimeout();
+            return RemoveAndDispose( ident );
         }
 
-        protected bool RemoveAndDispose( T ident, out V value )
+        protected bool RemoveAndDispose( T ident )
         {
             var result = Memory.TryRemove( ident, out var removed );
-            value = removed.Key;
 
-            if ( value is IDisposable )
+            if ( result )
             {
-                ( (IDisposable)value ).Dispose();
-            }
+                if ( removed.Key is IDisposable )
+                {
+                    ( (IDisposable)removed.Key ).Dispose();
+                }
+                if ( removed.Value is IDisposable )
+                {
+                    ( (IDisposable)removed.Value ).Dispose();
+                }
+            } 
 
             return result;
         }
 
         public bool TryRemove( T ident, out V value )
         {
-            if ( LastCleanup.DeltaToNowSeconds > 240 )
-            {
-                Cleanup();
-            }
+            CheckCleanupTimeout();
 
-            var result = RemoveAndDispose( ident, out var val );
-            value = val;
+            var result = Memory.TryRemove( ident, out var removed );
+
+            if ( result )
+            {
+                if ( removed.Key is IDisposable )
+                {
+                    ( (IDisposable)removed.Key ).Dispose();
+                }
+            } 
+
+            value = result ? removed.Key : default( V );
             return result;
         }
 
@@ -165,7 +178,6 @@ namespace I2PCore.Utils
             }
         }
 
-        // Lock Memory before calling
         void Cleanup()
         {
             LastCleanup.SetNow();
@@ -174,7 +186,7 @@ namespace I2PCore.Utils
             {
                 if ( identpair.Value.Value.DeltaToNow > MemorySpan )
                 {
-                    RemoveAndDispose( identpair.Key, out _ );
+                    RemoveAndDispose( identpair.Key );
                 }
             }
         }
@@ -202,7 +214,7 @@ namespace I2PCore.Utils
         {
             foreach ( var identpair in Memory.ToArray() )
             {
-                RemoveAndDispose( identpair.Key, out _ );
+                RemoveAndDispose( identpair.Key );
             }
         }
         #endregion

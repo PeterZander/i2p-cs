@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Utils;
-using I2P.I2CP.Messages;
-using I2PCore;
+﻿using I2P.I2CP.Messages;
 using I2PCore.Data;
 using I2CP.I2CP.States;
 
@@ -18,7 +12,8 @@ namespace I2P.I2CP.States
         {
             if ( msg is GetDateMessage gdm )
             {
-                var reply = new SetDateMessage( I2PDate.Now, gdm.Version ); // new I2PString( "0.1" ) ); // 
+                //var reply = new SetDateMessage( I2PDate.Now, new I2PString( "0.9.15" ) );
+                var reply = new SetDateMessage( I2PDate.Now, gdm.Version );
                 Session.Send( reply );
                 return new EstablishedState( Session );
             }

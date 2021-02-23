@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
 using I2PCore.Data;
 using I2PCore.TransportLayer;
@@ -10,7 +9,6 @@ using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
 using System.Threading;
 using System.Collections.Generic;
-using System.IO;
 using static I2PCore.SessionLayer.RemoteDestinationsLeasesUpdates;
 using static System.Configuration.ConfigurationManager;
 
@@ -109,9 +107,11 @@ namespace I2PCore.SessionLayer
         /// Temporary public keys matching the <see cref="T:I2PCore.SessionLayer.ClientDestination.PrivateKeys"/>.
         /// These keys are included when new LeaseSets are generated if automatic LeaseSet signing is used.
         /// </summary>
-        public List<I2PPublicKey> PublicKeys { get; set; }
-
-        private List<I2PPrivateKey> PrivateKeysField;
+        public List<I2PPublicKey> PublicKeys
+        {
+            get => MySessions.PublicKeys;
+            set => MySessions.PublicKeys = value;
+        }
 
         /// <summary>
         /// Temporary private keys matching the <see cref="T:I2PCore.SessionLayer.ClientDestination.PublicKeys"/>
@@ -119,21 +119,12 @@ namespace I2PCore.SessionLayer
         /// </summary>
         public List<I2PPrivateKey> PrivateKeys 
         { 
-            get => PrivateKeysField; 
-            set
-            {
-                PrivateKeysField = value;
-                IncommingSessions.PrivateKeys = value;
-            }
+            get => MySessions.PrivateKeys;
+            set => MySessions.PrivateKeys = value;
         }
-
         public void GenerateTemporaryKeys()
         {
-            var tmpprivkey = new I2PPrivateKey( new I2PCertificate( I2PKeyType.KeyTypes.ElGamal2048 ) );
-            var tmppubkey = new I2PPublicKey( tmpprivkey );
-
-            PrivateKeys = new List<I2PPrivateKey>() { tmpprivkey };
-            PublicKeys = new List<I2PPublicKey>() { tmppubkey };
+            MySessions.GenerateTemporaryKeys();
         }
 
         /// <summary>
@@ -227,12 +218,10 @@ namespace I2PCore.SessionLayer
         readonly protected ConcurrentDictionary<InboundTunnel, byte> InboundEstablishedPool =
                 new ConcurrentDictionary<InboundTunnel, byte>();
 
-        private DecryptReceivedSessions IncommingSessions;
-
         protected readonly RemoteDestinationsLeasesUpdates MyRemoteDestinations;
 
-        protected readonly ConcurrentDictionary<I2PIdentHash, SessionKeyOrigin> SessionKeys =
-                new ConcurrentDictionary<I2PIdentHash, SessionKeyOrigin>();
+
+        SessionManager MySessions;
 
         /// <summary>
         /// If null, the leases have to be explicitly signed by the user.
@@ -248,7 +237,7 @@ namespace I2PCore.SessionLayer
             Destination = dest;
             PublishDestination = publishdest;
 
-            IncommingSessions = new DecryptReceivedSessions( this );
+            MySessions = new SessionManager( this );
             MyRemoteDestinations = new RemoteDestinationsLeasesUpdates( this );
 
             EstablishedLeasesField = new List<ILease>();
@@ -266,7 +255,7 @@ namespace I2PCore.SessionLayer
         {
             ThisDestinationInfo = destinfo;
 
-            GenerateTemporaryKeys();
+            MySessions.GenerateTemporaryKeys();
         }
 
         public bool Terminated { get; protected set; } = false;
@@ -447,7 +436,7 @@ namespace I2PCore.SessionLayer
                 File.WriteAllText( $"Garlic_{DateTime.Now.ToLongTimeString()}.b64", st );
                 */
 
-                var decr = IncommingSessions.DecryptMessage( msg );
+                var decr = MySessions.DecryptMessage( msg );
                 if ( decr == null )
                 {
                     Logging.LogWarning( $"{this}: GarlicMessageReceived: Failed to decrypt garlic." );
@@ -508,12 +497,6 @@ namespace I2PCore.SessionLayer
 
                                     if ( dbsmsg?.LeaseSet is null )
                                     {
-                                        break;
-                                    }
-
-                                    if ( dbsmsg?.LeaseSet?.Destination.IdentHash == Destination.IdentHash )
-                                    {
-                                        // that is me
                                         break;
                                     }
 
@@ -582,7 +565,7 @@ namespace I2PCore.SessionLayer
                 SignedLeases = new I2PLeaseSet2(
                     Destination,
                     EstablishedLeases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId ) ),
-                    PublicKeys,
+                    MySessions.PublicKeys,
                     Destination.SigningPublicKey,
                     ThisDestinationInfo.PrivateSigningKey );
             }
@@ -638,41 +621,18 @@ namespace I2PCore.SessionLayer
                 MyRemoteDestinations.Remove( lsinfo?.LeaseSet?.Destination.IdentHash );
                 return;
             }
-
-            var outtunnel = SelectOutboundTunnel();
-
-            if ( outtunnel is null )
-            {
-                Logging.LogDebug( $"{this} UpdateRemoteDestinationWithLeases: No outbound tunnels available." );
-                return;
-            }
-
+            
             var lsupdate = new DatabaseStoreMessage( SignedLeases );
+            var clove = new GarlicClove(
+                        new GarlicCloveDeliveryDestination(
+                            lsupdate,
+                            lsinfo.LeaseSet.Destination.IdentHash ) );
 
 #if LOG_ALL_LEASE_MGMT
             Logging.LogDebug( $"{this} UpdateRemoteDestinationWithLeases: Sending LS: {lsupdate}" );
 #endif
 
-            var sk = SessionKeys.GetOrAdd(
-                        lsinfo.LeaseSet.Destination.IdentHash,
-                        ( d ) => new SessionKeyOrigin(
-                                    this,
-                                    Destination,
-                                    lsinfo.LeaseSet.Destination ) );
-
-            sk.Send(
-                    outtunnel,
-                    lsinfo.LeaseSet,
-                    SignedLeases,
-                    SelectInboundTunnel,
-                    false,
-                    new GarlicClove(
-                        new GarlicCloveDeliveryDestination(
-                            lsupdate,
-                            lsinfo.LeaseSet.Destination.IdentHash ) ) );
-
-            Logging.LogDebug( $"{this} UpdateRemoteDestinationWithLeases: " +
-                $"Sending LS Garlic to {lsinfo.LeaseSet.Destination} from tunnel {outtunnel}" );
+            Send( lsinfo.LeaseSet.Destination, clove );
 
             return;
         }
@@ -706,7 +666,7 @@ namespace I2PCore.SessionLayer
                 return;
             }
 
-            Router.StartDestLookup( dest, cb, tag, IncommingSessions.KeyGenerator );
+            Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
         }
 
         protected void HandleDestinationLookupResult(
@@ -848,6 +808,64 @@ namespace I2PCore.SessionLayer
         {
             if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );
 
+            var clove = new GarlicClove(
+                 new GarlicCloveDeliveryDestination(
+                     new DataMessage( buf ),
+                     dest.IdentHash ) );
+
+            var result = Send( dest, clove );
+
+            if ( result != ClientStates.Established )
+            {
+                UnsentMessagePush( dest, buf );
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Send cloves to the destination through a local out tunnel
+        /// after encrypting them for the Destination.
+        /// </summary>
+        /// <returns>The send.</returns>
+        /// <param name="dest">The Destination</param>
+        /// <param name="cloves">Cloves</param>
+        public ClientStates Send( I2PDestination dest, params GarlicClove[] cloves )
+        {
+            if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );
+
+            var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
+            var replytunnel = SelectInboundTunnel();
+
+            var remoteleases = MyRemoteDestinations
+                    .GetLeases( dest.IdentHash, false );
+            if ( remoteleases is null ) throw new InvalidOperationException( $"Destination {dest} is unknown." );
+
+            var remotepubkeys = remoteleases
+                    .LeaseSet
+                    .PublicKeys;
+
+            var msg = MySessions.Encrypt(
+                dest.IdentHash,
+                remotepubkeys,
+                SignedLeases,
+                replytunnel,
+                needsleaseupdate,
+                cloves );
+
+            return Send( dest, msg );
+        }
+
+        /// <summary>
+        /// Send a I2NPMessage to the Destination through a local out tunnel.
+        /// </summary>
+        /// <returns>The send.</returns>
+        /// <param name="dest">The Destination</param>
+        /// <param name="msg">I2NPMessage</param>
+        ClientStates Send( I2PDestination dest, I2NPMessage msg )
+        {
+            if ( Terminated ) throw new InvalidOperationException( $"This Destination {this} is terminated." );
+
             var result = CheckSendPreconditions( dest.IdentHash, out var outtunnel, out var remoteleases );
 
             if ( result != ClientStates.Established )
@@ -863,24 +881,10 @@ namespace I2PCore.SessionLayer
                         LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
                         break;
                 }
-                UnsentMessagePush( dest, buf );
                 return result;
             }
 
-            var clove = new GarlicClove(
-                 new GarlicCloveDeliveryDestination(
-                     new DataMessage( buf ),
-                     dest.IdentHash ) );
-
-            var sk = SessionKeys.GetOrAdd(
-                        dest.IdentHash,
-                        ( d ) => new SessionKeyOrigin(
-                                this,
-                                Destination,
-                                dest ) );
-
-            var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
-
+            // Remote leases getting old?
             var newestlease = remoteleases.Expire;
             var leasehorizon = newestlease - DateTime.UtcNow;
             if ( leasehorizon < MinLeaseLifetime )
@@ -891,13 +895,22 @@ namespace I2PCore.SessionLayer
                 LookupDestination( dest.IdentHash, ( h, ls, t ) => { }, null );
             }
 
-            return sk.Send(
-                    outtunnel,
-                    remoteleases,
-                    SignedLeases,
-                    SelectInboundTunnel,
-                    needsleaseupdate,
-                    clove );
+            // Select a lease
+            var remotelease = ClientDestination.SelectLease( remoteleases );
+            if ( remoteleases is null || remotelease is null )
+            {
+                Logging.LogDebug( $"{this}: No remote lease available." );
+                return ClientStates.NoLeases;
+            }
+
+            var replytunnel = SelectInboundTunnel();
+
+            outtunnel.Send(
+                new TunnelMessageTunnel(
+                    msg,
+                    remotelease.TunnelGw, remotelease.TunnelId ) );
+
+            return ClientStates.Established;
         }
 
         void SendUnsentMessages( I2PIdentHash dest )
@@ -905,7 +918,10 @@ namespace I2PCore.SessionLayer
             if ( UnsentMessages.IsEmpty ) return;
 
             if ( CheckSendPreconditions( dest, out _, out _ )
-                != ClientStates.Established ) return;
+                != ClientStates.Established )
+            {
+                return;
+            }
 
             var msgs = UnsentMessagePop( dest );
             if ( msgs is null ) return;
