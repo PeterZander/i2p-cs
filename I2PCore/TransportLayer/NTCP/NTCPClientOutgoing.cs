@@ -3,6 +3,7 @@ using I2PCore.Utils;
 using System.Net.Sockets;
 using System.Net;
 using System.Linq;
+using I2PCore.SessionLayer;
 
 namespace I2PCore.TransportLayer.NTCP
 {
@@ -17,8 +18,7 @@ namespace I2PCore.TransportLayer.NTCP
         public NTCPClientOutgoing( I2PRouterInfo router )
             : base( true )
         {
-            Address = router.Adresses.First( a => a.TransportStyle == "NTCP"
-                        && a.HaveHostAndPort );
+            Address = SelectAddress( router );
             NTCPContext.RemoteRouterIdentity = router.Identity;
 
             RemoteDescription = Address.Options["host"];
@@ -28,7 +28,14 @@ namespace I2PCore.TransportLayer.NTCP
 
         protected override Socket CreateSocket()
         {
-            Socket result = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
+            Socket result = new Socket( 
+                        RouterContext.UseIpV6
+                                ? AddressFamily.InterNetworkV6
+                                : AddressFamily.InterNetwork,
+                        SocketType.Stream,
+                        ProtocolType.Tcp );
+
+            if ( RouterContext.UseIpV6 ) result.DualMode = true;
 
             try
             {
@@ -48,6 +55,20 @@ namespace I2PCore.TransportLayer.NTCP
         public override void Connect()
         {
             base.Connect();
+        }
+
+        internal I2PRouterAddress SelectAddress( I2PRouterInfo router )
+        {
+            var addrs = router.Adresses.Where( a => ( a.TransportStyle == "NTCP" ) );
+
+            I2PRouterAddress addr = RouterContext.UseIpV6
+                    ? addrs.FirstOrDefault( a => a.Options.ValueContains( "host", ":" ) )
+                    : null;
+                    
+            addr = addr is null ? addrs.FirstOrDefault( a => a.Options.ValueContains( "host", "." ) ) : addr;
+            addr = addr is null ? addrs.FirstOrDefault( a => a.HaveHostAndPort ) : addr;
+
+            return addr;
         }
 
         protected override void DHNegotiate()

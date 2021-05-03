@@ -15,51 +15,26 @@ namespace I2PCore.TransportLayer.SSU
             Request = req;
         }
 
-        //PeriodicAction ResendSessionConfirmedAction = new PeriodicAction( HandshakeStateTimeout / 5, true );
-
         public override SSUState Run()
         {
-            SendUnfragmentedSessionConfirmed();
-            SendUnfragmentedSessionConfirmed();
+            Logging.LogTransport( $"SSU {this}: Sending SessionConfirmed message." );
 
+            // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
+            /**
+                * From InboundEstablishState.java
+                * 
+                -----8<-----
+                *  Note that while a SessionConfirmed could in theory be fragmented,
+                *  in practice a RouterIdentity is 387 bytes and a single fragment is 512 bytes max,
+                *  so it will never be fragmented.
+                -----8<-----
+                */
+
+            SendUnfragmentedSessionConfirmed();
+            
             Session.ReportConnectionEstablished();
 
             return new EstablishedState( Session );
-
-            /*
-            if ( Timeout( HandshakeStateTimeout ) )
-            {
-                Session.Host.EPStatisitcs.ConnectionTimeout( Session.RemoteEP );
-                if ( Session.RemoteRouterIdentity != null )
-                    NetDb.Inst.Statistics.SlowHandshakeConnect( Session.RemoteRouterIdentity.IdentHash );
-
-                throw new FailedToConnectException( $"SSU {this}: Failed to connect. Timeout." );
-            }
-
-            ResendSessionConfirmedAction.Do( () =>
-            {
-
-                if ( ++Retries > HandshakeStateMaxRetries ) 
-                    throw new FailedToConnectException( $"SSU {Session.DebugId} Failed to connect" );
-
-                Logging.LogTransport( $"SSU {this}: Resending SessionConfirmed message." );
-
-                // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
-                /**
-                 * From InboundEstablishState.java
-                 * 
-                 -----8<-----
-                 *  Note that while a SessionConfirmed could in theory be fragmented,
-                 *  in practice a RouterIdentity is 387 bytes and a single fragment is 512 bytes max,
-                 *  so it will never be fragmented.
-                 -----8<-----
-                 *
-
-                SendUnfragmentedSessionConfirmed();
-            } );
-
-            return this;
-            */
         }
 
         private void SendUnfragmentedSessionConfirmed()
@@ -81,14 +56,14 @@ namespace I2PCore.TransportLayer.SSU
                     var padding = BufUtils.Get16BytePadding( Session.MyRouterContext.Certificate.SignatureLength + ( writer - start ) );
                     writer.Write( BufUtils.RandomBytes( padding ) );
 
-                    var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
+                    var baddr = new BufLen( Session.UnwrappedRemoteAddress.GetAddressBytes() );
                     var bport = BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port );
 #if LOG_MUCH_TRANSPORT
                     Logging.LogTransport( $"SSU {this}: X for signature {Request.X.Key}." );
                     Logging.LogTransport( $"SSU {this}: Y for signature {Request.Y.Key}." );
                     Logging.LogTransport( $"SSU {this}: Alice address for signature {Request.SCMessage.Address}. Port {Request.SCMessage.Port}." );
                     Logging.LogTransport( $"SSU {this}: Bob address for signature {baddr}. Port {bport}." );
-                    Logging.LogTransport( $"SSU {this}: Relay tag {Request.SCMessage.RelayTag}. Signon time {(BufLen)Session.SignOnTimeA}." );
+                    Logging.LogTransport( $"SSU {this}: Relay tag {Request.SCMessage.RelayTag}. Signon time {Session.SignOnTimeA}." );
 #endif
 
                     var sign = I2PSignature.DoSign( Session.MyRouterContext.PrivateSigningKey,
@@ -150,7 +125,7 @@ namespace I2PCore.TransportLayer.SSU
                     var padding = BufUtils.Get16BytePadding( Session.MyRouterContext.Certificate.SignatureLength + ( writer - start ) );
                     writer.Write( BufUtils.RandomBytes( padding ) );
 
-                    var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
+                    var baddr = new BufLen( Session.UnwrappedRemoteAddress.GetAddressBytes() );
 
                     var sign = I2PSignature.DoSign( Session.MyRouterContext.PrivateSigningKey,
                             Request.X.Key, Request.Y.Key, 
@@ -172,6 +147,8 @@ namespace I2PCore.TransportLayer.SSU
 
         public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
         {
+            return this;
+
             if ( header.MessageType == SSUHeader.MessageTypes.SessionCreated )
             {
                 Logging.LogTransport( $"SSU SessionConfirmedState {Session.DebugId}: Unexpected message received: {header.MessageType}" );
@@ -182,6 +159,8 @@ namespace I2PCore.TransportLayer.SSU
                 $"{header.MessageType} received. Moving to Established state." );
 
             var next = new EstablishedState( Session );
+
+            Session.Host.ReportConnectionCreated( Session, Session.RemoteRouterIdentity.IdentHash );
             Session.ReportConnectionEstablished();
 
             return next.HandleMessage( header, reader );

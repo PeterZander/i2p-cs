@@ -3,13 +3,17 @@ using System.Net;
 using I2PCore.Data;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
+using System;
+using I2PCore.SessionLayer;
+using System.Net.Sockets;
 
 namespace I2PCore.TransportLayer.SSU
 {
     public abstract class SSUState
     {
-        public static readonly TickSpan HandshakeStateTimeout = TickSpan.Milliseconds( 2000 );
+        public static readonly TickSpan HandshakeStateTimeout = TickSpan.Milliseconds( 5000 );
         public const int HandshakeStateMaxRetries = 3;
+        const int MaxConsecutiveMACFails = 5;
 
         // UDPTransport.java
         // We used to have MAX_IDLE_TIME = 5m, but this causes us to drop peers
@@ -26,7 +30,7 @@ namespace I2PCore.TransportLayer.SSU
         {
             get
             {
-                return TickSpan.Minutes( 3 );
+                return TickSpan.Minutes( 12 );
             }
         }
 
@@ -72,9 +76,10 @@ namespace I2PCore.TransportLayer.SSU
 
                     SendSessionDestroyed();
                     Session.Host.ReportEPProblem( RemoteEP );
+
                     return null;
 
-                case MACHealth.Missmatch: 
+                case MACHealth.Missmatch:
                     return this;
             }
 
@@ -84,12 +89,9 @@ namespace I2PCore.TransportLayer.SSU
 
             header.SkipExtendedHeaders( reader );
 
-            if ( header.MessageType == SSUHeader.MessageTypes.SessionDestroyed
-                && CurrentPayloadKey != Session.RemoteIntroKey
-                && CurrentPayloadKey != Session.MyRouterContext.IntroKey )
+            if ( header.MessageType == SSUHeader.MessageTypes.SessionDestroyed )
             {
                 Logging.LogTransport( $"SSU {this}: Received SessionDestroyed." );
-                SendSessionDestroyed();
                 return null;
             }
 
@@ -139,7 +141,7 @@ namespace I2PCore.TransportLayer.SSU
 
             if ( !ok )
             {
-                if ( ++ConsecutiveMACCheckFailures > 3 )
+                if ( ++ConsecutiveMACCheckFailures > MaxConsecutiveMACFails )
                 {
                     result = MACHealth.AbandonSession;
                 }
@@ -152,11 +154,28 @@ namespace I2PCore.TransportLayer.SSU
 #if DEBUG
             if ( result != MACHealth.Match )
             {
-                Logging.LogTransport( $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}" );
+                Session.Host.MACCheck.Failure();
+
+                Session.Host.MACCheckFailIsIPV4.Success(
+                    Session.UnwrappedRemoteAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                );
+
+                Logging.LogDebug(
+                        result == MACHealth.Match
+                            ? Logging.LogLevels.DebugData
+                            : Logging.LogLevels.Transport,
+                    () => $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}, Macdata ({header.MACDataBuf.Length % 16:X}): {header.MACDataBuf}, AECData({header.EncryptedBuf.Length % 16:X}): {header.EncryptedBuf}." );
+                Logging.LogDebug(
+                        result == MACHealth.Match
+                            ? Logging.LogLevels.DebugData
+                            : Logging.LogLevels.Transport,
+                    () => $"SSU {this}: MACCheck succ ratio: {Session.Host.MACCheck}, IsIPV4: {Session.Host.MACCheckFailIsIPV4}" );
             }
             else
             {
-                Logging.LogDebugData( $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}" );
+                Session.Host.MACCheck.Success();
+
+                Logging.LogTransport( $"SSU {this}: VerifyMAC {result} [{ConsecutiveMACCheckFailures}] {key}, Macdata ({header.MACDataBuf.Length % 16:X}): {header.MACDataBuf}, AECData({header.EncryptedBuf.Length % 16:X}): {header.EncryptedBuf}." );
             }
 #endif
 
@@ -185,7 +204,7 @@ namespace I2PCore.TransportLayer.SSU
                 var oki = header.MAC.Equals( recvhashi );
 
                 Logging.LogTransport( $"SSU {this}: " +
-                    $"Old key from {keyinfo.Created} {keyinfo.CreatedDelta, -20} {keyinfo.Type, -10} match: {oki, -6} {keyinfo.Key}" );
+                    $"Old key from {keyinfo.Created} {keyinfo.CreatedDelta,20} {keyinfo.Type,10} match: {oki,6} {keyinfo.Key}" );
             }
 
             return result;
@@ -210,37 +229,48 @@ namespace I2PCore.TransportLayer.SSU
             SSUHeader.MessageTypes message, 
             BufLen mackey,
             BufLen cryptokey,
-            SendMessageGenerator gen,
-            SendMessageGenerator genextrapadding )
+            SendMessageGenerator gen )
         {
-            var start = Session.Host.SendBuffers.Pop();
+            var fam = dest.AddressFamily == AddressFamily.InterNetwork || dest.Address.IsIPv4MappedToIPv6
+                    ? AddressFamily.InterNetwork 
+                    : AddressFamily.InterNetworkV6;
+            var start = Session.Host.SendBuffers.Pop( RouterContext.MaxPacketSize( fam, Session.MTU ) );
 
             var writer = new BufRefLen( start );
             var header = new SSUHeader( writer, message );
 
-            if ( !gen( start, writer ) ) return;
+            if ( !gen( start, writer ) )
+            {
+                //Logging.LogTransport( $"SSUState::SendMessage() {this} generator returned false. Do not send." );
+                return;
+            }
 
-            // Do not cut to datalen & ~0xf as that might make data at the end unencrypted
             var datapadding = BufUtils.Get16BytePadding( writer - start );
-            writer.Write( BufUtils.RandomBytes( datapadding ) ); 
-            var datalen = writer - start;
-
-            var encryptedbuf = new BufLen( start, 32, datalen - 32 );
-
-            // TODO: Adding extra padding does not seem to work
-            if ( genextrapadding != null ) if ( !genextrapadding( start, writer ) ) return;
+            if ( datapadding != 0 )
+            {
+                try
+                {
+                    writer.Write( BufUtils.RandomBytes( datapadding ) ); 
+                }
+                catch( ArgumentException )
+                {
+                    Logging.LogTransport( $"SSUState::SendMessage() Buffer error writing random end padding." );
+                    throw;
+                }
+            }
 
             var packetlen = writer - start;
+
             var data = new BufLen( start, 0, packetlen );
-            var hmac = new BufLen( data, 32 );
+            var encryptedbuf = new BufLen( start, 32, packetlen - 32 );
 
             SendMessageCipher.Init( true, cryptokey.ToParametersWithIV( header.IV ) );
             SendMessageCipher.ProcessBytes( encryptedbuf );
 
             I2PHMACMD5Digest.Generate( new BufLen[] { 
-                        hmac, 
-                        header.IV, 
-                        BufUtils.Flip16BL( (ushort)( (ushort)hmac.Length ^ I2PConstants.SSU_PROTOCOL_VERSION ) )
+                        encryptedbuf,
+                        header.IV,
+                        BufUtils.Flip16BL( (ushort)( (ushort)encryptedbuf.Length ^ I2PConstants.SSU_PROTOCOL_VERSION ) )
                     }, mackey, header.MAC );
 
 #if LOG_MUCH_TRANSPORT
@@ -249,7 +279,7 @@ namespace I2PCore.TransportLayer.SSU
                 Session.DebugId,
                 encryptedbuf.Length,
                 datapadding,
-                hmac.Length,
+                header.MAC.Length,
                 data.Length ) );
 #endif
 
@@ -272,29 +302,9 @@ namespace I2PCore.TransportLayer.SSU
             SSUHeader.MessageTypes message,
             BufLen mackey,
             BufLen cryptokey,
-            SendMessageGenerator gen,
-            SendMessageGenerator genextrapadding )
-        {
-            SendMessage( Session.RemoteEP, message, mackey, cryptokey, gen, genextrapadding );
-        }
-
-        protected void SendMessage(
-            SSUHeader.MessageTypes message,
-            BufLen mackey,
-            BufLen cryptokey,
             SendMessageGenerator gen )
         {
-            SendMessage( Session.RemoteEP, message, mackey, cryptokey, gen, null );
-        }
-
-        protected void SendMessage(
-            IPEndPoint dest,
-            SSUHeader.MessageTypes message,
-            BufLen mackey,
-            BufLen cryptokey,
-            SendMessageGenerator gen )
-        {
-            SendMessage( dest, message, mackey, cryptokey, gen, null );
+            SendMessage( Session.RemoteEP, message, mackey, cryptokey, gen );
         }
 
         public override string ToString()

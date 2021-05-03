@@ -1,10 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Utilities.Encoders;
-using Org.BouncyCastle.Security;
 using I2PCore.Utils;
 
 namespace I2PCore.Data
@@ -99,20 +94,6 @@ namespace I2PCore.Data
                 RoutingKeyCacheDay = daynow;
                 RoutingKeyCache = new I2PRoutingKey( this, false );
                 return RoutingKeyCache;
-            }
-        }
-
-        I2PRoutingKey NextRoutingKeyCache;
-        int NextRoutingKeyCacheDay = -1;
-        public I2PRoutingKey NextRoutingKey
-        {
-            get
-            {
-                var daynow = DateTime.UtcNow.AddDays( 1 ).Day;
-                if ( NextRoutingKeyCache != null && NextRoutingKeyCacheDay == daynow ) return NextRoutingKeyCache;
-                NextRoutingKeyCacheDay = daynow;
-                NextRoutingKeyCache = new I2PRoutingKey( this, true );
-                return NextRoutingKeyCache;
             }
         }
 

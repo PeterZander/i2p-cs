@@ -39,6 +39,7 @@ namespace I2P.I2CP
                 while ( !Terminated )
                 {
                     var listener = new TcpListener( RouterContext.Inst.LocalInterface, DefaultI2CPPort );
+                    if ( RouterContext.UseIpV6 ) listener.Server.DualMode = true;
                     listener.Start();
 
                     try

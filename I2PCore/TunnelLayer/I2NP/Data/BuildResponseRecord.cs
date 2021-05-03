@@ -13,7 +13,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
         public enum RequestResponse : byte { Accept = 0, ProbabalisticReject = 10, TransientOverload = 20, Bandwidth = 30, Critical = 50 }
         public const RequestResponse DefaultErrorReply = RequestResponse.Bandwidth;
 
-        public int Length { get { return 528; } }
+        public int Length { get => 528; }
         BufLen Data;
 
         public BuildResponseRecord( BufRef buf )

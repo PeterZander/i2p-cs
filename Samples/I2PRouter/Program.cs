@@ -37,7 +37,7 @@ namespace I2PRouter
                             return;
                         }
                         break;
-
+/*
                     case "--if":
                     case "--interface":
                         if ( args.Length > i + 1 )
@@ -50,7 +50,7 @@ namespace I2PRouter
                             Console.WriteLine( "--if require ip number" );
                             return;
                         }
-                        break;
+                        break;*/
 
                     case "--port":
                         if ( args.Length > i + 1 )
@@ -72,6 +72,11 @@ namespace I2PRouter
                         Console.WriteLine( $"Firewalled {RouterContext.Inst.IsFirewalled}" );
                         break;
 
+                    case "--ipv6":
+                        RouterContext.UseIpV6 = true;
+                        Console.WriteLine( $"Using IPV6" );
+                        break;
+                        
                     case "--mkdest":
                     case "--create-destination":
                         var certtype = 0;

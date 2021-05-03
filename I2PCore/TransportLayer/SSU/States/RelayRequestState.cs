@@ -1,16 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 using System.Net;
-using I2PCore.SessionLayer;
-using Org.BouncyCastle.Utilities.Encoders;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
-using I2PCore.Data;
 using I2PCore.TransportLayer.SSU.Data;
 
 namespace I2PCore.TransportLayer.SSU
@@ -28,6 +19,8 @@ namespace I2PCore.TransportLayer.SSU
         {
             if ( !introducers.Any() )
             {
+                throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers" );
+                /*
                 if ( Session.RemoteEP != null )
                 {
                     Logging.LogTransport( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers. Trying direct connect." );
@@ -36,7 +29,7 @@ namespace I2PCore.TransportLayer.SSU
                 else
                 {
                     throw new FailedToConnectException( $"SSU RelayRequestState {Session.DebugId} no established sessions to introducers" );
-                }
+                }*/
             }
 
             Introducers = introducers;
@@ -45,7 +38,7 @@ namespace I2PCore.TransportLayer.SSU
             {
                 Logging.LogTransport( $"RelayRequestState {Session.DebugId} " +
                     $"Trying {one.Key.EndPoint} to reach " +
-                    $"{Session.RemoteAddr.Options.TryGet( "host" )?.ToString() ?? Session.RemoteAddr.Options.ToString()}" );
+                    $"{Session.RemoteRouterIdentity.IdentHash.Id32Short}" );
             }
             Session.Host.RelayResponseReceived += new SSUHost.RelayResponseInfo( Host_RelayResponseReceived );
         }

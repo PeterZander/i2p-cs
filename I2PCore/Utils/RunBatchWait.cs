@@ -15,13 +15,13 @@ namespace I2PCore.Utils
         public RunBatchWait( int count )
         {
             InitialCount = count;
-            Counter = InitialCount;
+            Interlocked.Exchange( ref Counter, InitialCount );
             Finished = new ManualResetEvent( count == 0 );
         }
 
         public void Reset()
         {
-            Counter = InitialCount;
+            Interlocked.Exchange( ref Counter, InitialCount );
             Finished.Reset();
         }
 

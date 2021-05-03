@@ -27,5 +27,9 @@ namespace I2PCore.TransportLayer.SSU
                 return obj.Address.GetAddressBytes().ComputeHash() ^ obj.Port;
             }
         }
+
+#if DEBUG
+        internal SuccessRatio SignatureChecks = new SuccessRatio();
+#endif
     }
 }

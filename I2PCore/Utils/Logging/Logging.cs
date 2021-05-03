@@ -138,15 +138,33 @@ namespace I2PCore.Utils
         }
 
         [Conditional( "DEBUG" )]
+        public static void LogDebug( LogLevels lvl, Func<string> gen )
+        {
+            Log( lvl, gen() );
+        }
+
+        [Conditional( "DEBUG" )]
         public static void LogTransport( string txt )
         {
             Log( LogLevels.Transport, txt );
         }
 
         [Conditional( "DEBUG" )]
+        public static void LogTransport( Func<string> txtgen )
+        {
+            Log( LogLevels.Transport, txtgen() );
+        }
+
+        [Conditional( "DEBUG" )]
         public static void LogDebugData( string txt )
         {
             Log( LogLevels.DebugData, txt );
+        }
+
+        [Conditional( "DEBUG" )]
+        public static void LogDebugData( Func<string> txtgen )
+        {
+            Log( LogLevels.DebugData, txtgen() );
         }
 
         [Conditional( "DEBUG" )]

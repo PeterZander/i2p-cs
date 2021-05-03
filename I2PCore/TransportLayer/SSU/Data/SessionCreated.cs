@@ -22,7 +22,7 @@ namespace I2PCore.TransportLayer.SSU
 
         public DateTime Signon { get { return SSUHost.SSUDateTime( SignOnTime.PeekFlip32( 0 ) ); } }
 
-        public SessionCreated( BufRef reader, I2PCertificate cert )
+        public SessionCreated( BufRefLen reader, I2PCertificate cert )
         {
             Certificate = cert;
 
@@ -32,9 +32,8 @@ namespace I2PCore.TransportLayer.SSU
             Port = reader.ReadBufLen( 2 );
             RelayTag = reader.ReadBufLen( 4 );
             SignOnTime = reader.ReadBufLen( 4 );
-            var paddedsignlen = cert.SignatureLength + BufUtils.Get16BytePadding( cert.SignatureLength );
-            SignatureEncrBuf = reader.ReadBufLen( paddedsignlen );
-            Signature = new BufLen( SignatureEncrBuf, 0, cert.SignatureLength );
+            SignatureEncrBuf = new BufLen( reader, 0, reader.Length & ~0xf );
+            Signature = reader.ReadBufLen( cert.SignatureLength );
         }
     }
 }

@@ -62,9 +62,43 @@ namespace I2PCore.TransportLayer.SSU
         public event Action<ITransport,byte[]> TimeSyncReceived;
 
         internal SSUHost Host;
-        internal IPEndPoint RemoteEP;
-        internal I2PRouterAddress RemoteAddr;
-        internal I2PKeysAndCert RemoteRouter;
+
+        private IPEndPoint RemoteEPField;
+        internal IPEndPoint RemoteEP
+        {
+            get => RemoteEPField;
+            set
+            {
+                if ( RemoteEPField != null )
+                {
+                    if ( RemoteEPField.Equals( value ) ) return;
+                }
+
+                RemoteEPField = RouterContext.UseIpV6 && value?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                        ? new IPEndPoint( value.Address.MapToIPv6(), value.Port )
+                        : value;
+
+                Logging.LogTransport( $"SSUSession: {DebugId} RemoteEP updated: {RemoteEPField}" );
+
+                var wasadded = Host.SessionEndPointUpdated( this, RemoteEPField );
+
+                if ( value is null )
+                {
+                    Logging.LogTransport( $"SSUSession: {DebugId} RemoteEP is null" );
+                    return;
+                }
+
+                if ( !wasadded )
+                        throw new EndOfStreamEncounteredException( $"SSU {this}: Endpoint session already running" );
+
+                if ( MTU == -1 )
+                {
+                    MTU = UnwrappedRemoteAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                            ? RouterContext.IPV4MTU
+                            : RouterContext.IPV6MTU;
+                }
+            }
+        }
 
         protected readonly Action<IPEndPoint, BufLen> Sendmethod;
 
@@ -143,18 +177,17 @@ namespace I2PCore.TransportLayer.SSU
 
         internal int TransportInstance;
 
-        bool IsTerminated = false;
-
         public long BytesSent { get => BWStat.SendBandwidth.DataBytes; }
         public long BytesReceived { get => BWStat.ReceiveBandwidth.DataBytes; }
 
         private readonly BandwidthStatistics BWStat = new BandwidthStatistics();
 
         internal RouterContext MyRouterContext;
-        internal MTUConfig MTU;
+
+        internal int MTU = -1;
 
         internal readonly DataDefragmenter Defragmenter = new DataDefragmenter();
-        internal readonly DataFragmenter Fragmenter = new DataFragmenter();
+        internal DataFragmenter Fragmenter = new DataFragmenter();
 
         internal ConcurrentQueue<II2NPHeader16> SendQueue = new ConcurrentQueue<II2NPHeader16>();
         internal ConcurrentQueue<BufRefLen> ReceiveQueue = new ConcurrentQueue<BufRefLen>();
@@ -165,28 +198,20 @@ namespace I2PCore.TransportLayer.SSU
         public SSUSession( 
                 SSUHost owner,
                 Action<IPEndPoint, BufLen> sendmethod,
-                IPEndPoint remoteep, 
-                I2PRouterAddress remoteaddr, 
-                I2PKeysAndCert rri, 
+                I2PRouterInfo router,
                 RouterContext rc )
         {
-            mOutgoing = true;
+            IsOutgoing = true;
             Host = owner;
             Sendmethod = sendmethod;
-            RemoteEP = remoteep;
-            RemoteAddr = remoteaddr;
-            RemoteRouter = rri;
+            RemoteRouterInfo = router;
             MyRouterContext = rc;
             TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter );
 
             Logging.LogTransport( $"SSUSession: {DebugId} Client instance created." );
 
-            if ( RemoteAddr == null ) throw new NullReferenceException( "SSUSession needs an address" );
-
-            RemoteIntroKey = new BufLen( FreenetBase64.Decode( RemoteAddr.Options["key"] ) );
             MACKey = RouterContext.Inst.IntroKey; // TODO: Remove
-
-            MTU = Host.GetMTU( remoteep );
+            CurrentState = new IdleState( this );
         }
 
         // We are host
@@ -196,12 +221,12 @@ namespace I2PCore.TransportLayer.SSU
                 IPEndPoint remoteep, 
                 RouterContext rc )
         {
-            mOutgoing = false;
+            IsOutgoing = false;
+            TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter ) + 10000;
             Host = owner;
             Sendmethod = sendmethod;
             RemoteEP = remoteep;
             MyRouterContext = rc;
-            TransportInstance = Interlocked.Increment( ref NTCPClient.TransportInstanceCounter ) + 10000;
 
             Logging.LogTransport( $"SSUSession: {DebugId} Host instance created." );
 
@@ -215,14 +240,17 @@ namespace I2PCore.TransportLayer.SSU
 
         public string DebugId { get => $"+{TransportInstance}+"; }
         public string Protocol { get => "SSU"; }
-        public bool Outgoing { get => mOutgoing; }
-        private readonly bool mOutgoing;
+        public bool IsOutgoing { get; private set; }
+
+        ~SSUSession()
+        {
+        }
 
         public void Connect()
         {
             // This instance was initiated as an incomming connection.
             // Do not change state as we might be in a handshake.
-            if ( RemoteIntroKey == null ) return;
+            if ( !IsOutgoing ) return;
 
             lock ( this )
             {
@@ -230,12 +258,16 @@ namespace I2PCore.TransportLayer.SSU
                 ConnectCalled = true;
             }
 
-            if ( RemoteAddr.Options.Any( o => o.Key.ToString().StartsWith( "ihost", StringComparison.Ordinal ) ) )
+            var remoteaddr = Host.SelectAddress( RemoteRouterInfo );
+            if ( remoteaddr == null ) throw new NullReferenceException( $"SSUSession {this} needs an address" );
+            RemoteIntroKey = new BufLen( FreenetBase64.Decode( remoteaddr.Options["key"] ) );
+
+            if ( remoteaddr.Options.Any( o => o.Key.ToString().StartsWith( "ihost", StringComparison.Ordinal ) ) )
             {
                 Logging.LogTransport( $"SSUSession: Connect {DebugId}: Trying introducers for " +
-                    $"{RemoteAddr.Options.TryGet( "host" )?.ToString() ?? RemoteAddr.Options.ToString()}." );
+                    $"{remoteaddr.Options.TryGet( "host" )?.ToString() ?? remoteaddr.Options.ToString()}." );
 
-                var introducers = GetIntroducers();
+                var introducers = GetIntroducers( remoteaddr );
 
                 var intros = new Dictionary<IntroducerInfo, SSUSession>();
                 foreach( var i in introducers )
@@ -250,15 +282,16 @@ namespace I2PCore.TransportLayer.SSU
             }
             else
             {
+                RemoteEP = new IPEndPoint( remoteaddr.Host, remoteaddr.Port );
                 CurrentState = new SessionRequestState( this, false );
             }
 
             Host.NeedCpu( this );
         }
 
-        private List<IntroducerInfo> GetIntroducers()
+        private List<IntroducerInfo> GetIntroducers( I2PRouterAddress remoteaddr )
         {
-            if ( !RemoteAddr.Options.Contains( "ihost0" ) || !RemoteAddr.Options.Contains( "iport0" ) || !RemoteAddr.Options.Contains( "ikey0" ) )
+            if ( !remoteaddr.Options.Contains( "ihost0" ) || !remoteaddr.Options.Contains( "iport0" ) || !remoteaddr.Options.Contains( "ikey0" ) )
             {
                 Logging.LogTransport( $"SSUSession: Connect {DebugId}: No introducers declared." );
                 throw new FailedToConnectException( "SSU Introducer required, but no introducer information available" );
@@ -268,24 +301,24 @@ namespace I2PCore.TransportLayer.SSU
 
             for ( int i = 0; i < 3; ++i )
             {
-                if ( !RemoteAddr.Options.Contains( $"ihost{i}" ) ) break;
-                if ( !RemoteAddr.Options.Contains( $"iport{i}" ) ) break;
-                if ( !RemoteAddr.Options.Contains( $"ikey{i}" ) ) break;
-                if ( !RemoteAddr.Options.Contains( $"itag{i}" ) )
+                if ( !remoteaddr.Options.Contains( $"ihost{i}" ) ) break;
+                if ( !remoteaddr.Options.Contains( $"iport{i}" ) ) break;
+                if ( !remoteaddr.Options.Contains( $"ikey{i}" ) ) break;
+                if ( !remoteaddr.Options.Contains( $"itag{i}" ) )
                 {
                     Logging.LogWarning(
-                      $"SSUSession: Connect {DebugId}: itag# not present! {RemoteAddr.Options}" );
+                      $"SSUSession: Connect {DebugId}: itag# not present! {remoteaddr.Options}" );
                     break;
                 }
 
-                if ( !RemoteAddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
+                if ( !remoteaddr.Options[$"ihost{i}"].Contains( '.' ) ) break;  // TODO: Support IPV6
 
                 //Logging.LogWarning( $"SSUSession: Connect {DebugId}: {RemoteAddr.Options}" );
 
-                var intro = new IntroducerInfo( RemoteAddr.Options[$"ihost{i}"],
-                    RemoteAddr.Options[$"iport{i}"],
-                    RemoteAddr.Options[$"ikey{i}"],
-                    RemoteAddr.Options[$"itag{i}"] );
+                var intro = new IntroducerInfo( remoteaddr.Options[$"ihost{i}"],
+                    remoteaddr.Options[$"iport{i}"],
+                    remoteaddr.Options[$"ikey{i}"],
+                    remoteaddr.Options[$"itag{i}"] );
 
                 Logging.LogTransport( $"SSUSession: Connect {DebugId}: " +
                     $"Adding introducer '{intro.EndPoint}'." );
@@ -308,7 +341,7 @@ namespace I2PCore.TransportLayer.SSU
 #endif
         public void Send( I2NPMessage msg )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( IsTerminated ) throw new EndOfStreamEncounteredException();
 
             var len = SendQueue.Count;
 
@@ -345,7 +378,7 @@ namespace I2PCore.TransportLayer.SSU
 
         public void Receive( BufRefLen recvbuf )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( IsTerminated ) throw new EndOfStreamEncounteredException();
 
             BWStat.DataReceived( recvbuf.Length );
 
@@ -361,27 +394,37 @@ namespace I2PCore.TransportLayer.SSU
 #endif
         }
 
-        public void Terminate()
-        {
-            IsTerminated = true;
-            CurrentState = null;
-        }
-
-        public bool Terminated
-        {
-            get { return IsTerminated; }
-        }
+        public bool IsTerminated { get; protected set; }
 
         public I2PKeysAndCert RemoteRouterIdentity
         {
-            get { return RemoteRouter; }
+            get { return RemoteRouterReceivedIdentity ?? RemoteRouterInfo?.Identity; }
         }
+
+        internal I2PRouterInfo RemoteRouterInfo;
+        internal I2PCertificate RemoteCert { get => RemoteRouterIdentity?.Certificate; }
+
+        /// <summary>
+        /// From received SessionConfirmed
+        /// </summary>
+        internal I2PRouterIdentity RemoteRouterReceivedIdentity;
 
         public System.Net.IPAddress RemoteAddress
         {
-            get {
+            get
+            {
+                return RemoteEP?.Address; 
+            }
+        }
+
+        public System.Net.IPAddress UnwrappedRemoteAddress
+        {
+            get
+            {
                 if ( RemoteEP == null ) return null;
-                return RemoteEP.Address; 
+                return RemoteEP.Address.IsIPv4MappedToIPv6
+                        ? RemoteEP.Address.MapToIPv4()
+                        : RemoteEP.Address;
             }
         }
 
@@ -402,7 +445,7 @@ namespace I2PCore.TransportLayer.SSU
 
         internal bool Run()
         {
-            while ( !ReceiveQueue.IsEmpty )
+            while ( !ReceiveQueue.IsEmpty && !IsTerminated )
             {
                 if ( !ReceiveQueue.TryDequeue( out var data ) )
                 {
@@ -424,7 +467,7 @@ namespace I2PCore.TransportLayer.SSU
             do
             {
                 cs = CurrentState;
-                if ( cs == null ) return false;
+                if ( cs == null || IsTerminated ) return false;
 
                 try
                 {
@@ -432,36 +475,43 @@ namespace I2PCore.TransportLayer.SSU
 
                     if ( CurrentState == null )
                     {
-                        return SessionTerminated();
+                        Terminate();
+                        return false;
                     }
                 }
                 catch ( FailedToConnectException )
                 {
                     Logging.LogTransport( $"SSUSession {DebugId}: RunCurrentState FailedToConnectException. Terminating." );
-                    return SessionTerminated();
+                    Terminate();
+                    return false;
                 }
                 catch ( SignatureCheckFailureException )
                 {
                     Logging.LogTransport( $"SSUSession {DebugId}: RunCurrentState SignatureCheckFailureException. Terminating." );
-                    return SessionTerminated();
+                    Terminate();
+                    return false;
                 }
                 catch ( Exception ex )
                 {
                     Logging.LogDebug( ex );
-                    return SessionTerminated();
+                    Terminate();
+                    return false;
                 }
             } while ( CurrentState != null
                     && CurrentState != cs
+                    && !IsTerminated
                     && maxstatechanges-- > 0 );
 
             return true;
         }
 
-        private bool SessionTerminated()
+        public void Terminate()
         {
-            IsTerminated = true;
+            if ( IsTerminated ) return;
+
             CurrentState = null;
             Host.NoCpu( this );
+            IsTerminated = true;
 
             Logging.LogTransport( $"SSUSession {DebugId}: Shutting down." );
             ConnectionShutDown?.Invoke( this );
@@ -477,8 +527,6 @@ namespace I2PCore.TransportLayer.SSU
 
                 IsIntroducerConnection = false;
             }
-
-            return false;
         }
 
         internal bool IsEstablished
@@ -492,7 +540,7 @@ namespace I2PCore.TransportLayer.SSU
 
         internal bool DatagramReceived( BufRefLen recvbuf, IPEndPoint remoteep )
         {
-            if ( Terminated ) throw new EndOfStreamEncounteredException();
+            if ( IsTerminated ) throw new EndOfStreamEncounteredException();
 
             Logging.LogDebugData( $"SSUSession {DebugId}: Received {recvbuf.Length} bytes [0x{recvbuf.Length:X}]." );
 
@@ -502,7 +550,8 @@ namespace I2PCore.TransportLayer.SSU
         internal void RaiseException( Exception ex )
         {
 #if DEBUG
-            if ( ConnectionException == null ) Logging.LogWarning( "SSUSession: " + DebugId + " No observers for ConnectionException!" );
+            if ( ConnectionException == null )
+                    Logging.LogWarning( $"SSUSession: {DebugId} No observers for ConnectionException!" );
 #endif
             ConnectionException?.Invoke( this, ex );
         }
@@ -510,7 +559,8 @@ namespace I2PCore.TransportLayer.SSU
         internal void MessageReceived( II2NPHeader newmessage )
         {
 #if DEBUG
-            if ( DataBlockReceived == null ) Logging.LogWarning( $"SSUSession: {DebugId} No observers for DataBlockReceived!" );
+            if ( DataBlockReceived == null )
+                    Logging.LogWarning( $"SSUSession: {DebugId} No observers for DataBlockReceived!" );
 #endif
             DataBlockReceived?.Invoke( this, newmessage );
         }
@@ -518,16 +568,48 @@ namespace I2PCore.TransportLayer.SSU
         internal void ReportConnectionEstablished()
         {
 #if DEBUG
-            if ( ConnectionEstablished == null ) Logging.LogWarning( $"SSUSession: {DebugId} No observers for ConnectionEstablished!" );
+            if ( ConnectionEstablished == null )
+                    Logging.LogWarning( $"SSUSession: {DebugId} No observers for ConnectionEstablished!" );
 #endif
-            ConnectionEstablished?.Invoke( this, RemoteRouter.IdentHash );
+            ConnectionEstablished?.Invoke( this, RemoteRouterIdentity.IdentHash );
             Host.EPStatisitcs.UpdateConnectionTime( RemoteEP, StartTime.DeltaToNow );
             Host.EPStatisitcs.ConnectionSuccess( RemoteEP );
         }
 
-        internal void SendDroppedMessageDetected()
+        internal object RunLock = new object();
+
+        public void DatabaseStoreMessageReceived( DatabaseStoreMessage dsm )
         {
-            MTU.MTU = Math.Max( MTU.MTUMin, MTU.MTU - 16 );
+            try
+            {
+                var remoteaddr = UnwrappedRemoteAddress;
+
+                var ssuaddr = dsm.RouterInfo.Adresses
+                        .Where( a => a.TransportStyle == "SSU"
+                                && a.HaveHostAndPort
+                                && a.Options.Contains( "mtu" )
+                                && remoteaddr.Equals( a.Host ) )
+                        .Select( a => a.Options["mtu"] );
+
+                if ( !ssuaddr.Any() ) return;
+
+                if ( int.TryParse( ssuaddr.FirstOrDefault(), out var mtu ) )
+                {
+                    if ( mtu < MTU )
+                    {
+                        MTU = mtu;
+
+                        // The FragmentedMessages wont fit in a buffer anymore.
+                        Fragmenter = new DataFragmenter();
+
+                        Logging.LogTransport( () => $"SSUSession: {DebugId} reducing MTU to {mtu} for {dsm.RouterInfo}" );
+                    }
+                }
+            }
+            catch( Exception ex )
+            {
+                Logging.LogDebug( ToString(), ex );
+            }
         }
 
         internal PeerTest QueuedFirstPeerTestToCharlie = null;

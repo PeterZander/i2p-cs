@@ -7,6 +7,8 @@ using System.Threading;
 using I2PCore.SessionLayer;
 using I2PCore.Data;
 using I2PCore.TransportLayer.SSU.Data;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 
 namespace I2PCore.TransportLayer.SSU
 {
@@ -50,7 +52,9 @@ namespace I2PCore.TransportLayer.SSU
 
         private void UpdateRouterContext()
         {
-            var addr = new I2PRouterAddress( RouterContext.Inst.ExtAddress, RouterContext.Inst.UDPPort, 5, "SSU" );
+            var addrs = new List<I2PRouterAddress>();
+
+            var addr = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.UDPPort, 5, "SSU" );
 
             var ssucaps = "";
             if ( PeerTestSupported ) ssucaps += "B";
@@ -58,12 +62,58 @@ namespace I2PCore.TransportLayer.SSU
 
             addr.Options["caps"] = ssucaps;
             addr.Options["key"] = FreenetBase64.Encode( RouterContext.Inst.IntroKey );
+            addr.Options["mtu"] = RouterContext.IPV4MTU.ToString();
             foreach ( var intro in IntroducersInfo )
             {
                 addr.Options[intro.Key] = intro.Value;
             }
+            addrs.Add( addr );
 
-            RouterContext.Inst.UpdateAddress( this, addr );
+            if ( RouterContext.UseIpV6 )
+            {
+                var lv6 = GetLocalIpV6Address();
+                var addr6 = new I2PRouterAddress( lv6, RouterContext.Inst.UDPPort, 5, "SSU" );
+
+                addr6.Options["caps"] = ssucaps;
+                addr6.Options["key"] = FreenetBase64.Encode( RouterContext.Inst.IntroKey );
+                addr6.Options["mtu"] = RouterContext.IPV6MTU.ToString();
+                addrs.Add( addr6 );
+            }
+
+            RouterContext.Inst.UpdateAddress( this, addrs );
+        }
+        static readonly IPAddressMask GlobalUnicast = new IPAddressMask( "2000::/3" );
+        public static IPAddress GetLocalIpV6Address()
+        {
+            UnicastIPAddressInformation ipv6addr = null;
+
+            var interfaces = NetworkInterface.GetAllNetworkInterfaces();
+
+            foreach( var interf in interfaces )
+            {
+                if ( interf.OperationalStatus != OperationalStatus.Up )
+                    continue;
+
+                var properties = interf.GetIPProperties();
+
+                if ( properties.GatewayAddresses.Count == 0 )
+                    continue;
+
+                foreach( var addr in properties.UnicastAddresses )
+                {
+                    if ( IPAddress.IsLoopback( addr.Address )
+                        || addr.Address.AddressFamily != AddressFamily.InterNetworkV6 )
+                            continue;
+
+                    if ( GlobalUnicast.BelongsTo( addr.Address ) )
+                    {
+                        ipv6addr = addr;
+                        break;
+                    }
+                }
+            }
+
+            return ipv6addr?.Address;
         }
     }
 }

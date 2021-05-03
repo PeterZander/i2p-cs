@@ -19,13 +19,15 @@ namespace I2PCore.Data
         { 
             get 
             {
-                if ( !Options.Contains( "host" ) ) return null;
+                if ( !Options.TryGet( "host", out var hoststr ) ) return null;
 
-                var fam = IPTestHostName( Options["host"] );
+                var host = hoststr.ToString();
+
+                var fam = IPTestHostName( host );
                 if ( fam == AddressFamily.InterNetwork || fam == AddressFamily.InterNetworkV6 )
-                    return IPAddress.Parse( Options["host"] );
+                    return IPAddress.Parse( host );
 
-                var al = Dns.GetHostEntry( Options["host"] ).AddressList.
+                var al = Dns.GetHostEntry( host ).AddressList.
                     Where( a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork );
                 if ( al.Any() )
                 {

@@ -117,8 +117,7 @@ namespace I2PCore
         public IEnumerable<I2PIdentHash> GetClosestFloodfill(
                 I2PIdentHash dest,
                 int count,
-                ConcurrentBag<I2PIdentHash> exclude,
-                bool nextset )
+                ConcurrentBag<I2PIdentHash> exclude )
         {
             var minfit = RouletteFloodFill.AverageFit -
                     Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
@@ -127,9 +126,7 @@ namespace I2PCore
                 ? FloodfillInfos.Where( inf => !exclude.Contains( inf.Key ) )
                 : FloodfillInfos;
 
-            var refkey = nextset
-                ? dest.NextRoutingKey
-                : dest.RoutingKey;
+            var refkey = dest.RoutingKey;
 
             var qlist = subset
                     .Select( ri => new
@@ -154,10 +151,9 @@ namespace I2PCore
         public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo(
             I2PIdentHash reference,
             int count,
-            ConcurrentBag<I2PIdentHash> exclude,
-            bool nextset )
+            ConcurrentBag<I2PIdentHash> exclude )
         {
-            return Find( GetClosestFloodfill( reference, count, exclude, nextset ) );
+            return Find( GetClosestFloodfill( reference, count, exclude ) );
         }
     }
 }

@@ -17,7 +17,7 @@ namespace I2PCore.TransportLayer.NTCP
         readonly CancellationTokenSource MyCancellationTokenSource;
         readonly CancellationToken MyCancellationToken;
 
-        public event Action<ITransport> ConnectionCreated;
+        public event Action<ITransport,I2PIdentHash> ConnectionCreated;
 
         List<NTCPClientIncoming> Clients = new List<NTCPClientIncoming>();
 
@@ -56,7 +56,7 @@ namespace I2PCore.TransportLayer.NTCP
 
                             lock ( Clients )
                             {
-                                var terminated = Clients.Where( c => ( (ITransport)c ).Terminated ).ToArray();
+                                var terminated = Clients.Where( c => ( (ITransport)c ).IsTerminated ).ToArray();
                                 foreach ( var one in terminated )
                                 {
                                     Clients.Remove( one );
@@ -76,7 +76,7 @@ namespace I2PCore.TransportLayer.NTCP
 
                                 Logging.LogInformation( $"NTCPHost: Running with new network settings. " +
                                     $"{listener.LocalEndPoint}:{RouterContext.Inst.TCPPort}" + 
-                                    $" ({RouterContext.Inst.ExtAddress})" );
+                                    $" ({RouterContext.Inst.ExtIPV4Address})" );
                             }
                         }
                     }
@@ -101,7 +101,8 @@ namespace I2PCore.TransportLayer.NTCP
         private static Socket CreateListener()
         {
             Socket listener;
-            listener = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
+            listener = new Socket( RouterContext.Inst.LocalInterface.AddressFamily, SocketType.Stream, ProtocolType.Tcp );
+            if ( RouterContext.UseIpV6 ) listener.DualMode = true;
             listener.Bind( new IPEndPoint( RouterContext.Inst.LocalInterface, RouterContext.Inst.TCPPort ) );
             listener.Listen( 20 );
             return listener;
@@ -130,8 +131,18 @@ namespace I2PCore.TransportLayer.NTCP
             }
             else
             {
-                var addr = new I2PRouterAddress( RouterContext.Inst.ExtAddress, RouterContext.Inst.TCPPort, 11, "NTCP" );
-                RouterContext.Inst.UpdateAddress( this, addr );
+                var addrs = new List<I2PRouterAddress>();
+                var addr = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.TCPPort, 11, "NTCP" );
+                addrs.Add( addr );
+
+                if ( RouterContext.UseIpV6 )
+                {
+                    var lv6 = SSU.SSUHost.GetLocalIpV6Address();
+                    var addr6 = new I2PRouterAddress( lv6, RouterContext.Inst.TCPPort, 11, "NTCP" );
+                    addrs.Add( addr6 );
+                }
+
+                RouterContext.Inst.UpdateAddress( this, addrs );
             }
         }
 
@@ -146,11 +157,9 @@ namespace I2PCore.TransportLayer.NTCP
             {
                 var socket = listener.EndAccept( ar );
 
-                var ntcpc = new NTCPClientIncoming( socket );
+                var ntcpc = new NTCPClientIncoming( this, socket );
                 Logging.LogTransport( $"NTCPHost: incoming connection {ntcpc.DebugId} from " + 
                     $"{socket.RemoteEndPoint} created." );
-
-                ConnectionCreated?.Invoke( ntcpc );
 
                 ntcpc.Connect();
                 lock ( Clients )
@@ -175,6 +184,15 @@ namespace I2PCore.TransportLayer.NTCP
             {
                 Logging.Log( ex );
             }
+        }
+
+        internal void ReportConnectionCreated( ITransport transport, I2PIdentHash routerid )
+        {
+#if DEBUG
+            if ( ConnectionCreated == null )
+                    Logging.LogWarning( "NTCPHost: No observers for ConnectionCreated!" );
+#endif
+            ConnectionCreated?.Invoke( transport, routerid );
         }
 
         public ProtocolCapabilities ContactCapability( I2PRouterInfo router )

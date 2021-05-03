@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using I2PCore.SessionLayer;
 using I2PCore.Utils;
 
 namespace I2PCore.TransportLayer.SSU
@@ -31,6 +32,7 @@ namespace I2PCore.TransportLayer.SSU
             RemoteEP = LocalEP;
 
             var newsocket = new Socket( local.AddressFamily, SocketType.Dgram, ProtocolType.Udp );
+            if ( RouterContext.UseIpV6 ) newsocket.DualMode = true;
             newsocket.SetSocketOption( SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 65536 );
             newsocket.SetSocketOption( SocketOptionLevel.Socket, SocketOptionName.SendBuffer, 65536 );
             newsocket.Bind( LocalEP );
@@ -40,7 +42,7 @@ namespace I2PCore.TransportLayer.SSU
             if ( oldsocket != null ) oldsocket.Close();
 
             Logging.LogInformation( $"SSUHost: Running with new network settings. " +
-                $"{local}:{MyRouterContext.UDPPort} ({MyRouterContext.ExtAddress})" );
+                $"{local}:{MyRouterContext.UDPPort} ({MyRouterContext.ExtIPV4Address})" );
         }
 
         private void ReceiveCallback( IAsyncResult ar )
@@ -50,11 +52,6 @@ namespace I2PCore.TransportLayer.SSU
             {
                 EndPoint ep = RemoteEP;
                 var size = MySocket.EndReceiveFrom( ar, ref ep );
-
-                if ( ep.AddressFamily != AddressFamily.InterNetwork
-                    && ( !SessionLayer.RouterContext.Inst.UseIpV6 
-                        || ep.AddressFamily != AddressFamily.InterNetworkV6 ) )
-                            return; // TODO: Add IPV6
 
                 if ( size <= 37 )
                 {
@@ -66,9 +63,11 @@ namespace I2PCore.TransportLayer.SSU
 
                 Logging.LogDebugData( $"SSU Recv: {size} bytes [0x{size:X}] from {ep}" );
 
-                lock ( Sessions )
+                try
                 {
-                    if ( !Sessions.ContainsKey( sessionendpoint ) )
+                    var exist = Sessions.TryGetValue( sessionendpoint, out session );
+
+                    if ( !exist )
                     {
                         if ( IPFilter.IsFiltered( ( (IPEndPoint)ep ).Address ) )
                         {
@@ -82,23 +81,26 @@ namespace I2PCore.TransportLayer.SSU
                             $"from {sessionendpoint} created." );
 
                         session = new SSUSession( 
-                                this, 
+                                this,
                                 Send,
-                                (IPEndPoint)ep, 
+                                (IPEndPoint)ep,
                                 MyRouterContext );
-
-                        Sessions[sessionendpoint] = session;
 
                         Logging.LogTransport( $"SSUHost: incoming connection " +
                             $"{session.DebugId} from {sessionendpoint} created." );
 
                         NeedCpu( session );
-                        ConnectionCreated?.Invoke( session );
                     }
-                    else
-                    {
-                        session = Sessions[sessionendpoint];
-                    }
+                }
+                catch ( ArgumentNullException anex )
+                {
+                    Logging.Log( anex );
+                }
+
+                if ( session is null )
+                {
+                    Logging.LogTransport( $"SSUHost: ReceiveCallback. session is null." );
+                    return;
                 }
 
                 var localbuffer = BufRefLen.Clone( ReceiveBuf, 0, size );
@@ -135,7 +137,7 @@ namespace I2PCore.TransportLayer.SSU
                 {
                     AddFailedSession( session );
 #if LOG_MUCH_TRANSPORT
-            Logging.LogTransport( fcex );
+                    Logging.LogTransport( fcex.Message );
 #endif
                     if ( session != null )
                     {
@@ -205,39 +207,6 @@ namespace I2PCore.TransportLayer.SSU
         {
             if ( ep is null ) return;
             IPFilter.ReportProblem( ep.Address );
-        }
-
-        public MTUConfig GetMTU( IPEndPoint ep )
-        {
-            var result = new MTUConfig();
-
-            if ( ep == null )
-            {
-                result.MTU = 1484 - 28; // IPV4 28 byte UDP header
-                result.MTUMax = 1484 - 28;
-                result.MTUMin = 620 - 28;
-                return result;
-            }
-
-            switch ( ep.AddressFamily )
-            {
-                case System.Net.Sockets.AddressFamily.InterNetwork:
-                    result.MTU = 1484 - 28;
-                    result.MTUMax = 1484 - 28;
-                    result.MTUMin = 620 - 28;
-                    break;
-
-                case System.Net.Sockets.AddressFamily.InterNetworkV6:
-                    result.MTU = 1280 - 48;  // IPV6 48 byte UDP header
-                    result.MTUMax = 1472 - 48;
-                    result.MTUMin = 1280 - 48;
-                    break;
-
-                default:
-                    throw new NotImplementedException( $"{ep.AddressFamily} not supported" );
-            }
-
-            return result;
         }
     }
 }

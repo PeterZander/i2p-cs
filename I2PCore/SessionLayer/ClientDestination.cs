@@ -695,7 +695,7 @@ namespace I2PCore.SessionLayer
             }
 
             Logging.LogDebug(
-                    $"{this}: Lease set for {hash.Id32Short} found." );
+                    $"{this}: Lease set for {hash.Id32Short} found ({ls.Expire})." );
 
             NetDb.Inst.AddLeaseSet( ls );
             MyRemoteDestinations.LeaseSetReceived( ls );
@@ -887,12 +887,21 @@ namespace I2PCore.SessionLayer
             // Remote leases getting old?
             var newestlease = remoteleases.Expire;
             var leasehorizon = newestlease - DateTime.UtcNow;
-            if ( leasehorizon < MinLeaseLifetime )
+
+            if ( leasehorizon.TotalSeconds < 0 )
+            {
+#if !LOG_ALL_LEASE_MGMT
+                Logging.LogDebug( $"{this} Send: Leases for {dest.IdentHash.Id32Short} have all expired ({Tunnel.TunnelLifetime}). Looking up." );
+#endif
+                LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
+                return ClientStates.NoLeases;
+            }
+            else if ( leasehorizon < MinLeaseLifetime )
             {
 #if !LOG_ALL_LEASE_MGMT
                 Logging.LogDebug( $"{this} Send: Leases for {dest.IdentHash.Id32Short} is getting old ({leasehorizon}). Looking up." );
 #endif
-                LookupDestination( dest.IdentHash, ( h, ls, t ) => { }, null );
+                LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
             }
 
             // Select a lease
@@ -924,9 +933,10 @@ namespace I2PCore.SessionLayer
             }
 
             var msgs = UnsentMessagePop( dest );
-            if ( msgs is null ) return;
+            var msgsar = msgs?.Data?.ToArray();
+            if ( msgs is null || msgsar is null ) return;
 
-            foreach ( var msg in msgs.Data )
+            foreach ( var msg in msgsar )
             {
                 ThreadPool.QueueUserWorkItem( a =>
                 {
@@ -944,14 +954,19 @@ namespace I2PCore.SessionLayer
 
         void NetDb_LeaseSetUpdates( ILeaseSet ls )
         {
+#if DEBUG
+            Logging.LogTransport( $"{this} NetDb_LeaseSetUpdates: {ls} {ls.Destination.IdentHash.Id32Short} {ls.Expire}" );
+#endif            
             MyRemoteDestinations.PassiveLeaseSetUpdate( ls );
             SendUnsentMessages( ls.Destination.IdentHash );
         }
 
         private void IdentHashLookup_LeaseSetReceived( ILeaseSet ls )
         {
-            ThreadPool.QueueUserWorkItem( a =>
-                MyRemoteDestinations.LeaseSetReceived( ls ) );
+#if DEBUG
+            Logging.LogTransport( $"{this} IdentHashLookup_LeaseSetReceived: {ls} {ls.Destination.IdentHash.Id32Short} {ls.Expire}" );
+#endif            
+            MyRemoteDestinations.PassiveLeaseSetUpdate( ls );
             SendUnsentMessages( ls.Destination.IdentHash );
         }
 

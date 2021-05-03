@@ -6,6 +6,8 @@ using I2PCore.Utils;
 using I2PCore.Data;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Engines;
+using I2PCore.TunnelLayer.I2NP.Data;
+using I2PCore.TunnelLayer.I2NP.Messages;
 
 namespace I2PCore.TransportLayer.SSU
 {
@@ -127,7 +129,7 @@ namespace I2PCore.TransportLayer.SSU
                 ( start, writer ) =>
                 {
                     writer.Write( Y.Key );
-                    AAddr = Session.RemoteEP.Address.GetAddressBytes();
+                    AAddr = Session.UnwrappedRemoteAddress.GetAddressBytes();
                     writer.Write8( (byte)AAddr.Length );
                     writer.Write( AAddr );
                     APort = BufUtils.Flip16( (ushort)Session.RemoteEP.Port );
@@ -178,9 +180,9 @@ namespace I2PCore.TransportLayer.SSU
 #if LOG_MUCH_TRANSPORT
             Logging.LogTransport( $"SSU {this}: X for signature {Request.X}." );
             Logging.LogTransport( $"SSU {this}: Y for signature {Y.Key}." );
-            Logging.LogTransport( $"SSU {this}: Alice address for signature {baaddr}. Port {(BufLen)APort}." );
+            Logging.LogTransport( $"SSU {this}: Alice address for signature {baaddr}. Port {APort}." );
             Logging.LogTransport( $"SSU {this}: Bob address for signature {Request.Address}. Port {bbport}." );
-            Logging.LogTransport( $"SSU {this}: Relay tag {(BufLen)RelayTag}. Signon time {(BufLen)ASignonTime}." );
+            Logging.LogTransport( $"SSU {this}: Relay tag {RelayTag}. Signon time {ASignonTime}." );
 #endif
 
             var signdata = new BufLen[] {
@@ -190,20 +192,36 @@ namespace I2PCore.TransportLayer.SSU
                     BufUtils.To32BL( RelayTag ), BufUtils.To32BL( ASignonTime )
                 };
 
-            var ok = I2PSignature.DoVerify( Session.RemoteRouter.SigningPublicKey, ASign, signdata );
+            var ok = I2PSignature.DoVerify( Session.RemoteRouterIdentity.SigningPublicKey, ASign, signdata );
 
             Logging.LogTransport( $"SSU SessionCreatedState {Session.DebugId}: " + 
-                $"{Session.RemoteRouter.Certificate.SignatureType} " + 
+                $"{Session.RemoteCert.SignatureType} " + 
                 $"signature check: {ok}" );
 
-            if ( !ok ) throw new SignatureCheckFailureException( "SSU SessionCreatedState recv sig check failure" );
+#if DEBUG
+            Session.Host.SignatureChecks.Success( ok );
+            if ( !ok )
+            {
+                Logging.LogDebug( $"SSU {this}: " + 
+                    $"Signature checks success: {Session.Host.SignatureChecks} " );
+            }
+#endif                                
 
-            Logging.LogTransport( "SSU SessionCreatedState: Session " + Session.DebugId + " established. Moving to Established state." );
+            if ( !ok )
+            {
+                SendSessionDestroyed();
+                
+                throw new SignatureCheckFailureException( "SSU SessionCreatedState recv sig check failure" );
+            }
+
+            Logging.LogTransport( $"SSU SessionCreatedState: Session {Session.DebugId} established. Moving to Established state." );
             var next = new EstablishedState( Session );
 
+            Session.Host.ReportConnectionCreated( Session, Session.RemoteRouterIdentity.IdentHash );
             Session.ReportConnectionEstablished();
 
-            NetDb.Inst.Statistics.SuccessfulConnect( Session.RemoteRouter.IdentHash );
+            NetDb.Inst.Statistics.SuccessfulConnect( Session.RemoteRouterIdentity.IdentHash );
+
             return next;
         }
 
@@ -232,11 +250,12 @@ namespace I2PCore.TransportLayer.SSU
             {
                 bufwriter.Write( Fragments[i] );
             }
-            Session.RemoteRouter = new I2PRouterIdentity( (BufRefLen)buf );
+            Session.RemoteRouterReceivedIdentity = new I2PRouterIdentity( (BufRefLen)buf );
 
             var signbuf = new BufRefLen( buf,
-                buf.Length - Session.RemoteRouter.Certificate.SignatureLength );
-            ASign = new I2PSignature( signbuf, Session.RemoteRouter.Certificate );
+                buf.Length - Session.RemoteCert.SignatureLength );
+
+            ASign = new I2PSignature( signbuf, Session.RemoteCert );
 
             return VerifyRemoteSignature();
         }

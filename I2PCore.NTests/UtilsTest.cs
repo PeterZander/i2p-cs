@@ -3,6 +3,7 @@ using System.Text;
 using System.Linq;
 using NUnit.Framework;
 using I2PCore.Utils;
+using System.Threading;
 
 namespace I2PTests
 {
@@ -256,6 +257,116 @@ namespace I2PTests
 
             ( (IDisposable)twd ).Dispose();
             Assert.IsTrue( oneinstance.IsDisposed );
+        }
+
+        [Test]
+        public void TestNetworkMaskIPV4Construction()
+        {
+            var nm1 = new IPAddressMask( "0.0.0.0//0.0.0.255" );
+            Assert.IsTrue( nm1.Address.GetAddressBytes().All( b => b == 0 ) );
+            Assert.IsTrue( nm1.Mask.GetAddressBytes()[3] == 0xff );
+
+            var nm2 = new IPAddressMask( "0.0.0.255/8" );
+            var nm2ab = nm2.Address.GetAddressBytes();
+            var nm2nm = nm2.Mask.GetAddressBytes();
+            Assert.IsTrue( nm2ab.Select( b => (int)b ).Sum() == 0xff );
+            Assert.IsTrue( nm2nm[0] == 0xff );
+            Assert.IsTrue( nm2nm[1] == 0x00 );
+
+            var nm3 = new IPAddressMask( "92.00.00.255/19" );
+            var nm3ab = nm3.Address.GetAddressBytes();
+            var nm3nm = nm3.Mask.GetAddressBytes();
+            Assert.IsTrue( nm3ab[0] == 0x5c );
+            Assert.IsTrue( nm3ab[3] == 0xff );
+            Assert.IsTrue( nm3nm[0] == 0xff );
+            Assert.IsTrue( nm3nm[1] == 0xff );
+            Assert.IsTrue( nm3nm[2] == 0xe0 );
+
+            var nm4 = new IPAddressMask( "00.92.255.00/32" );
+            var nm4ab = nm4.Address.GetAddressBytes();
+            var nm4nm = nm4.Mask.GetAddressBytes();
+            Assert.IsTrue( nm4ab[1] == 0x5c );
+            Assert.IsTrue( nm4ab[2] == 0xff );
+            Assert.IsTrue( nm4nm.All( b => b == 0xff ) );
+        }
+
+        [Test]
+        public void TestNetworkMaskIPV6Construction()
+        {
+            var nm1 = new IPAddressMask( "::0//::ff" );
+            Assert.IsTrue( nm1.Address.GetAddressBytes().All( b => b == 0 ) );
+            Assert.IsTrue( nm1.Mask.GetAddressBytes()[15] == 0xff );
+
+            var nm2 = new IPAddressMask( "::ff/16" );
+            var nm2ab = nm2.Address.GetAddressBytes();
+            var nm2nm = nm2.Mask.GetAddressBytes();
+            Assert.IsTrue( nm2ab.Select( b => (int)b ).Sum() == 0xff );
+            Assert.IsTrue( nm2nm[0] == 0xff );
+            Assert.IsTrue( nm2nm[1] == 0xff );
+            Assert.IsTrue( nm2nm[2] == 0x00 );
+
+            var nm3 = new IPAddressMask( "5c00::00ff/19" );
+            var nm3ab = nm3.Address.GetAddressBytes();
+            var nm3nm = nm3.Mask.GetAddressBytes();
+            Assert.IsTrue( nm3ab[0] == 0x5c );
+            Assert.IsTrue( nm3ab[15] == 0xff );
+            Assert.IsTrue( nm3nm[0] == 0xff );
+            Assert.IsTrue( nm3nm[1] == 0xff );
+            Assert.IsTrue( nm3nm[2] == 0xe0 );
+
+            var nm4 = new IPAddressMask( "005c::ff00/128" );
+            var nm4ab = nm4.Address.GetAddressBytes();
+            var nm4nm = nm4.Mask.GetAddressBytes();
+            Assert.IsTrue( nm4ab[1] == 0x5c );
+            Assert.IsTrue( nm4ab[14] == 0xff );
+            Assert.IsTrue( nm4nm.All( b => b == 0xff ) );
+        }
+
+        [Test]
+        public void TestNetworkMaskIPV4BelongsTo()
+        {
+            var nm1 = new IPAddressMask( "192.168.255.255/16" );
+            var a1belongs = System.Net.IPAddress.Parse( "192.168.2.52" );
+            var a1not = System.Net.IPAddress.Parse( "192.169.2.52" );
+
+            Assert.IsTrue( nm1.BelongsTo( a1belongs ) );
+            Assert.IsFalse( nm1.BelongsTo( a1not ) );
+        }
+
+        [Test]
+        public void TestNetworkMaskIPV6BelongsTo()
+        {
+            var nm1 = new IPAddressMask( "fe00::ffff/9" );
+            var a1belongs = System.Net.IPAddress.Parse( "fe00::12:13:14" );
+            var a1not = System.Net.IPAddress.Parse( "2001::12:13:14" );
+
+            Assert.IsTrue( nm1.BelongsTo( a1belongs ) );
+            Assert.IsFalse( nm1.BelongsTo( a1not ) );
+        }
+
+        [Test]
+        public void TestRunBatchWait()
+        {
+            const int TestCount = 1000;
+            var rbw = new RunBatchWait( TestCount );
+
+            for( int i = 0; i < TestCount; ++i )
+            {
+                if ( !ThreadPool.QueueUserWorkItem( cb => 
+                {
+                    Thread.Sleep( 10 );
+                    rbw.Set();
+                } ) )
+                {
+                    rbw.Set();
+                }
+            }
+
+            if ( !rbw.WaitOne( 2000 ) )
+            {
+                Assert.Fail();
+            }
+
         }
     }
 }

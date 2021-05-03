@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using I2PCore.Data;
 using I2PCore.Utils;
@@ -65,14 +63,14 @@ namespace I2PCore
         {
             var score = DiminishingReturns( SuccessfulConnects * 1.0f - FailedConnects * 5.00f 
                 - SlowHandshakeConnect * 0.5f );
-            score += DiminishingReturns( SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.20f 
-                - TunnelBuildTimeout * 2.0f )
+            score += DiminishingReturns( SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.5f 
+                - TunnelBuildTimeout * 1.0f )
                 + DiminishingReturns( FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f );
-            score += DiminishingReturns( SuccessfulTunnelTest * 0.1f - FailedTunnelTest * 0.03f )
-                - ( IsFirewalled ? 30f : 0f );
+            score += DiminishingReturns( SuccessfulTunnelTest * 0.3f - FailedTunnelTest * 0.1f )
+                - ( IsFirewalled ? MaxScore / 4f : 0f );
 
-            CachedScore = score + MaxBandwidthSeen / 1E5f
-                    - TunnelBuildTimeMsPerHop / 100f
+            CachedScore = score + MaxScore * ( MaxBandwidthSeen / RoutersStatistics.BandwidthMax )
+                    - ( TunnelBuildTimeMsPerHop == 0 ? 5000f / 100f : TunnelBuildTimeMsPerHop / 100f )
                     - 3f * DiminishingReturns( InformationFaulty * 10f );
         }
 

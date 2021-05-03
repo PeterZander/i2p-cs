@@ -48,10 +48,7 @@ namespace I2PCore.TransportLayer.SSU
 
         internal void SendFirstPeerTestToCharlie( PeerTest msg )
         {
-            lock ( Sessions )
-            {
-                if ( Sessions.Count > 0 ) Sessions.Random().Value.SendFirstPeerTestToCharlie( msg );
-            }
+            if ( Sessions.Count > 0 ) Sessions.Random().Value.SendFirstPeerTestToCharlie( msg );
         }
     }
 }

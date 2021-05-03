@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 
 namespace I2PCore.TransportLayer.SSU
@@ -15,22 +12,22 @@ namespace I2PCore.TransportLayer.SSU
         [Flags]
         public enum MessageFlags : byte
         {
-            ExtendedOptionsFlag = 0x04,
-            RekeyFlag = 0x08,
-            PayloadType = 0xf0
+            ExtendedOptionsFlag     = 0b0000_0100,
+            RekeyFlag               = 0b0000_1000,
+            PayloadType             = 0b1111_0000
         }
 
         public enum MessageTypes : byte
         {
-            SessionRequest = 0 << 4,
-            SessionCreated = 1 << 4,
-            SessionConfirmed = 2 << 4,
-            RelayRequest = 3 << 4,
-            RelayResponse = 4 << 4,
-            RelayIntro = 5 << 4,
-            Data = 6 << 4,
-            PeerTest = 7 << 4,
-            SessionDestroyed = 8 << 4
+            SessionRequest      = 0 << 4,
+            SessionCreated      = 1 << 4,
+            SessionConfirmed    = 2 << 4,
+            RelayRequest        = 3 << 4,
+            RelayResponse       = 4 << 4,
+            RelayIntro          = 5 << 4,
+            Data                = 6 << 4,
+            PeerTest            = 7 << 4,
+            SessionDestroyed    = 8 << 4
         }
 
         public readonly BufLen MAC;
@@ -45,7 +42,8 @@ namespace I2PCore.TransportLayer.SSU
             }
             set
             {
-                FlagBuf[0] = (byte)( ( FlagBuf[0] & ~(byte)MessageFlags.PayloadType ) | (byte)value );
+                FlagBuf[0] = (byte)( ( FlagBuf[0] & (byte)MessageFlags.PayloadType ) 
+                    | ( (byte)value & ~(byte)MessageFlags.PayloadType ) );
             }
         }
 
@@ -62,45 +60,27 @@ namespace I2PCore.TransportLayer.SSU
         }
 
         public readonly BufLen TimeStampBuf;
+        public readonly BufLen ExtendedOptionsBuf;
         public uint TimeStamp { get { return TimeStampBuf.PeekFlip32( 0 ); } set { TimeStampBuf.PokeFlip32( value, 0 ); } }
         public DateTime TimeStampDayTime { get { return SSUHost.SSUDateTime( TimeStamp ); } }
 
         public readonly BufLen MACDataBuf;
         public readonly BufLen EncryptedBuf;
-        public readonly BufLen PostTimestampBuf;
+        public readonly BufLen PostTimeStampBuf;
 
-        public BufLen RekeyData
-        {
-            get
-            {
-                if ( ( Flag & MessageFlags.RekeyFlag ) != MessageFlags.RekeyFlag ) return null;
-                return new BufLen( PostTimestampBuf, 0, REKEY_DATA_LENGTH );
-            }
-        }
+        public readonly BufLen RekeyData;
 
-        public BufLen ExtendedOptions
-        {
-            get
-            {
-                if ( ( Flag & MessageFlags.ExtendedOptionsFlag ) != MessageFlags.ExtendedOptionsFlag ) return null;
-
-                var rd = RekeyData;
-                var offset = rd != null ? rd.Length : 0;
-
-                var len = PostTimestampBuf.Peek8( offset );
-                return new BufLen( PostTimestampBuf, offset + 1, len );
-            }
-        }
+        public BufLen ExtendedOptions;
 
         public SSUHeader( BufRefLen reader )
         {
             MAC = reader.ReadBufLen( 16 );
             IV = reader.ReadBufLen( 16 );
             MACDataBuf = new BufLen( reader );
-            EncryptedBuf = new BufLen( MACDataBuf, 0, MACDataBuf.Length & 0x7ffffff0 );
+            EncryptedBuf = new BufLen( MACDataBuf, 0, MACDataBuf.Length & 0x7fff_fff0 );
             FlagBuf = reader.ReadBufLen( 1 );
             TimeStampBuf = reader.ReadBufLen( 4 );
-            PostTimestampBuf = new BufLen( reader );
+            PostTimeStampBuf = new BufLen( reader );
         }
 
         public SSUHeader( BufRef writer, MessageTypes msgtype )
@@ -114,21 +94,25 @@ namespace I2PCore.TransportLayer.SSU
             TimeStamp = SSUHost.SSUTime( DateTime.UtcNow );
         }
 
+        // Call after decrypting
         public void SkipExtendedHeaders( BufRefLen reader )
         {
-            if ( (byte)( Flag & MessageFlags.RekeyFlag ) != 0 )
+            if ( Flag.HasFlag( MessageFlags.RekeyFlag ) )
             {
-                Logging.LogDebugData( "SSUHeader: Rekey data skipped." );
-                reader.Seek( REKEY_DATA_LENGTH );
+                // Currently not implemented by anyone
+                //RekeyData = reader.ReadBufLen( REKEY_DATA_LENGTH );
             }
 
-            //Logging.LogTransport( "SSUHeader flags: " + ( FlagBuf[0] & 0x0f ).ToString() );
-
-            if ( (byte)( Flag & MessageFlags.ExtendedOptionsFlag ) != 0 )
+            if ( Flag.HasFlag( MessageFlags.ExtendedOptionsFlag ) )
             {
-                Logging.LogDebugData( $"SSUHeader: Extended options data skipped. {ExtendedOptions.Length} bytes." );
-                reader.Seek( ExtendedOptions.Length + 1 );
+                var len = reader.Read8();
+                ExtendedOptions = reader.ReadBufLen( len );
             }
+        }
+
+        public override string ToString()
+        {
+            return $"SSUHeader Flagbuf: {FlagBuf}, MessageType: {MessageType}, TimeStamp: {SSUHost.SSUDateTime( TimeStamp )}";
         }
     }
 }

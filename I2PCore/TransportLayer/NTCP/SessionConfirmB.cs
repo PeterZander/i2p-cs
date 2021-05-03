@@ -16,10 +16,6 @@ namespace I2PCore.TransportLayer.NTCP
 
             var signature = new I2PSignature( new BufRefLen( data ), context.RemoteRI.Certificate );
 
-            if ( !I2PSignature.SupportedSignatureType( context.RemoteRI.Certificate.SignatureType ) )
-                throw new SignatureCheckFailureException( "NTCP SessionConfirmB recv not supported signature type: " +
-                    context.RemoteRI.Certificate.SignatureType.ToString() );
-
             var ok = I2PSignature.DoVerify( context.RemoteRI.SigningPublicKey, signature,
                 context.X.Key,
                 context.Y.Key,

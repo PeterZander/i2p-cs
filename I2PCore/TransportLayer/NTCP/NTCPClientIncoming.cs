@@ -1,6 +1,7 @@
 ﻿using System.Net.Sockets;
 using System.Net;
 using I2PCore.SessionLayer;
+using I2PCore.Utils;
 
 namespace I2PCore.TransportLayer.NTCP
 {
@@ -8,8 +9,11 @@ namespace I2PCore.TransportLayer.NTCP
     {
         public override IPAddress RemoteAddress { get { return ( (IPEndPoint)MySocket.RemoteEndPoint ).Address; } }
 
-        public NTCPClientIncoming( Socket s ) : base( false ) 
+        readonly NTCPHost Host;
+
+        public NTCPClientIncoming( NTCPHost host, Socket s ) : base( false ) 
         {
+            Host = host;
             MySocket = s;
         }
 
@@ -50,6 +54,8 @@ namespace I2PCore.TransportLayer.NTCP
             Logging.LogTransport( "X4X +" + TransportInstance.ToString() + "+" );
 #endif
             NetDb.Inst.Statistics.SuccessfulConnect( NTCPContext.RemoteRouterIdentity.IdentHash );
+
+            Host.ReportConnectionCreated( this, dhcontext.RemoteRI.IdentHash );
 
             NTCPContext.SessionKey = dhcontext.SessionKey;
             NTCPContext.Encryptor = dhcontext.Encryptor;

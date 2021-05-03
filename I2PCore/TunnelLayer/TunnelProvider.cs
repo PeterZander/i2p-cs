@@ -17,6 +17,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace I2PCore.TunnelLayer
 {
@@ -563,7 +564,7 @@ namespace I2PCore.TunnelLayer
                                 break;
 
                             default:
-                                Logging.LogDebugData( $"TunnelProvider.RunIncomingMessagePump: Unhandled message ({msg.Message})" );
+                                Logging.LogDebugData( () => $"TunnelProvider.RunIncomingMessagePump: Unhandled message ({msg.Message})" );
                                 I2NPMessageReceived?.Invoke( msg );
                                 break;
                         }
@@ -635,7 +636,38 @@ namespace I2PCore.TunnelLayer
 #if DEBUG
         TimeWindowDictionary<uint, RefPair<TickCounter, int>> ReallyOldTunnelBuilds =
             new TimeWindowDictionary<uint, RefPair<TickCounter, int>>( TickSpan.Minutes( 10 ) );
+
 #endif
+
+        class TunnelBuildRepliesInfo
+        {
+            public int Count;
+        }
+
+        static ConcurrentDictionary<BuildResponseRecord.RequestResponse,TunnelBuildRepliesInfo> TunnelBuildReplies = 
+                new ConcurrentDictionary<BuildResponseRecord.RequestResponse, TunnelBuildRepliesInfo>();
+
+        static PeriodicAction LogTunnelBuildStatistics = new PeriodicAction( TickSpan.Minutes( 1 ) );
+
+        [Conditional( "DEBUG" )]
+        public static void TunnelBuildStatistics( BuildResponseRecord.RequestResponse response )
+        {
+            var rs = TunnelBuildReplies.GetOrAdd( response, rr => new TunnelBuildRepliesInfo() );
+            ++rs.Count;
+
+            LogTunnelBuildStatistics.Do( () =>
+            {
+                var items = TunnelBuildReplies
+                                .OrderBy( p => (byte)p.Key )
+                                .ToArray();
+
+                var sum = items.Sum( p => p.Value.Count ) / 100.0;
+
+                var sta = items.Select( p => $" {p.Key}: {p.Value.Count} ({p.Value.Count / sum:F1}%)" );
+                var line = $"TunnelProvider: TunnelBuildStatistics:{string.Join( ',', sta )}";
+                Logging.LogDebug( line );
+            } );
+        }
 
         private void HandleIncomingTunnelBuildRecords( 
                 TunnelBuildRequestDecrypt decrypt )
@@ -691,6 +723,8 @@ namespace I2PCore.TunnelLayer
                     var newrec = new BuildResponseRecord( new BufRefLen( rec.Data ) );
 
                     decrypted.Add( newrec );
+
+                    TunnelBuildStatistics( newrec.Reply );
 
                     if ( newrec.Reply == BuildResponseRecord.RequestResponse.Accept )
                     {
@@ -784,6 +818,8 @@ namespace I2PCore.TunnelLayer
                     Logging.LogDebug( $"OutboundTunnel {obtunnel.TunnelDebugTrace}: Outbound tunnel build reply, hash check failed from {hop.Peer.IdentHash.Id32Short}" );
                     NetDb.Inst.Statistics.DestinationInformationFaulty( hop.Peer.IdentHash );
                 }
+
+                TunnelBuildStatistics( onerecord.Reply );
 
                 var accept = onerecord.Reply == BuildResponseRecord.RequestResponse.Accept;
                 if ( accept )

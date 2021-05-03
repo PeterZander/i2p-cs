@@ -109,6 +109,7 @@ namespace I2PCore.Data
                 default:
                     KEYPublicKeyType = I2PKeyType.KeyTypes.NotImplemented;
                     NotImplementedPublicKeyLength = keylen;
+                    Logging.LogWarning( $"I2PCertificate: Public key type {keytype} not implemented" );
                     break;
             }
         }

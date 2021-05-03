@@ -6,6 +6,7 @@ using I2PCore.Utils;
 using System.Threading;
 using I2PCore.SessionLayer;
 using I2PCore.Data;
+using System.Net.Sockets;
 
 namespace I2PCore.TransportLayer.SSU
 {
@@ -15,7 +16,7 @@ namespace I2PCore.TransportLayer.SSU
         Thread Worker;
         public bool Terminated { get; protected set; }
 
-        public event Action<ITransport> ConnectionCreated;
+        public event Action<ITransport,I2PIdentHash> ConnectionCreated;
 
         public static readonly bool PeerTestSupported = true;
         public static readonly bool IntroductionSupported = true;
@@ -30,7 +31,10 @@ namespace I2PCore.TransportLayer.SSU
         public readonly EndpointStatistics EPStatisitcs = new EndpointStatistics();
 
 #if DEBUG
-        const int SessionCallWarningLevelMilliseconds = 450;
+        const int SessionCallWarningLevelMilliseconds = 400;
+
+        public SuccessRatio MACCheck = new SuccessRatio();
+        public SuccessRatio MACCheckFailIsIPV4 = new SuccessRatio();
 #endif
 
         RouterContext MyRouterContext;
@@ -62,6 +66,7 @@ namespace I2PCore.TransportLayer.SSU
         internal void ReportedAddress( IPAddress ipaddr )
         {
             if ( LastExternalIPProcess.DeltaToNowSeconds < ( LastIPReport == null ? 1 : 60 ) ) return;
+            if ( ipaddr.AddressFamily != AddressFamily.InterNetwork ) return;
             LastExternalIPProcess.SetNow();
 
             Logging.LogTransport( $"SSU My IP: My external IP {ipaddr}" );
@@ -88,6 +93,15 @@ namespace I2PCore.TransportLayer.SSU
                     }
                 }
             }
+        }
+
+        internal void ReportConnectionCreated( SSUSession sess, I2PIdentHash routerid )
+        {
+#if DEBUG
+            if ( ConnectionCreated == null )
+                    Logging.LogWarning( $"SSUHost: No observers for ConnectionCreated!" );
+#endif
+            ConnectionCreated?.Invoke( sess, routerid );
         }
 
         private void UpdateSSUReportedAddr( IPAddress ipaddr )

@@ -1,25 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Data;
 using System.Net;
 using System.IO;
 using I2PCore.Utils;
-using I2PCore.TransportLayer.SSU;
-using System.Net.Sockets;
-using I2PCore.TransportLayer.SSU.Data;
-using System.Net.NetworkInformation;
 using System.Collections.Concurrent;
 using I2PCore.TransportLayer;
+using System.Net.Sockets;
 
 // Todo list for all of I2PCore
 // TODO: SSU PeerTest with automatic firewall detection
-// TODO: Add IPV6
 // TODO: NTCP does not close the old listen socket when settings change.
 // TODO: Replace FailedToConnectException with return value?
 // TODO: IP block lists for incomming connections, NTCP
-// TODO: Add transport bandwidth statistics
 // TODO: Implement bandwidth limits (tunnels)
 // TODO: Add the cert / key split support for ECDSA_SHA512_P521
 // TODO: Add DatabaseLookup query support
@@ -30,8 +24,28 @@ using I2PCore.TransportLayer;
 
 namespace I2PCore.SessionLayer
 {
-    public class RouterContext
+    public partial class RouterContext
     {
+        public const int IPV4_HEADER_SIZE = 20;
+        public const int IPV6_HEADER_SIZE = 40;
+        public const int UDP_HEADER_SIZE = 8;
+        public const int IPV6MTU = 1488;
+        public const int IPV4MTU = 1484;
+
+        public static int MaxPacketSize( AddressFamily af, int mtu )
+        {
+            if ( mtu <= 0 )
+            {
+                throw new ArgumentException( "MTU must be > 0" );
+            }
+
+            var result = af == AddressFamily.InterNetwork
+                    ? mtu - IPV4_HEADER_SIZE - UDP_HEADER_SIZE
+                    : mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
+
+            return result & ( ~0xf );
+        }
+
         private bool IsFirewalledField = true;
 
         public bool IsFirewalled
@@ -44,77 +58,10 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public static IEnumerable<UnicastIPAddressInformation> GetAllLocalInterfaces(
-            IEnumerable<NetworkInterfaceType> types,
-            IEnumerable<AddressFamily> families )
-        {
-            return NetworkInterface.GetAllNetworkInterfaces()
-                           .Where( x => types.Any( t => t == x.NetworkInterfaceType )
-                                && x.OperationalStatus == OperationalStatus.Up )
-                           .SelectMany( x => x.GetIPProperties().UnicastAddresses )
-                           .Where( x => families.Any( f => f == x.Address.AddressFamily ) )
-                           .ToArray();
-        }
-
-        NetworkInterfaceType[] InterfaceTypes = new NetworkInterfaceType[]
-        {
-            NetworkInterfaceType.Ethernet,
-            NetworkInterfaceType.Wireless80211
-        };
-
-        public IPAddress LocalInterface { get; set; } = IPAddress.Any;
+        public IPAddress LocalInterface { get => UseIpV6 ? IPAddress.IPv6Any : IPAddress.Any; }
 
         // IP settings
         public IPAddress DefaultExtAddress = null;
-        public IPAddress ExtAddress
-        {
-            get
-            {
-                if ( UPnpExternalAddressAvailable )
-                {
-                    return UPnpExternalAddress;
-                }
-
-                if ( SSUReportedExternalAddress != null )
-                {
-                    return SSUReportedExternalAddress;
-                }
-
-                if ( DefaultExtAddress != null ) return DefaultExtAddress;
-
-                return MyAddress;
-            }
-        }
-
-        public IPAddress MyAddress
-        {
-            get
-            {
-                IEnumerable<UnicastIPAddressInformation> ai;
-
-                if ( false ) // TODO: IPV6
-                {
-                    ai = GetAllLocalInterfaces(
-                        InterfaceTypes,
-                        new AddressFamily[]
-                        {
-                            AddressFamily.InterNetwork,
-                            AddressFamily.InterNetworkV6
-                        } );
-                }
-                else
-                {
-                    ai = GetAllLocalInterfaces(
-                        InterfaceTypes,
-                        new AddressFamily[]
-                        {
-                            AddressFamily.InterNetwork
-                        } );
-                }
-
-                return ai.Random().Address;
-            }
-        }
 
         public int DefaultTCPPort = 12123;
         public int TCPPort
@@ -142,16 +89,20 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        public bool UPnpExternalAddressAvailable = false;
-        public IPAddress UPnpExternalAddress;
-        public bool UPnpExternalTCPPortMapped = false;
-        public int UPnpExternalTCPPort;
-        public bool UPnpExternalUDPPortMapped = false;
-        public int UPnpExternalUDPPort;
-
-        public bool UseIpV6 = false;
-
-        public IPAddress SSUReportedExternalAddress;
+        private static bool UseIpV6Field = false;
+        public static bool UseIpV6
+        {
+            get => UseIpV6Field;
+            set
+            {
+                if ( TransportProvider.Inst != null )
+                {
+                    throw new Exception( "Transport provider have already been started" );
+                }
+                
+                UseIpV6Field = value;
+            }
+        }
 
         public event Action NetworkSettingsChanged;
 
@@ -340,7 +291,7 @@ namespace I2PCore.SessionLayer
                     caps["router.version"] = I2PConstants.PROTOCOL_VERSION;
                     caps["stat_uptime"] = "90m";
 
-                    var addresses = RouterAdresses.Values.ToArray();
+                    var addresses = RouterAdresses.Values.SelectMany( a => a ).ToArray();
                     var result = new I2PRouterInfo(
                         MyRouterIdentity,
                         new I2PDate( DateTime.UtcNow.AddMinutes( -1 ) ),
@@ -363,37 +314,19 @@ namespace I2PCore.SessionLayer
             MyRouterInfoCache = null;
         }
 
-        readonly ConcurrentDictionary<ITransportProtocol, I2PRouterAddress> RouterAdresses
-            = new ConcurrentDictionary<ITransportProtocol, I2PRouterAddress>();
+        readonly ConcurrentDictionary<ITransportProtocol, List<I2PRouterAddress>> RouterAdresses
+            = new ConcurrentDictionary<ITransportProtocol, List<I2PRouterAddress>>();
 
-        public void UpdateAddress( ITransportProtocol proto, I2PRouterAddress addr )
+        public void UpdateAddress( ITransportProtocol proto, List<I2PRouterAddress> addrs )
         {
-            if ( addr is null )
+            if ( addrs is null )
             {
                 RouterAdresses.TryRemove( proto, out _ );
                 ClearCache();
                 return;
             }
 
-            RouterAdresses[proto] = addr;
-            ClearCache();
-        }
-
-        public void SSUReportedAddr( IPAddress extaddr )
-        {
-            if ( extaddr == null ) return;
-            if ( SSUReportedExternalAddress != null && SSUReportedExternalAddress.Equals( extaddr ) ) return;
-
-            SSUReportedExternalAddress = extaddr;
-            ClearCache();
-        }
-
-        internal void UpnpReportedAddr( string addr )
-        {
-            if ( UPnpExternalAddressAvailable && UPnpExternalAddress.Equals( IPAddress.Parse( addr ) ) ) return;
-
-            UPnpExternalAddress = IPAddress.Parse( addr );
-            UPnpExternalAddressAvailable = true;
+            RouterAdresses[proto] = addrs;
             ClearCache();
         }
 
@@ -404,27 +337,6 @@ namespace I2PCore.SessionLayer
         {
             ClearCache();
             NetworkSettingsChanged?.Invoke();
-        }
-
-        internal void UpnpNATPortMapAdded( IPAddress addr, string protocol, int port )
-        {
-            if ( protocol == "TCP" && UPnpExternalTCPPortMapped && UPnpExternalTCPPort == port ) return;
-            if ( protocol == "UDP" && UPnpExternalUDPPortMapped && UPnpExternalUDPPort == port ) return;
-
-            if ( protocol == "TCP" )
-            {
-                UPnpExternalTCPPortMapped = true;
-                UPnpExternalTCPPort = port;
-            }
-            else
-            {
-                UPnpExternalUDPPortMapped = true;
-                UPnpExternalUDPPort = port;
-            }
-            UPnpExternalAddressAvailable = true;
-            ClearCache();
-
-            ApplyNewSettings();
         }
     }
 }

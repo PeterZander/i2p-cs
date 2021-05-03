@@ -28,7 +28,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         protected Thread Worker;
         CancellationToken MyCancellationToken;
-        bool ITransport.Terminated { get { return MyCancellationToken.IsCancellationRequested; } }
+        bool ITransport.IsTerminated { get { return MyCancellationToken.IsCancellationRequested; } }
 
         public abstract IPAddress RemoteAddress { get; }
 
@@ -51,12 +51,11 @@ namespace I2PCore.TransportLayer.NTCP
 
         public string DebugId { get { return $"+{TransportInstance}+"; } }
         public string Protocol { get => "NTCP"; }
-        public bool Outgoing { get => mOutgoing; }
-        private readonly bool mOutgoing;
+        public bool IsOutgoing { get; private set; }
 
         protected NTCPClient( bool outgoing )
         {
-            mOutgoing = outgoing;
+            IsOutgoing = outgoing;
             TransportInstance = Interlocked.Increment( ref TransportInstanceCounter );
         }
 
@@ -90,6 +89,10 @@ namespace I2PCore.TransportLayer.NTCP
             }
         }
 
+        public void DatabaseStoreMessageReceived( DatabaseStoreMessage dsm )
+        {
+        }
+        
         ConcurrentQueue<I2NPMessage> SendQueue = new ConcurrentQueue<I2NPMessage>();
         ConcurrentQueue<BufLen> SendQueueRaw = new ConcurrentQueue<BufLen>();
 #if DEBUG
@@ -358,7 +361,7 @@ namespace I2PCore.TransportLayer.NTCP
 
 #if LOG_MUCH_TRANSPORT
                         Logging.LogTransport( $"My local endpoint IP#   : {( (IPEndPoint)MySocket.LocalEndPoint ).Address}" );
-                        Logging.LogTransport( $"My local endpoint Port  : {( (IPEndPoint)MySocket.LocalEndPoint ).Port} );
+                        Logging.LogTransport( $"My local endpoint Port  : {( (IPEndPoint)MySocket.LocalEndPoint ).Port}" );
 #endif
 
                         DHNegotiate();
@@ -401,7 +404,8 @@ namespace I2PCore.TransportLayer.NTCP
                     TryInitiateSend();
 
 #if DEBUG
-                    if ( ConnectionEstablished == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionEstablished!" );
+                    if ( ConnectionEstablished == null )
+                            Logging.LogWarning( "NTCPClient: No observers for ConnectionEstablished!" );
 #endif
                     ConnectionEstablished?.Invoke( this, RemoteRouterIdentity.IdentHash );
 
@@ -424,7 +428,8 @@ namespace I2PCore.TransportLayer.NTCP
                         else
                         {
 #if DEBUG
-                            if ( DataBlockReceived == null ) Logging.LogWarning( "NTCPClient: No observers for DataBlockReceived !" );
+                            if ( DataBlockReceived == null )
+                                    Logging.LogWarning( "NTCPClient: No observers for DataBlockReceived !" );
 #endif
                             if ( DataBlockReceived != null ) DataBlockReceived( this, I2NPMessage.ReadHeader16( new BufRefLen( data ) ) );
                         }
@@ -457,7 +462,8 @@ namespace I2PCore.TransportLayer.NTCP
                 catch ( Exception ex )
                 {
 #if DEBUG
-                    if ( ConnectionException == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionException!" );
+                    if ( ConnectionException == null )
+                            Logging.LogWarning( "NTCPClient: No observers for ConnectionException!" );
 #endif
                     if ( ConnectionException != null ) ConnectionException( this, ex );
                     Logging.LogTransport( string.Format( "NTCP {1} Exception: {0}", ex, DebugId ) );
@@ -483,7 +489,8 @@ namespace I2PCore.TransportLayer.NTCP
                 try
                 {
 #if DEBUG
-                    if ( ConnectionShutDown == null ) Logging.LogWarning( "NTCPClient: No observers for ConnectionShutDown!" );
+                    if ( ConnectionShutDown == null )
+                            Logging.LogWarning( "NTCPClient: No observers for ConnectionShutDown!" );
 #endif
                     if ( ConnectionShutDown != null ) ConnectionShutDown( this );
                 }

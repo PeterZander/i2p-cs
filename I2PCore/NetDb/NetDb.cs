@@ -169,7 +169,7 @@ namespace I2PCore
             ShowProbabilityProfile();
 #endif
 
-            Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtAddress} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
+            Logging.LogDebug( $"Our address: {RouterContext.Inst.ExtIPV4Address} {RouterContext.Inst.TCPPort}/{RouterContext.Inst.UDPPort} {RouterContext.Inst.MyRouterInfo}" );
         }
 
         private static bool ValidateRI( I2PRouterInfo one )
@@ -189,6 +189,12 @@ namespace I2PCore
                 Logging.LogDebugData( $"NetDb: RouterInfo failed validation: {info}" );
                 return false;
             }
+
+            Statistics.IsFirewalledUpdate( info.Identity.IdentHash,
+                info.Adresses.Any( a =>
+                    a.Options.Any( o =>
+                        o.Key.ToString() == "ihost0" ) )
+            );
 
             if ( RouterInfos.TryGetValue( info.Identity.IdentHash, out var indb ) )
             {
@@ -219,15 +225,6 @@ namespace I2PCore
                 {
                     Logging.LogDebug( $"NetDb: RouterInfo failed signature check: {info.Identity.IdentHash.Id32}" );
                     return false;
-                }
-
-                if ( !RouterContext.Inst.UseIpV6 )
-                {
-                    if ( !info.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
-                    {
-                        Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {info.Identity.IdentHash.Id32}" );
-                        return false;
-                    }
                 }
 
                 var meta = new RouterInfoMeta( info.Identity.IdentHash )

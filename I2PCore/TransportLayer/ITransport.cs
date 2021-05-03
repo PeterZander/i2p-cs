@@ -16,7 +16,7 @@ namespace I2PCore.TransportLayer
         event Action<ITransport> ConnectionShutDown;
 
         /// <summary>
-        /// Diffie-Hellman negotiations completed.
+        /// Protocol initial handshake is finished, and data can be sent.
         /// </summary>
         event Action<ITransport,I2PIdentHash> ConnectionEstablished;
 
@@ -27,7 +27,12 @@ namespace I2PCore.TransportLayer
         void Send( I2NPMessage msg );
 
         void Terminate();
-        bool Terminated { get; }
+        bool IsTerminated { get; }
+
+        /// <summary>
+        /// Called by TransportProvider if a DatabaseStoreMessage for this transport was received.
+        /// </summary>
+        void DatabaseStoreMessageReceived( DatabaseStoreMessage dsm );
 
         I2PKeysAndCert RemoteRouterIdentity { get; }
         IPAddress RemoteAddress { get; }
@@ -35,8 +40,16 @@ namespace I2PCore.TransportLayer
         long BytesSent { get; }
         long BytesReceived { get; }
 
+        /// <summary>
+        /// Instance unique identifier for debugging.<!--
+        /// </summary>
         string DebugId { get; }
+
+        /// <summary>
+        /// Abbriviated unique name of the protocol implemented.
+        /// </summary>
         string Protocol { get; }
-        bool Outgoing { get; }
+        
+        bool IsOutgoing { get; }
     }
 }

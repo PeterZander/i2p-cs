@@ -1,54 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using I2PCore.Utils;
+﻿using I2PCore.Utils;
 
 namespace I2PCore.TransportLayer.SSU
 {
     internal class SendBufferPool
     {
-        const int MaxNumberOfSendBuffers = 300; 
+        const int MaxBufferSize = 1500;
+        const int MaxNumberOfSendBuffers = 300;
 
-        LinkedList<BufLen> Buffers = new LinkedList<BufLen>();
+        System.Buffers.ArrayPool<byte> Buffers = System.Buffers.ArrayPool<byte>.Create( MaxBufferSize, MaxNumberOfSendBuffers );
 
         internal SendBufferPool()
         {
-            for ( int i = 0; i < 20; ++i )
-            {
-                Buffers.AddFirst( AllocateNewBuffer() );
-            }
         }
 
-        internal BufLen Pop()
+        internal BufLen Pop( int size )
         {
-            lock ( Buffers )
-            {
-                if ( Buffers.Count == 0 )
-                {
-                    return AllocateNewBuffer();
-                }
-
-                var result = Buffers.Last.Value;
-                Buffers.RemoveLast();
-                return result;
-            }
-        }
-
-        private static BufLen AllocateNewBuffer()
-        {
-            return new BufLen( new byte[MTUConfig.BufferSize] );
+            return new BufLen( Buffers.Rent( size ), 0, size );
         }
 
         internal void Push( BufLen buf )
         {
-            if ( buf.BaseArray.Length != MTUConfig.BufferSize ) return;
-            lock ( Buffers )
-            {
-                if ( Buffers.Count > MaxNumberOfSendBuffers ) return;
-                Array.Clear( buf.BaseArray, 0, buf.Length );
-                Buffers.AddFirst( new BufLen( buf.BaseArray ) );
-            }
+            Buffers.Return( buf.BaseArray );
         }
     }
 }

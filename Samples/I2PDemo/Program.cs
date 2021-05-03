@@ -1,4 +1,4 @@
-﻿#define NOMANUAL_SIGN
+#define NOMANUAL_SIGN
 
 using System;
 using I2PCore.Data;
@@ -74,6 +74,11 @@ namespace I2PDemo
                     case "--nofw":
                         RouterContext.Inst.IsFirewalled = false;
                         Console.WriteLine( $"Firewalled {RouterContext.Inst.IsFirewalled}" );
+                        break;
+
+                    case "--ipv6":
+                        RouterContext.UseIpV6 = true;
+                        Console.WriteLine( $"Using IPV6" );
                         break;
 
                     case "--mkdest":

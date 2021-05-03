@@ -71,7 +71,7 @@ namespace I2PCore.Utils
 
         public override string ToString()
         {
-            return "TickSpan: " + DebugText( this );
+            return $"TickSpan: {DebugText( this )}";
         }
 
         #region IEquatable<TickSpan> Members
@@ -174,6 +174,11 @@ namespace I2PCore.Utils
         {
             if ( left is null ) return null;
             return new TickSpan( left.Ticks / divi );
+        }
+        public static explicit operator TimeSpan( TickSpan tickspan )
+        {
+            if ( tickspan is null ) return default( TimeSpan );
+            return TimeSpan.FromMilliseconds( (double)tickspan.Ticks );
         }
         #endregion
     }

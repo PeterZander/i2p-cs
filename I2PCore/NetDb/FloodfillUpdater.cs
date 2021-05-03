@@ -297,12 +297,10 @@ namespace I2PCore
 
                 var ls = lsinfo.LeaseSet;
 
-                var getnext = DateTime.UtcNow.Hour >= 23;
                 var list = NetDb.Inst.GetClosestFloodfill(
                             ls.Destination.IdentHash,
                             2 + 2 * lsinfo.Retries,
-                            null,
-                            getnext );
+                            null );
 
                 var ff = list.Random();
                 var ffident = NetDb.Inst[ff];
@@ -331,19 +329,7 @@ namespace I2PCore
                 .GetClosestFloodfill(
                     id,
                     count * 20,
-                    null,
-                    false );
-
-            if ( DateTime.UtcNow.Hour >= 23 )
-            {
-                var nextlist = NetDb.Inst
-                    .GetClosestFloodfill(
-                        id,
-                        20,
-                        null,
-                        true );
-                if ( nextlist != null ) list = list.Concat( nextlist );
-            }
+                    null );
 
             if ( !( list?.Any() ?? false ) )
             {

@@ -103,17 +103,6 @@ namespace I2PCore
                                     continue;
                                 }
 
-                                if ( !RouterContext.Inst.UseIpV6 )
-                                {
-                                    if ( !one.Adresses.Any( a => a.Options.ValueContains( "host", "." ) ) )
-                                    {
-                                        Logging.LogDebug( $"NetDb: RouterInfo have no IPV4 address: {one.Identity.IdentHash.Id32}" );
-                                        s.Delete( ix );
-
-                                        continue;
-                                    }
-                                }
-
                                 var re = new RouterEntry(
                                     one,
                                     new RouterInfoMeta( ix ) );
@@ -156,7 +145,6 @@ namespace I2PCore
             }
 
             Statistics.Load();
-            IsFirewalledUpdate();
 
 #if DEBUG
             ShowDebugDatabaseInfo();
@@ -227,7 +215,6 @@ namespace I2PCore
             Logging.Log( $"NetDb.Save( {( onlyupdated ? "updated" : "all" )} ): " +
                 $"{created} created, {updated} updated, {deleted} deleted." );
 
-            Statistics.RemoveOldStatistics();
             UpdateSelectionProbabilities();
 
             sw.Stop();
@@ -270,30 +257,8 @@ namespace I2PCore
         private void RemoveOldRouterInfos()
         {
             var inactive = Statistics.GetInactive();
-
-            var now = DateTime.UtcNow;
-            var old = RouterInfos
-                .Select( ri => new 
-                    {
-                        Id = ri.Key,
-                        Router = ri.Value.Router,
-                        Days = ( now - (DateTime)ri.Value.Router.PublishedDate ).TotalDays 
-                    } )
-                .Where( info => info.Days > 1.0 )
-                .ToArray();
-
-            inactive.UnionWith( old.Select( info => info.Id ) );
-
-            if ( RouterInfos.Count - inactive.Count < 400 )
-            {
-                inactive = new HashSet<I2PIdentHash>(
-                    inactive
-                        .Where( k => RouterInfos.ContainsKey( k ) )
-                        .OrderBy( k => (DateTime)RouterInfos[k].Router.PublishedDate )
-                        .Take( RouterInfos.Count - 400 ) );
-            }
-
             RemoveRouterInfo( inactive );
+            Statistics.RemoveOldStatistics( RouterInfos.Keys );
         }
 
         private void ImportNetDbFiles()
@@ -307,19 +272,6 @@ namespace I2PCore
             foreach ( var file in importfiles )
             {
                 File.Delete( file );
-            }
-        }
-
-        private void IsFirewalledUpdate()
-        {
-            var fw = RouterInfos.Where( ri =>
-                ri.Value.Router.Adresses.Any( a =>
-                    a.Options.Any( o =>
-                        o.Key.ToString() == "ihost0" ) ) );
-
-            foreach ( var ri in fw )
-            {
-                Statistics.IsFirewalledUpdate( ri.Key, true );
             }
         }
 

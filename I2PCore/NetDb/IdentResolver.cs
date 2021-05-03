@@ -229,8 +229,7 @@ namespace I2PCore
             var ff = NetDb.Inst.GetClosestFloodfill( 
                 ident, 
                 10 + 3 * info.Retries, 
-                info.AlreadyQueried, 
-                false );
+                info.AlreadyQueried );
 
             if ( !ff.Any() )
             {
@@ -279,12 +278,10 @@ namespace I2PCore
                 return;
             }
 
-            var getnext = DateTime.UtcNow.Hour >= 23;
             var ff = NetDb.Inst.GetClosestFloodfill( 
                     ident, 
                     DatabaseLookupSelectFloodfillCountLS + 2 * info.Retries, 
-                    info.AlreadyQueried, 
-                    getnext )
+                    info.AlreadyQueried )
                 .Select( r => new 
                     {
                         Id = r,
@@ -388,7 +385,7 @@ namespace I2PCore
 
             I2PIdentHash ident = new I2PIdentHash( true );
 
-            var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null, false )
+            var ff = NetDb.Inst.GetClosestFloodfill( ident, 10, null )
                     .Shuffle()
                     .Take( DatabaseLookupSelectFloodfillCountRI )
                     .ToArray();

@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.IO;
 using I2PCore.Utils;
 
 namespace I2PCore.Data

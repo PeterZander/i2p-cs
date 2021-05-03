@@ -76,7 +76,7 @@ namespace I2PCore.TransportLayer
         /// <summary>
         /// Occurs when connection created for an incomming connection.
         /// </summary>
-        event Action<ITransport> ConnectionCreated;
+        event Action<ITransport,I2PIdentHash> ConnectionCreated;
 
         /// <summary>
         /// Returns what features the transport supports for the specific router based on the router info.

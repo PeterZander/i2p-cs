@@ -2,16 +2,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Utils;
 using I2PCore.Data;
 using System.Net;
-using I2PCore.SessionLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 
@@ -48,14 +41,9 @@ namespace I2PCore.TransportLayer.SSU
                                 var i2npmsg = I2NPMessage.ReadHeader16( (BufRefLen)msg.GetPayload() );
 
 #if LOG_MUCH_TRANSPORT
-                            Logging.LogDebugData( $"SSU {this} complete message " + 
-                                $"{msg.MessageId}: {i2npmsg.Expiration}" );
+                                Logging.LogDebugData( $"SSU {this} complete message " + 
+                                    $"{msg.MessageId}: {i2npmsg.Expiration}" );
 #endif
-
-                                if ( i2npmsg.MessageType == I2NPMessage.MessageTypes.DeliveryStatus )
-                                {
-                                    if ( ( (DeliveryStatusMessage)i2npmsg.Message ).IsNetworkId( (ulong)I2PConstants.I2P_NETWORK_ID ) ) continue;
-                                }
 
                                 Session.MessageReceived( i2npmsg );
                             }
@@ -195,11 +183,14 @@ namespace I2PCore.TransportLayer.SSU
         private void ResendNotAcked( IEnumerable<DataFragment> fragments )
         {
             bool finished = false;
-
             var current = fragments.GetEnumerator();
+            var i = 0;
 
             while ( !finished )
             {
+                if ( ++i > 50 ) 
+                        break;
+
                 SendMessage(
                     SSUHeader.MessageTypes.Data,
                     Session.MACKey,
@@ -207,22 +198,23 @@ namespace I2PCore.TransportLayer.SSU
                     ( start, writer ) =>
                     {
                         var flagbuf = writer.ReadBufLen( 1 );
-                        flagbuf[0] |= (byte)SSUDataMessage.DataMessageFlags.WantReply;
+                        flagbuf[0] = (byte)SSUDataMessage.DataMessageFlags.WantReply;
 
                         // Data
                         var fragcountbuf = writer.ReadBufLen( 1 );
                         int fragmentcount = 0;
                         while( current.MoveNext() )
                         {
-                            if ( current.Current.Size > writer.Length ) break;
+                            if ( current.Current.Size > writer.Length
+                                    || current.Current.Size == 0 ) break;
 
                             ++fragmentcount;
+
                             current.Current.WriteTo( writer );
 #if LOG_MUCH_TRANSPORT
                             Logging.LogTransport( $"SSU resending fragment {current.Current.FragmentNumber} " +
                                 $"of message {current.Current.MessageId}. IsLast: {current.Current.IsLast}" );
 #endif
-                            if ( current.Current.SendCount > FragmentedMessage.SendRetriesMTUDecrease ) Session.SendDroppedMessageDetected();
                         }
 
                         if ( fragmentcount == 0 )
@@ -241,9 +233,13 @@ namespace I2PCore.TransportLayer.SSU
         private void SendAcksAndData()
         {
             bool finished = false;
+            int i = 0;
 
             while ( !finished )
             {
+                if ( ++i > 50 ) 
+                        break;
+
                 SendMessage(
                     SSUHeader.MessageTypes.Data,
                     Session.MACKey,
@@ -252,7 +248,7 @@ namespace I2PCore.TransportLayer.SSU
                     {
                         // Acks
                         var flagbuf = writer.ReadBufLen( 1 );
-                        flagbuf[0] |= (byte)SSUDataMessage.DataMessageFlags.WantReply;
+                        flagbuf[0] = (byte)SSUDataMessage.DataMessageFlags.WantReply;
                         bool explacks, bitmaps;
                         Session.Defragmenter.SendAcks( writer, out explacks, out bitmaps );
                         if ( explacks ) flagbuf[0] |= (byte)SSUDataMessage.DataMessageFlags.ExplicitAcks;
@@ -379,7 +375,7 @@ namespace I2PCore.TransportLayer.SSU
             Session.Host.SetNonceInfo( msg.TestNonce.Peek32( 0 ), PeerTestRole.Bob );
 
             var pt = new PeerTest( msg.TestNonce,
-                Session.RemoteEP.Address, Session.RemoteEP.Port,
+                Session.UnwrappedRemoteAddress, Session.RemoteEP.Port,
                 msg.IntroKey );
 
             Logging.LogTransport( $"SSU {this}: PeerTest. We are Bob and sending first relay to Charlie: {pt}" );

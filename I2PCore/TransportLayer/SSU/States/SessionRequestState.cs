@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Utils;
 using System.Net;
-using I2PCore.SessionLayer;
-using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
 using I2PCore.Data;
 using I2PCore.TransportLayer.SSU.Data;
 
@@ -71,17 +65,59 @@ namespace I2PCore.TransportLayer.SSU
                 return this;
             }
 
-            SCMessage = new SessionCreated( reader, Session.RemoteRouter.Certificate );
+            SCMessage = new SessionCreated( reader, Session.RemoteCert );
 
             Session.RelayTag = SCMessage.RelayTag;
 
-            Y = new I2PPublicKey( (BufRefLen)SCMessage.Y, Session.RemoteRouter.Certificate );
+            Y = new I2PPublicKey( (BufRefLen)SCMessage.Y, Session.RemoteCert );
             BufUtils.DHI2PToSessionAndMAC( out var sessionkey, out var mackey,
                 Y.ToBigInteger().ModPow( PrivateKey.ToBigInteger(), I2PConstants.ElGamalP ) );
 
             Session.SharedKey = sessionkey;
             Session.MACKey = mackey;
 
+            var cipher = new CbcBlockCipher( new AesEngine() );
+            cipher.Init( false, Session.SharedKey.ToParametersWithIV( header.IV ) );
+            cipher.ProcessBytes( SCMessage.SignatureEncrBuf );
+
+            var baddr = new BufLen( Session.UnwrappedRemoteAddress.GetAddressBytes() );
+            var sign = new I2PSignature( (BufRefLen)SCMessage.Signature, Session.RemoteCert );
+
+            var sok = I2PSignature.DoVerify(
+                Session.RemoteRouterIdentity.SigningPublicKey, sign,
+                X.Key, Y.Key, 
+                SCMessage.Address, SCMessage.Port,
+                baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
+                SCMessage.RelayTag, SCMessage.SignOnTime );
+
+            Logging.LogTransport( $"SSU {this}: Signature check: {sok}. {Session.RemoteCert.SignatureType}" );
+
+#if DEBUG
+            Session.Host.SignatureChecks.Success( sok );
+            if ( !sok )
+            {
+                Logging.LogDebug( $"SSU {this}: " + 
+                    $"Signature checks success: {Session.Host.SignatureChecks} " );
+            }
+#endif
+
+            if ( !sok )
+            {
+                var aliceip = SCMessage.Address.Length == 4 || SCMessage.Address.Length == 16
+                        ? new IPAddress( SCMessage.Address.ToByteArray() )
+                        : IPAddress.Loopback;
+                var aliceport = BufUtils.Flip16( SCMessage.Port.ToArray(), 0 );
+                Logging.LogDebug( $"SSU {this}: Signature check: {sok}. " +
+                        $"Router info: {Session.RemoteRouterInfo?.PublishedDate}" );
+                Logging.LogTransport( () => $"SSU {this}: Signature check: {sok}. " +
+                        $"My ip: {aliceip} {SCMessage.Address}, Port: {aliceport} {SCMessage.Port}, " +
+                        $"Bob addr: {Session.UnwrappedRemoteAddress} {baddr}, Bob port: {Session.RemoteEP.Port}" );
+
+                SendSessionDestroyed();
+
+                throw new SignatureCheckFailureException( $"SSU {this}: Received SessionCreated signature check failed." +
+                    $"{Session.RemoteCert}" );
+            }
 
             try
             {
@@ -95,36 +131,9 @@ namespace I2PCore.TransportLayer.SSU
             }
             catch( ArgumentException ex )
             {
-                Logging.LogDebug( $"SSU SessionRequestState ArgumentException {ex.Message} Addr: {SCMessage.Address}" );
+                Logging.LogDebug( $"SSU SessionRequestState ArgumentException {ex.Message} Addr: {SCMessage.Address} Cert: {Session.RemoteCert}" );
                 
                 throw;
-            }
-
-            if ( !I2PSignature.SupportedSignatureType( Session.RemoteRouter.Certificate.SignatureType ) )
-                throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId} : " +
-                    $"Received non supported signature type: " +
-                    $"{Session.RemoteRouter.Certificate.SignatureType}" );
-
-            var cipher = new CbcBlockCipher( new AesEngine() );
-            cipher.Init( false, Session.SharedKey.ToParametersWithIV( header.IV ) );
-            cipher.ProcessBytes( SCMessage.SignatureEncrBuf );
-
-            var baddr = new BufLen( Session.RemoteEP.Address.GetAddressBytes() );
-            var sign = new I2PSignature( (BufRefLen)SCMessage.Signature, Session.RemoteRouter.Certificate );
-
-            var sok = I2PSignature.DoVerify(
-                Session.RemoteRouter.SigningPublicKey, sign,
-                X.Key, Y.Key, 
-                SCMessage.Address, SCMessage.Port,
-                baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
-                SCMessage.RelayTag, SCMessage.SignOnTime );
-
-            Logging.LogTransport( $"SSU SessionRequestState: Signature check: {sok}. {Session.RemoteRouter.Certificate.SignatureType}" );
-
-            if ( !sok )
-            {
-                throw new SignatureCheckFailureException( $"SSU SessionRequestState {Session.DebugId}: Received SessionCreated signature check failed." +
-                    Session.RemoteRouter.Certificate.ToString() );
             }
 
             if ( !RemoteIsFirewalled )
@@ -161,7 +170,7 @@ namespace I2PCore.TransportLayer.SSU
                 ( start, writer ) =>
                 {
                     writer.Write( X.Key.ToByteArray() );
-                    var addr = Session.RemoteEP.Address.GetAddressBytes();
+                    var addr = Session.UnwrappedRemoteAddress.GetAddressBytes();
                     writer.Write8( (byte)addr.Length );
                     writer.Write( addr );
 

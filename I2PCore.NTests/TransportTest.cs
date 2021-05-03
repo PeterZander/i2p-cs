@@ -198,6 +198,8 @@ namespace I2PTests
         [Test]
         public void TestSSUFragmentation()
         {
+            var mtusize = 1488;
+
             var fragmenter = new DataFragmenter();
 
             var smalldata = new BufLen( BufUtils.RandomBytes( 30 ) );
@@ -209,7 +211,7 @@ namespace I2PTests
             var data2 = new BufLen( BufUtils.RandomBytes( 30000 ) );
             var datamessage2 = new DataMessage( data2 );
 
-            var dest = new byte[MTUConfig.BufferSize];
+            var dest = new byte[mtusize];
             var start = new BufLen( dest );
             var writer = new BufRefLen( dest );
 
@@ -236,7 +238,7 @@ namespace I2PTests
                 fragcountbuf[0] = (byte)fragments;
 
                 sentdata.AddLast( new BufLen( start, 0, writer - start ) );
-                dest = new byte[MTUConfig.BufferSize];
+                dest = new byte[mtusize];
                 start = new BufLen( dest );
                 writer = new BufRefLen( dest );
             }
@@ -269,6 +271,39 @@ namespace I2PTests
         [Test]
         public void TestSSUOutOfOrderFragmentation()
         {
+            SSUOutOfOrderFragmentationRun( 1488, false );
+        }
+
+        [Test]
+        public void TestSSUOutOfOrderFragmentation1500()
+        {
+            SSUOutOfOrderFragmentationRun( 1500, false );
+        }
+
+        [Test]
+        public void TestSSUOutOfOrderFragmentation1472()
+        {
+            SSUOutOfOrderFragmentationRun( 1472, false );
+        }
+
+        [Test]
+        public void TestSSUOutOfOrderFragmentation1500IPV6()
+        {
+            SSUOutOfOrderFragmentationRun( 1500, true );
+        }
+
+        [Test]
+        public void TestSSUOutOfOrderFragmentation1472IPV6()
+        {
+            SSUOutOfOrderFragmentationRun( 1472, true );
+        }
+        public void TestSSUOutOfOrderFragmentation1280IPV6()
+        {
+            SSUOutOfOrderFragmentationRun( 1280, true );
+        }
+
+        void SSUOutOfOrderFragmentationRun( int mtusize, bool isipv6 )
+        {
             var fragmenter = new DataFragmenter();
 
             var smalldata = new BufLen( BufUtils.RandomBytes( 4 + BufUtils.RandomInt( 4 ) ) );
@@ -289,7 +324,7 @@ namespace I2PTests
             var data2 = new BufLen( BufUtils.RandomBytes( 20000 + BufUtils.RandomInt( 1040 ) ) );
             var datamessage2 = new DataMessage( data2 );
 
-            var dest = new byte[MTUConfig.BufferSize];
+            var dest = new byte[RouterContext.MaxPacketSize( isipv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork, mtusize )];
             var start = new BufLen( dest );
             var writer = new BufRefLen( dest );
 
@@ -322,7 +357,7 @@ namespace I2PTests
                 fragcountbuf[0] = (byte)fragments;
 
                 sentdata.AddLast( new BufLen( start, 0, writer - start ) );
-                dest = new byte[MTUConfig.BufferSize];
+                dest = new byte[RouterContext.MaxPacketSize( isipv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork, mtusize )];
                 start = new BufLen( dest );
                 writer = new BufRefLen( dest );
             }

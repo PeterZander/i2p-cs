@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -13,61 +15,66 @@ namespace I2PCore.TransportLayer.SSU
 {
     public partial class SSUHost
     {
-        Dictionary<IPEndPoint, SSUSession> Sessions = new Dictionary<IPEndPoint, SSUSession>( new EPComparer() );
-        List<SSUSession> NeedsCpu = new List<SSUSession>();
+
+        /// <summary>
+        /// Running sessions, in and out, indexed on remote end point.
+        /// If running in IPV6 mode, IPV4 addresses must be wrapped as an IPV6 address (::ffff:x.y.z.w).
+        /// </summary>
+        ConcurrentDictionary<IPEndPoint, SSUSession> Sessions = new ConcurrentDictionary<IPEndPoint, SSUSession>( new EPComparer() );
+        ConcurrentDictionary<SSUSession,object> NeedsCpu = new ConcurrentDictionary<SSUSession,object>();
 
         public ITransport AddSession( I2PRouterInfo router )
         {
-            IPEndPoint remoteep = null;
-            IPEndPoint key = null;
-
-            var addr = router.Adresses.First( a => ( a.TransportStyle == "SSU" )
-                        && a.Options.Contains( "key" )
-                        && ( RouterContext.Inst.UseIpV6
-                            || a.Options.ValueContains( "host", "." )
-                            || a.Options.ValueContains( "ihost0", "." ) ) );
+            var addr = SelectAddress( router );
             var dest = router.Identity;
 
             if ( addr.HaveHostAndPort )
             {
-                remoteep = new IPEndPoint( addr.Host, addr.Port );
+                var remoteep = new IPEndPoint( addr.Host, addr.Port );
 
                 if ( !AllowConnectToSelf && IsOurIP( remoteep.Address ) )
                 {
-                    Logging.LogTransport( $"SSU AddSession: [{dest.IdentHash.Id32}]:{key} - {addr}. Dropped. Not connecting to ourselves." );
+                    Logging.LogTransport( $"SSU AddSession: [{dest.IdentHash.Id32}]: {addr}. Dropped. Not connecting to ourselves." );
                     return null;
                 }
 
-                key = remoteep;
+                var key = RouterContext.UseIpV6 
+                        && remoteep.AddressFamily == AddressFamily.InterNetwork
+                            ? new IPEndPoint( remoteep.Address.MapToIPv6(), remoteep.Port )
+                            : remoteep;
 
                 Logging.LogDebugData( $"SSU AddSession: [{dest.IdentHash.Id32}]:{key} - {addr}" );
 
-                lock ( Sessions )
+                if ( Sessions.TryGetValue( key, out var session ) )
                 {
-                    if ( Sessions.ContainsKey( key ) )
-                    {
-                        var sess = Sessions[key];
-                        return sess;
-                    }
+                    return session;
                 }
             }
 
-            var newsess = new SSUSession( 
-                    this, 
-                    Send, 
-                    remoteep, 
-                    addr, 
-                    dest, 
+            var newsession = new SSUSession( 
+                    this,
+                    Send,
+                    router,
                     MyRouterContext );
 
-            if ( key != null )
-            {
-                lock ( Sessions )
-                {
-                    Sessions[key] = newsess;
-                }
-            }
-            return newsess;
+            NeedCpu( newsession );
+            return newsession;
+        }
+
+        internal I2PRouterAddress SelectAddress( I2PRouterInfo router )
+        {
+            var addrs = router.Adresses.Where( a => ( a.TransportStyle == "SSU" )
+                        && a.Options.Contains( "key" ) );
+
+            I2PRouterAddress addr = RouterContext.UseIpV6
+                    ? addrs.FirstOrDefault( a => a.Options.ValueContains( "host", ":" ) )
+                    : null;
+
+            addr = addr is null ? addrs.FirstOrDefault( a => a.Options.ValueContains( "host", "." ) ) : addr;
+            addr = addr is null ? addrs.FirstOrDefault( a => a.HaveHostAndPort ) : addr;
+            addr = addr is null ? addrs.FirstOrDefault( a => a.Options.ValueContains( "ihost0", "." ) ) : addr;
+
+            return addr;
         }
 
         internal bool IsOurIP( IPAddress addr )
@@ -80,20 +87,49 @@ namespace I2PCore.TransportLayer.SSU
 
         private void RemoveSession( SSUSession sess )
         {
-            lock ( NeedsCpu )
+            var cpuremoved = NeedsCpu.TryRemove( sess, out var _ );
+
+            var sessions = Sessions
+                .Where( s => s.Value.Equals( sess ) )
+                .Select( s => s.Key );
+
+            var scount = 0;
+
+            foreach( var one in sessions )
             {
-                if ( NeedsCpu.Contains( sess ) ) NeedsCpu.Remove( sess );
+                Sessions.TryRemove( one, out var _ );
+                ++scount;
             }
 
-            lock ( Sessions )
-            {
-                var key = Sessions
-                    .Where( s => s.Value == sess )
-                    .Select( s => s.Key )
-                    .FirstOrDefault();
+            Logging.LogDebugData( $"SSUHost: Removing session {sess} count {scount}, cpu {cpuremoved}" );
+        }
 
-                if ( key != null ) Sessions.Remove( key );
+        internal bool SessionEndPointUpdated( SSUSession sess, IPEndPoint newep )
+        {
+            var epknown = Sessions.TryGetValue( newep, out var runingsess );
+            if ( epknown && runingsess == sess ) return true;
+
+            var key = Sessions
+                .Where( s => s.Value.Equals( sess ) )
+                .Select( s => s.Key )
+                .FirstOrDefault();
+
+            if ( key != null ) Sessions.TryRemove( key, out var _ );
+
+            if ( newep != null )
+            {
+                if ( epknown )
+                {
+                    return false;
+                }
+                else
+                {
+                    Sessions[newep] = sess;
+                    return true;
+                }
             }
+
+            return false;
         }
 
         HashSet<SSUSession> FailedSessions = new HashSet<SSUSession>();
@@ -122,26 +158,20 @@ namespace I2PCore.TransportLayer.SSU
 
         internal bool AccessSession( IPEndPoint ep, Action<SSUSession> action )
         {
-            lock ( Sessions )
+            if ( Sessions.TryGetValue( ep, out var session ) )
             {
-                if ( Sessions.TryGetValue( ep, out var session ) )
-                {
-                    action( session );
-                    return true;
-                }
-                return false;
+                action( session );
+                return true;
             }
+            return false;
         }
 
         internal IEnumerable<SSUSession> FindSession( Func<SSUSession, bool> filter )
         {
-            lock ( Sessions )
-            {
-                return Sessions
-                    .Where( p => filter( p.Value ) )
-                    .Select( p => p.Value )
-                    .ToArray();
-            }
+            return Sessions
+                .Where( p => filter( p.Value ) )
+                .Select( p => p.Value )
+                .ToArray();
         }
 
         public void Terminate()
@@ -166,19 +196,36 @@ namespace I2PCore.TransportLayer.SSU
                         {
                             Thread.Sleep( 300 );
 
-                            SSUSession[] sessions;
-                            lock ( NeedsCpu )
-                            {
-                                sessions = NeedsCpu.ToArray();
-                            }
+                            var sessions = NeedsCpu.Keys.ToArray();
 
                             if ( sessions.Length > 0 )
                             {
-                                RunBatchWait batchsync = new RunBatchWait( sessions.Length );
-                                foreach ( var sess in sessions ) ThreadPool.QueueUserWorkItem( cb => RunSession( sess, batchsync ) );
-                                if ( !batchsync.WaitOne( 5000 ) )
+                                var batchsync = new RunBatchWait( sessions.Length );
+                                foreach ( var sess in sessions )
                                 {
-                                    Logging.LogTransport( "SSUHost: Run tasks counting error." );
+                                    if ( !ThreadPool.QueueUserWorkItem( o => 
+                                    {
+                                        try
+                                        {
+                                            RunSession( sess );
+                                        }
+                                        catch( Exception ex )
+                                        {
+                                            Logging.LogDebug( $"SSUHost: RunSession exception {ex}" );
+                                        }
+                                        finally
+                                        {
+                                            batchsync.Set();
+                                        }
+                                    }, sess ) )
+                                    {
+                                        Logging.LogDebug( "SSUHost: Run tasks QueueUserWorkItem failed." );
+                                        batchsync.Set();
+                                    }
+                                }
+                                if ( !batchsync.WaitOne( 1500 ) )
+                                {
+                                    Logging.LogWarning( "SSUHost: Run tasks counting error." );
                                 }
                             }
 
@@ -190,8 +237,8 @@ namespace I2PCore.TransportLayer.SSU
                                     Logging.LogTransport( $"SSUHost: Failed Session {sess.DebugId} removed." );
 
                                     if ( sess.RemoteEP != null ) ReportEPProblem( sess.RemoteEP );
-                                    RemoveSession( sess );
                                     sess.Terminate();
+                                    RemoveSession( sess );
                                 }
                             }
                         }
@@ -213,33 +260,55 @@ namespace I2PCore.TransportLayer.SSU
             }
         }
 
-        private void RunSession( SSUSession sess, RunBatchWait sync )
+        private void RunSession( SSUSession sess )
         {
-            if ( sess.Terminated ) return;
-
             try
             {
-                lock ( sess )
+                if ( sess.IsTerminated )
                 {
-#if DEBUG
-                    Stopwatch Stopwatch1 = new Stopwatch();
-                    Stopwatch1.Start();
-#endif
-                    var running = sess.Run();
-                    if ( !running )
-                    {
-                        Logging.LogTransport( $"SSUHost: Terminated Session {sess.DebugId} removed." );
-                        RemoveSession( sess );
-                    }
-#if DEBUG
-                    Stopwatch1.Stop();
-                    if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
-                    {
-                        Logging.LogTransport(
-                            $"SSUHost Run: WARNING Session {sess} used {Stopwatch1.ElapsedMilliseconds}ms cpu." );
-                    }
-#endif
+                    Logging.LogTransport( $"SSUHost: RunSession {sess.DebugId} is terminated." );
+                    RemoveSession( sess );
+                    return;
                 }
+
+#if DEBUG
+                Stopwatch Stopwatch1 = new Stopwatch();
+                Stopwatch1.Start();
+#endif
+
+                bool taken = false;
+                try
+                {
+                    Monitor.TryEnter( sess.RunLock, 200, ref taken );
+
+                    if ( taken )
+                    {
+                        var running = sess.Run();
+
+                        if ( !running )
+                        {
+                            Logging.LogTransport( $"SSUHost: Terminated Session {sess.DebugId} removed." );
+                            sess.Terminate();
+                            RemoveSession( sess );
+                        }
+                    }
+                    else
+                    {
+                        Logging.LogDebug( $"SSUHost RunSession: Failed to lock {sess.DebugId} for access" );
+                    }
+                }
+                finally
+                {
+                    if ( taken ) Monitor.Exit( sess.RunLock );
+                }
+#if DEBUG
+                Stopwatch1.Stop();
+                if ( Stopwatch1.ElapsedMilliseconds > SessionCallWarningLevelMilliseconds )
+                {
+                    Logging.LogDebug(
+                        $"SSUHost Run: WARNING Session {sess} used {Stopwatch1.ElapsedMilliseconds}ms cpu." );
+                }
+#endif
             }
             catch ( ThreadAbortException taex )
             {
@@ -260,6 +329,11 @@ namespace I2PCore.TransportLayer.SSU
             {
                 AddFailedSession( sess );
                 Logging.Log( scex );
+
+                if ( sess != null && sess.RemoteRouterIdentity != null )
+                {
+                    NetDb.Inst.Statistics.FailedToConnect( sess.RemoteRouterIdentity.IdentHash );
+                }
             }
             catch ( EndOfStreamEncounteredException eosex )
             {
@@ -287,28 +361,16 @@ namespace I2PCore.TransportLayer.SSU
 
                 sess.RaiseException( ex );
             }
-            finally
-            {
-                sync.Set();
-            }
         }
 
         internal void NeedCpu( SSUSession sess )
         {
-            lock ( NeedsCpu )
-            {
-                if ( NeedsCpu.Contains( sess ) ) return;
-                NeedsCpu.Add( sess );
-            }
+            NeedsCpu[sess] = null;
         }
 
         internal void NoCpu( SSUSession sess )
         {
-            lock ( NeedsCpu )
-            {
-                if ( !NeedsCpu.Contains( sess ) ) return;
-                NeedsCpu.Remove( sess );
-            }
+            NeedsCpu.TryRemove( sess, out var _ );
         }
     }
 }

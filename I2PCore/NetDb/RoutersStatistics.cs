@@ -1,25 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using I2PCore.Data;
 using System.Threading;
 using I2PCore.Utils;
 using System.Diagnostics;
-using System.Net;
 using System.Collections.Concurrent;
 
 namespace I2PCore
 {
-    public class MTUConfig
-    {
-        public const int BufferSize = 1484 - 28;
-
-        public int MTU;
-        public int MTUMax;
-        public int MTUMin;
-    }
-
     public class RoutersStatistics
     {
         enum StoreRecordId : int { RouterStatistics = 1 };
@@ -87,7 +76,7 @@ namespace I2PCore
                     }
                 }
                 sw2.Stop();
-                Logging.Log( $"Statistics load: Total: {sw2.Elapsed}, " +
+                Logging.Log( $"Statistics load: [{Routers.Count}] Total: {sw2.Elapsed}, " +
                     $"Read(): {readsw.Elapsed}, Constr: {constrsw.Elapsed}, " +
                     $"Dict: {dicsw.Elapsed} " );
 
@@ -133,7 +122,6 @@ namespace I2PCore
                         {
                             s.Write( rec, one.Value.StoreIx );
                             ++updated;
-                            one.Value.Updated = false;
                         }
                     }
                     else
@@ -141,6 +129,8 @@ namespace I2PCore
                         one.Value.StoreIx = s.Write( rec );
                         ++created;
                     }
+
+                    one.Value.Updated = false;
                 }
             }
             sw2.Stop();
@@ -228,13 +218,19 @@ namespace I2PCore
             Update( hash, ds => ds.IsFirewalled = isfw, true );
         }
 
-        public void MTUUsed( IPEndPoint ep, MTUConfig mtu )
-        {
-        }
+        internal static float BandwidthMax = 0f;
 
         public void UpdateScore()
         {
-            foreach ( var one in Routers.ToArray() ) one.Value.UpdateScore();
+            var rar = Routers.ToArray();
+
+            BandwidthMax = rar.Max( r => r.Value.MaxBandwidthSeen );
+            foreach ( var one in rar ) one.Value.UpdateScore();
+        }
+
+        bool OffsetCompare( long fail, long offset, long success, long multip )
+        {
+            return fail > offset && fail > multip * success;
         }
 
         bool NodeInactive( RouterStatistics d )
@@ -245,34 +241,26 @@ namespace I2PCore
             }
 
             var result =
-                ( d.FailedTunnelTest > 8 && d.FailedTunnelTest > 3 * d.SuccessfulTunnelTest ) ||
-                ( d.FailedConnects > 5 && d.FailedConnects > 3 * d.SuccessfulConnects );
+                OffsetCompare( d.FailedTunnelTest, 20, d.SuccessfulTunnelTest, 2 ) ||
+                OffsetCompare( d.TunnelBuildTimeout, 60, d.SuccessfulTunnelMember, 3 ) ||
+                OffsetCompare( d.FailedConnects, 20, d.SuccessfulConnects, 2 );
 
             return result;
-        }
-
-        HashSet<I2PIdentHash> GetInactive( 
-            ConcurrentDictionary<I2PIdentHash,RouterStatistics> p ) 
-        {
-            if ( !p.Any() ) return new HashSet<I2PIdentHash>();
-
-            return new HashSet<I2PIdentHash>( 
-                p.Where( d => NodeInactive( d.Value ) )
-                    .Select( d => d.Key ) );
         }
 
         internal HashSet<I2PIdentHash> GetInactive()
         {
             if ( !Routers.Any() ) return new HashSet<I2PIdentHash>();
-            return GetInactive( Routers );
+
+            return new HashSet<I2PIdentHash>( 
+                Routers.Where( d => NodeInactive( d.Value ) )
+                    .Select( d => d.Key ) );
         }
 
-        internal void RemoveOldStatistics()
+        internal void RemoveOldStatistics( ICollection<I2PIdentHash> keep )
         {
-            var now = DateTime.Now;
-
-            var toremove = Routers.Where( one =>
-                Math.Abs( ( now - (DateTime)one.Value.Created ).TotalDays ) > 7 )
+            var toremove = Routers
+                .Where( one => !keep.Contains( one.Key ) )
                 .ToArray();
 
             foreach( var one in toremove )

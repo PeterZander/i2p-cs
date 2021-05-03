@@ -130,15 +130,6 @@ namespace I2PCore.Data
         {
             try
             {
-                var versig = I2PSignature.SupportedSignatureType( spkey.Certificate.SignatureType );
-
-                if ( !versig )
-                {
-                    Logging.LogDebug( $"I2PLeaseSet: VerifySignature false. Not supported: " +
-                        $"{spkey.Certificate.SignatureType}" );
-                    return false;
-                }
-
                 var signfields = new List<BufLen>
                 {
                     new BufLen( Destination.ToByteArray() ),
@@ -152,7 +143,7 @@ namespace I2PCore.Data
                     signfields.Add( new BufLen( lease.ToByteArray() ) );
                 }
 
-                versig = I2PSignature.DoVerify( spkey, Signature, signfields.ToArray() );
+                var versig = I2PSignature.DoVerify( spkey, Signature, signfields.ToArray() );
                 if ( !versig )
                 {
                     Logging.LogDebug( $"I2PLeaseSet: I2PSignature.DoVerify failed: {spkey.Certificate.SignatureType}" );

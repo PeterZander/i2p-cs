@@ -12,6 +12,7 @@ using I2PCore.SessionLayer;
 using System.Net.Sockets;
 using static I2PCore.Utils.BufUtils;
 using System.Collections.Concurrent;
+using System.Text;
 
 namespace I2PCore.TransportLayer
 {
@@ -97,37 +98,27 @@ namespace I2PCore.TransportLayer
                         {
                             if ( Logging.LogLevel > Logging.LogLevels.Information ) return;
 
-                            ITransport[] rt;
-                            lock ( RunningTransports )
-                            {
-                                rt = RunningTransports.ToArray();
-                            }
-
                             var et = EstablishedTransports.ToArray();
 
-                            var ntcprunning = rt.Where( t => t.Protocol == "NTCP" ).ToArray();
-                            var ssurunning = rt.Where( t => t.Protocol == "SSU" ).ToArray();
-                            var ntcpestablished = et.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "NTCP" ) ).ToArray();
-                            var ssuestablished = et.SelectMany( t => t.Value.Where( t2 => t2.Key.Protocol == "SSU" ) ).ToArray();
+                            var protocols = et
+                                            .GroupBy( t => t.Value.Transport.Protocol )
+                                            .ToArray();
 
-                            Logging.LogInformation(
-                                $"TransportProvider: (Established out/Running out)/(Established in/Running in) " +
-                                $"({ssuestablished.Count( t => t.Key.Outgoing )}/{ssurunning.Count( t => t.Outgoing )})/" +
-                                $"({ssuestablished.Count( t => !t.Key.Outgoing )}/{ssurunning.Count( t => !t.Outgoing )}) SSU, " +
-                                $"({ntcpestablished.Count( t => t.Key.Outgoing )}/{ntcprunning.Count( t => t.Outgoing )})/" +
-                                $"({ntcpestablished.Count( t => !t.Key.Outgoing )}/{ntcprunning.Count( t => !t.Outgoing )}) NTCP." );
-
+                            foreach( var proto in protocols )
+                            {
+                                var line = new StringBuilder( "TransportProvider: Established out / Established in" );
+                                line.Append( 
+                                        $", {proto.Key,10}: {proto.Count( t => t.Value.IsEstablished && t.Value.Transport.IsOutgoing ),3} ({proto.Count( t => t.Value.Transport.IsOutgoing ),3}) / " +
+                                        $"{proto.Count( t => t.Value.IsEstablished && !t.Value.Transport.IsOutgoing ),3} ({proto.Count( t => !t.Value.Transport.IsOutgoing ),3})" );
 #if DEBUG
-                            var ntcpsent = ntcprunning.Sum( t => t.BytesSent );
-                            var ntcprecv = ntcprunning.Sum( t => t.BytesReceived );
-                            var ssusent = ssurunning.Sum( t => t.BytesSent );
-                            var ssurecv = ssurunning.Sum( t => t.BytesReceived );
-
-                            Logging.LogDebug(
-                                $"TransportProvider: send / recv  " +
-                                $"SSU: {BytesToReadable( ssusent ),12} / {BytesToReadable( ssurecv ),12}    " +
-                                $"NTCP: {BytesToReadable( ntcpsent ),12} / {BytesToReadable( ntcprecv ),12}" );
+                                line.Append( 
+                                        $", send / recv " +
+                                        $"{BytesToReadable( proto.Sum( t => t.Value.Transport.BytesSent ) ),12} / " +
+                                        $"{BytesToReadable( proto.Sum( t => t.Value.Transport.BytesReceived ) ),12}" );
 #endif
+                                Logging.LogInformation( line.ToString() );
+                            }
+
                         } );
 
                         DropOldExceptions.Do( delegate
@@ -179,27 +170,42 @@ namespace I2PCore.TransportLayer
         {
             if ( instance == null ) return;
 
-            foreach( var one in EstablishedTransports.ToArray() )
-            {
-                one.Value.TryRemove( instance, out _ );
-                if ( one.Value.IsEmpty )
-                {
-                    EstablishedTransports.TryRemove( one.Key, out _ );
-                }
-            }
+            var match = EstablishedTransports
+                            .Where( t => t.Value.Transport == instance )
+                            .ToArray();
 
-            lock ( RunningTransports )
+            foreach( var t in match )
             {
-                RunningTransports.Remove( instance );
+                if ( EstablishedTransports.TryRemove( t.Key, out var removed ) )
+                {
+                    Logging.LogTransport(
+                        $"TransportProvider Remove: {removed}" );
+                }
             }
 
             instance.Terminate();
         }
 
-        List<ITransport> RunningTransports = new List<ITransport>();
+        class EstablishedTransportInfo
+        {
+            public ITransport Transport;
+            public bool IsEstablished;
 
-        ConcurrentDictionary<I2PIdentHash, ConcurrentDictionary<ITransport,byte>> EstablishedTransports = 
-            new ConcurrentDictionary<I2PIdentHash, ConcurrentDictionary<ITransport,byte>>();
+#if DEBUG
+            public TickCounter Started = new TickCounter();
+#endif
+            public override string ToString()
+            {
+#if DEBUG
+                return $"{Transport} {Started}";
+#else
+                return $"{Transport}";
+#endif
+            }
+        }
+
+        ConcurrentDictionary<I2PIdentHash,EstablishedTransportInfo> EstablishedTransports = 
+            new ConcurrentDictionary<I2PIdentHash,EstablishedTransportInfo>();
 
         public void Disconnect( I2PIdentHash dest )
         {
@@ -223,7 +229,7 @@ namespace I2PCore.TransportLayer
                             $"TransportProvider: GetEstablishedTransport: WARNING! " +
                             $"EstablishedTransports contains null ref for {dest.Id32Short}!" );
                     }
-                    return result.FirstOrDefault().Key;
+                    return result.Transport;
                 }
 
                 if ( create )
@@ -274,11 +280,10 @@ namespace I2PCore.TransportLayer
                     return null;
                 }
 
+                Logging.LogTransport( $"TransportProvider: Creating new {pprovider} to {ri.Identity.IdentHash.Id32Short}" );
                 transport = pprovider.Provider.AddSession( ri );
 
-                Logging.LogTransport( $"TransportProvider: Creating new {transport} to {ri.Identity.IdentHash.Id32Short}" );
-
-                AddTransport( transport );
+                AddTransport( ri.Identity.IdentHash, transport );
                 transport.Connect();
 
                 var dstore = new DatabaseStoreMessage( RouterContext.Inst.MyRouterInfo );
@@ -287,8 +292,8 @@ namespace I2PCore.TransportLayer
             catch ( Exception ex )
             {
 #if LOG_MUCH_TRANSPORT
-                Logging.LogTransport( ex );
-                Logging.LogTransport( "TransportProvider: CreateTransport stack trace: " + System.Environment.StackTrace );
+                Logging.LogTransport( ex.Message );
+                Logging.LogTransport( $"TransportProvider: CreateTransport stack trace: {System.Environment.StackTrace}" );
 #else
                 Logging.LogTransport( $"TransportProvider: Exception [{ex.GetType()}] " +
                     $"'{ex.Message}' to {ri.Identity.IdentHash.Id32Short}." );
@@ -300,49 +305,35 @@ namespace I2PCore.TransportLayer
             return transport;
         }
 
-        private void AddTransport( ITransport transport )
+        private void AddTransport( I2PIdentHash routerid, ITransport transport )
         {
+            if ( routerid is null )
+                    throw new ArgumentNullException( "TransportProvider.AddTransport: routerid cannot be null." );
+
             transport.ConnectionShutDown += Transport_ConnectionShutDown;
             transport.ConnectionEstablished += Transport_ConnectionEstablished;
 
             transport.DataBlockReceived += Transport_DataBlockReceived;
             transport.ConnectionException += Transport_ConnectionException;
 
-            AddToRunningTransports( transport );
-        }
-
-        private void AddToRunningTransports( ITransport transport )
-        {
-            lock ( RunningTransports )
+            // Overwrite any older connection
+            if ( EstablishedTransports.TryRemove( routerid, out var oldr ) )
             {
-                RunningTransports.Add( transport );
+                Logging.LogTransport(
+                    $"TransportProvider: old transport {transport.DebugId} terminated." );
+                oldr.Transport.Terminate();
             }
-        }
-
-        private void AddToEstablishedTransports( I2PIdentHash ih, ITransport transport )
-        {
-            if ( ih != null )
-            {
-                if ( EstablishedTransports.TryGetValue( ih, out var tr ) )
-                {
-                    tr[transport] = 1;
-                }
-                else
-                {
-                    EstablishedTransports[ih] = new ConcurrentDictionary<ITransport, byte>(
-                        new KeyValuePair<ITransport,byte>[] { new KeyValuePair<ITransport, byte>( transport, 1)  } );
-                }
-            }
+            EstablishedTransports[routerid] = new EstablishedTransportInfo() { Transport = transport };
         }
 
         #region Provider events
 
-        void TransportProtocol_ConnectionCreated( ITransport transport )
+        void TransportProtocol_ConnectionCreated( ITransport transport, I2PIdentHash router )
         {
             Logging.LogTransport(
                 $"TransportProvider: incoming transport {transport.DebugId} added." );
 
-            AddTransport( transport );
+            AddTransport( router, transport );
         }
 
         void Transport_ConnectionException( ITransport instance, Exception exinfo )
@@ -371,14 +362,27 @@ namespace I2PCore.TransportLayer
 
         void Transport_DataBlockReceived( ITransport instance, II2NPHeader msg )
         {
-            try
+            ThreadPool.QueueUserWorkItem( o => 
             {
-                DistributeIncomingMessage( instance, msg );
-            }
-            catch ( Exception ex )
-            {
-                Logging.Log( ex );
-            }
+                try
+                {
+                    DistributeIncomingMessage( instance, msg );
+
+                    if ( msg.MessageType == I2NPMessage.MessageTypes.DatabaseStore )
+                    {
+                        var dsm = (DatabaseStoreMessage)msg.Message;
+
+                        if ( EstablishedTransports.TryGetValue( dsm.RouterInfo.Identity.IdentHash, out var ts ) )
+                        {
+                            ts.Transport.DatabaseStoreMessageReceived( dsm );
+                        }
+                    }
+                }
+                catch ( Exception ex )
+                {
+                    Logging.Log( ex );
+                }
+            } );
         }
 
         void Transport_ConnectionEstablished( ITransport instance, I2PIdentHash hash )
@@ -388,10 +392,13 @@ namespace I2PCore.TransportLayer
                 throw new ArgumentException( "TransportProvider: ConnectionEstablished ID hash required!" );
             }
 
+            if ( EstablishedTransports.TryGetValue( hash, out var info ) )
+            {
+                info.IsEstablished = true;
+            }
+
             Logging.LogTransport(
                 $"TransportProvider: transport_ConnectionEstablished: {instance.DebugId} to {hash.Id32Short}." );
-
-            AddToEstablishedTransports( hash, instance );
         }
 
         void Transport_ConnectionShutDown( ITransport instance )
