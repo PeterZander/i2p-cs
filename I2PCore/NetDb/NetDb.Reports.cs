@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using I2PCore.Data;
@@ -10,6 +11,7 @@ namespace I2PCore
 {
     public partial class NetDb
     {
+        [Conditional( "DEBUG" )]
         private void ShowDebugDatabaseInfo()
         {
             Logging.LogDebug( $"NetDb: Router count: {RouterInfos.Count}" );
@@ -65,6 +67,23 @@ namespace I2PCore
                             && ri.Value.Router.Adresses.All( a => a.TransportStyle == style ) );
                 Logging.LogDebug( $"NetDb: Only {style}: {onlyts.Count()}" );
             }
+
+            var versions = RouterInfos
+                    .Where( ri => ri.Value.CachedStatistics != null
+                         && ( ri.Value?.Router.Options.Contains( "router.version" ) ?? false ) )
+                    .GroupBy( ri => ri.Value.Router.Options["router.version"] )
+                    .Select( g => new {
+                        Version = g.Key,
+                        Count = g.Count(),
+                        AvgScore = g.Average( ri => ri.Value.CachedStatistics.Score )
+                    } )
+                    .OrderBy( rv => rv.AvgScore )
+                    .ToArray();
+
+            foreach ( var version in versions )
+            {
+                Logging.LogDebug( $"NetDb: Version {version.Version,10} [{version.Count,6}] Avg score: {version.AvgScore,8:F2}" );
+            }
         }
 
         private void ShowProbabilityProfile()
@@ -116,6 +135,7 @@ namespace I2PCore
                     ++ix;
                 }
 
+#if DEBUG
             var delta = roulette.AbsDevFit / 20;
             var min = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.MinFit ) < delta ).Take( 10 );
             var avg = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.AverageFit ) < delta ).Take( 10 );
@@ -142,6 +162,7 @@ namespace I2PCore
                 Logging.LogDebug( $"Med example: Space {medexinst.Space,10:F2} {medex}" );
                 Logging.LogDebug( $"Max example: Space {maxexinst.Space,10:F2} {maxex}" );
             }
+#endif
         }
     }
 }

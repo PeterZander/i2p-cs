@@ -146,11 +146,8 @@ namespace I2PCore
 
             Statistics.Load();
 
-#if DEBUG
-            ShowDebugDatabaseInfo();
-#endif
-
             UpdateSelectionProbabilities();
+            ShowDebugDatabaseInfo();
 
             Save( true );
         }
