@@ -69,7 +69,7 @@ namespace I2PCore.TransportLayer.SSU
                     var intro = new RelayIntro( reader );
                     Logging.LogTransport( $"SSU EstablishedState {Session.DebugId}: RelayIntro received from {Session.RemoteEP} for {intro.AliceEndpoint}." );
 
-                    var data = new BufLen( new byte[12] );
+                    var data = Session.Host.SendBuffers.Pop( 25 + BufUtils.RandomInt( 15 ) );
                     data.Randomize();
                     Send( intro.AliceEndpoint, data );
 
