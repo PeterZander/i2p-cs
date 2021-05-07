@@ -13,8 +13,8 @@ namespace I2PCore.TunnelLayer
 
         public override bool NeedsRecreation => false;
 
-        public ZeroHopTunnel( ITunnelOwner owner, TunnelConfig config )
-            : base( owner, config )
+        public ZeroHopTunnel( ITunnelOwner owner, TunnelConfig config, I2PIdentHash remotegateway )
+            : base( owner, config, remotegateway )
         {
         }
     }

@@ -47,13 +47,13 @@ namespace I2PCore.TunnelLayer
         }
 
         // Fake 0-hop
-        protected InboundTunnel( ITunnelOwner owner, TunnelConfig config )
+        protected InboundTunnel( ITunnelOwner owner, TunnelConfig config, I2PIdentHash remotegateway )
             : base( owner, config )
         {
             Established = true;
 
             ReceiveTunnelId = config.Info.Hops.Last().TunnelId;
-            RemoteGateway = RouterContext.Inst.MyRouterIdentity.IdentHash;
+            RemoteGateway = remotegateway;
             GatewayTunnelId = ReceiveTunnelId;
 
             Logging.LogDebug( $"{this}: 0-hop tunnel {Destination?.Id32Short} created." );

@@ -434,7 +434,8 @@ namespace I2PTests
                         new TunnelInfo( new List<HopInfo>()
                         {
                             new HopInfo( Destination, new I2PTunnelId() )
-                        } ) ) );
+                        } ) ),
+                    new I2PIdentHash( true ) );
 
             for ( int i = 0; i < 500; ++i )
             {

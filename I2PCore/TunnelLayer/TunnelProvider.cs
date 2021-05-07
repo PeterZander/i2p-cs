@@ -422,7 +422,7 @@ namespace I2PCore.TunnelLayer
                 TunnelConfig.TunnelPool.Exploratory,
                 setup );
 
-            var tunnel = new ZeroHopTunnel( null, config );
+            var tunnel = new ZeroHopTunnel( null, config, RouterContext.Inst.MyRouterIdentity.IdentHash );
             EstablishedInbound[tunnel] = 1;
             TunnelIds.Add( tunnel.ReceiveTunnelId, tunnel );
             return tunnel;
