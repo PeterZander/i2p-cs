@@ -55,7 +55,7 @@ namespace I2PCore.Data
                     break;
 
                 case SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                    Key = new BufLen( Chaos.NaCl.Ed25519.PublicKeyFromSeed( privkey.Key.ToByteArray() ) );
+                    Key = new BufLen( new Ed25519PrivateKeyParameters( privkey.Key.BaseArray, privkey.Key.BaseArrayOffset ).GeneratePublicKey().GetEncoded() );
                     break;
 
                 default:

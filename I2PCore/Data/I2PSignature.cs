@@ -8,6 +8,7 @@ using I2PCore.Utils;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Signers;
 
 namespace I2PCore.Data
 {
@@ -68,7 +69,11 @@ namespace I2PCore.Data
 
         public static byte[] DoSignEdDSASHA512Ed25519( IEnumerable<BufLen> bufs, I2PSigningPrivateKey key )
         {
-            return Chaos.NaCl.Ed25519.Sign( bufs.SelectMany( b => b.ToByteArray() ).ToArray(), key.ExpandedPrivateKey );
+            var signer = new Ed25519Signer();
+            signer.Init( true, new Ed25519PrivateKeyParameters( key.Key.ToByteArray(), 0 ) );
+            var ar = bufs.SelectMany( b => b.ToByteArray() ).ToArray();
+            signer.BlockUpdate( ar, 0, ar.Length );
+            return signer.GenerateSignature();
         }
 
         public static byte[] DoSignDsaSha1( IEnumerable<BufLen> bufs, I2PSigningPrivateKey key )
@@ -206,13 +211,11 @@ namespace I2PCore.Data
 
         public static bool DoVerifyEdDSASHA512Ed25519( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )
         {
-            return Chaos.NaCl.Ed25519.Verify(
-                        signed.Sig.ToByteArray(), 
-                        bufs.SelectMany( b => 
-                                b
-                                    .ToByteArray() )
-                                    .ToArray(),
-                        key.ToByteArray() );
+            var signer = new Ed25519Signer();
+            signer.Init( false, new Ed25519PublicKeyParameters( key.Key.BaseArray, key.Key.BaseArrayOffset ) );
+            var ar = bufs.SelectMany( b => b.ToByteArray() ).ToArray();
+            signer.BlockUpdate( ar, 0, ar.Length );
+            return signer.VerifySignature( signed.Sig.ToByteArray() );
         }
 
         public static bool DoVerifyDsaSha1( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )

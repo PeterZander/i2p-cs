@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Security;
+﻿using Org.BouncyCastle.Math;
 using I2PCore.Utils;
 
 namespace I2PCore.Data
@@ -15,34 +10,14 @@ namespace I2PCore.Data
         public I2PSigningPrivateKey( I2PCertificate cert ) 
             : base( new BufLen( BufUtils.RandomBytes( cert.SigningPrivateKeyLength ) ), cert ) 
         {
-            switch( cert.SignatureType )
-            {
-                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
-                    break;
-            }
         }
 
         public I2PSigningPrivateKey( BufRef reader, I2PCertificate cert ) : base( reader, cert ) 
         {
-            switch( cert.SignatureType )
-            {
-                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
-                    break;
-            }
         }
 
         public I2PSigningPrivateKey( BigInteger key, I2PCertificate cert ) : base( key, cert ) 
         {
-            switch( cert.SignatureType )
-            {
-                case SigningKeyTypes.EdDSA_SHA512_Ed25519:
-                    ExpandedPrivateKey = Chaos.NaCl.Ed25519.ExpandedPrivateKeyFromSeed( ToByteArray() );
-                    break;
-            }
         }
-
-        public byte[] ExpandedPrivateKey;
     }
 }
