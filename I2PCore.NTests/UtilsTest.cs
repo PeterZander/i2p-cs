@@ -352,6 +352,8 @@ namespace I2PTests
 
             for( int i = 0; i < TestCount; ++i )
             {
+                if ( i % 15 == 0 ) Thread.Sleep( 50 );
+
                 if ( !ThreadPool.QueueUserWorkItem( cb => 
                 {
                     Thread.Sleep( 10 );
