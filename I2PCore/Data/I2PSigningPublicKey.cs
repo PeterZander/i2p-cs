@@ -28,7 +28,7 @@ namespace I2PCore.Data
 
                         var q = domain.G.Multiply( privkey.ToBigInteger() );
                         var publicparam = new ECPublicKeyParameters( q, domain );
-                        Key = new BufLen( publicparam.Q.GetEncoded(), 1 );
+                        Key = new BufLen( publicparam.Q.GetEncoded() );
                     }
                     break;
 
@@ -39,7 +39,7 @@ namespace I2PCore.Data
 
                         var q = domain.G.Multiply( privkey.ToBigInteger() );
                         var publicparam = new ECPublicKeyParameters( q, domain );
-                        Key = new BufLen( publicparam.Q.GetEncoded(), 1 );
+                        Key = new BufLen( publicparam.Q.GetEncoded() );
                     }
                     break;
 
@@ -50,7 +50,7 @@ namespace I2PCore.Data
 
                         var q = domain.G.Multiply( privkey.ToBigInteger() );
                         var publicparam = new ECPublicKeyParameters( q, domain );
-                        Key = new BufLen( publicparam.Q.GetEncoded(), 1 );
+                        Key = new BufLen( publicparam.Q.GetEncoded() );
                     }
                     break;
 

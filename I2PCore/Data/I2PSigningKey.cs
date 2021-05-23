@@ -69,16 +69,16 @@ namespace I2PCore.Data
                     return 128;
 
                 case I2PSigningKey.SigningKeyTypes.ECDSA_SHA256_P256:
-                    return 64;
+                    return 65;
 
                 case I2PSigningKey.SigningKeyTypes.ECDSA_SHA384_P384:
-                    return 96;
+                    return 97;
 
                 case I2PSigningKey.SigningKeyTypes.EdDSA_SHA512_Ed25519:
                     return 32;
 
                 case I2PSigningKey.SigningKeyTypes.ECDSA_SHA512_P521:
-                    return 132;
+                    return 133;
 
                 case I2PSigningKey.SigningKeyTypes.RSA_SHA256_2048:
                     return 256;

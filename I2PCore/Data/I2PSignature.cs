@@ -178,14 +178,14 @@ namespace I2PCore.Data
             Array.Copy( b1, 0, result, sigsize / 2 - b1.Length, b1.Length );
             Array.Copy( b2, 0, result, sigsize - b2.Length, b2.Length );
 
-            Logging.LogDebug( "DoSignEcDsa: " + digest.ToString() + ": Used." );
+            Logging.LogDebug( $"DoSignEcDsa: {digest}: Used." );
 
             return result;
         }
 
         public static bool DoVerify( I2PSigningPublicKey key, I2PSignature signed, params BufLen[] bufs )
         {
-            //Logging.LogDebug( "DoVerify: " + key.Certificate.SignatureType.ToString() );
+            //Logging.LogDebug( $"DoVerify: {key.Certificate.SignatureType}" );
 
             switch ( key.Certificate.SignatureType )
             {
@@ -245,31 +245,6 @@ namespace I2PCore.Data
             return dsa.VerifySignature( hash, r, s );
         }
 
-        public static bool DoVerifyEcDsaSha256P256_old( IEnumerable<BufLen> bufs, I2PSigningPublicKey key, I2PSignature signed )
-        {
-            if ( !SupportedSignatureType( signed.Certificate.SignatureType ) ) throw new NotImplementedException();
-
-            var sha = new Sha256Digest();
-            foreach ( var buf in bufs ) sha.BlockUpdate( buf.BaseArray, buf.BaseArrayOffset, buf.Length );
-            var hash = new byte[sha.GetDigestSize()];
-            sha.DoFinal( hash, 0 );
-
-            var p = Org.BouncyCastle.Asn1.Nist.NistNamedCurves.GetByName( "P-256" );
-            var param = new ECDomainParameters( p.Curve, p.G, p.N, p.H );
-            var pk = new ECPublicKeyParameters( p.Curve.DecodePoint( key.ToByteArray() ), param );
-
-            var dsa = new Org.BouncyCastle.Crypto.Signers.DsaSigner();
-
-            var sigsize = signed.Certificate.SignatureLength;
-            var r = new BigInteger( 1, signed.Sig.BaseArray, signed.Sig.BaseArrayOffset + 0, sigsize / 2 );
-            var s = new BigInteger( 1, signed.Sig.BaseArray, signed.Sig.BaseArrayOffset + sigsize / 2, sigsize / 2 );
-
-            dsa.Init( false, pk ); 
-            var result = dsa.VerifySignature( hash, r, s );
-            Logging.LogDebug( "DoVerifyEcDsaSha256P256: " + result.ToString() );
-            return result;
-        }
-
         public static bool DoVerifyEcDsa( 
             IEnumerable<BufLen> bufs, 
             I2PSigningPublicKey key, 
@@ -286,7 +261,7 @@ namespace I2PCore.Data
             var param = new ECDomainParameters( ecparam.Curve, ecparam.G, ecparam.N, ecparam.H );
             var pk = new ECPublicKeyParameters( ecparam.Curve.DecodePoint( key.ToByteArray() ), param );
 
-            var dsa = new Org.BouncyCastle.Crypto.Signers.DsaSigner();
+            var dsa = new Org.BouncyCastle.Crypto.Signers.ECDsaSigner();
 
             var sigsize = signed.Certificate.SignatureLength;
             var r = new BigInteger( 1, signed.Sig.BaseArray, signed.Sig.BaseArrayOffset, sigsize / 2 );
@@ -294,7 +269,7 @@ namespace I2PCore.Data
 
             dsa.Init( false, pk );
             var result = dsa.VerifySignature( hash, r, s );
-            Logging.LogDebug( "DoVerifyEcDsa: " + result.ToString() + ": " + digest.ToString() );
+            Logging.LogDebug( $"DoVerifyEcDsa: {result}: {digest}" );
             return result;
         }
 
@@ -305,7 +280,7 @@ namespace I2PCore.Data
 
         public override string ToString()
         {
-            return "I2PSignature: " + FreenetBase64.Encode( Sig );
+            return $"I2PSignature: {FreenetBase64.Encode( Sig )}";
         }
     }
 }

@@ -10,6 +10,10 @@ namespace I2PCore.Data
         public I2PSigningPrivateKey( I2PCertificate cert ) 
             : base( new BufLen( BufUtils.RandomBytes( cert.SigningPrivateKeyLength ) ), cert ) 
         {
+            if ( cert.SignatureType == SigningKeyTypes.ECDSA_SHA512_P521 )
+            {
+                Key[0] &= 0x01;
+            }
         }
 
         public I2PSigningPrivateKey( BufRef reader, I2PCertificate cert ) : base( reader, cert ) 
