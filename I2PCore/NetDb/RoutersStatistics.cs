@@ -224,6 +224,8 @@ namespace I2PCore
         {
             var rar = Routers.ToArray();
 
+            if ( !rar.Any() ) return;
+
             BandwidthMax = rar.Max( r => r.Value.MaxBandwidthSeen );
             foreach ( var one in rar ) one.Value.UpdateScore();
         }
