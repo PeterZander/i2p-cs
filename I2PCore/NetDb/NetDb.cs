@@ -176,10 +176,7 @@ namespace I2PCore
         {
             return one != null 
                 && one.Options
-                    .Contains( "caps" ) 
-                && one.Adresses
-                    .Any( a => a.TransportStyle.Equals( "NTCP" ) 
-                        || a.TransportStyle.Equals( "SSU" ) );
+                    .Contains( "caps" );
         }
 
         public bool AddRouterInfo( I2PRouterInfo info )
@@ -302,6 +299,14 @@ namespace I2PCore
                     return;
                 }
             }
+
+#if DEBUG
+            var lifetime = leaseset.Expire - DateTime.UtcNow;
+            if ( lifetime.TotalMinutes < 2 )
+            {
+                Logging.LogDebug( $"NetDb: AddLeaseSet: Leases are about to expire in ({lifetime})" );
+            }
+#endif
 
             LeaseSets[leaseset.Destination.IdentHash] = leaseset;
 
