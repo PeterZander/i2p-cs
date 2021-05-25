@@ -89,6 +89,21 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        private static bool UseIpV4Field = true;
+        public static bool UseIpV4
+        {
+            get => UseIpV4Field;
+            set
+            {
+                if ( TransportProvider.Inst != null )
+                {
+                    throw new Exception( "Transport provider have already been started" );
+                }
+                
+                UseIpV4Field = value;
+            }
+        }
+
         private static bool UseIpV6Field = false;
         public static bool UseIpV6
         {

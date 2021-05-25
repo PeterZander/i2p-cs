@@ -38,7 +38,8 @@ namespace I2PCore.TransportLayer.SSU
 
             foreach ( var one in introducers )
             {
-                result.Add( new KeyValuePair<string, string>( $"ihost{ix}", one.Host.ToString() ) );
+                var unwrappedaddr = one.Host.IsIPv4MappedToIPv6 ? one.Host.MapToIPv4() : one.Host;
+                result.Add( new KeyValuePair<string, string>( $"ihost{ix}", unwrappedaddr.ToString() ) );
                 result.Add( new KeyValuePair<string, string>( $"iport{ix}", one.Port.ToString() ) );
                 result.Add( new KeyValuePair<string, string>( $"ikey{ix}", FreenetBase64.Encode( one.IntroKey ) ) );
                 result.Add( new KeyValuePair<string, string>( $"itag{ix}", one.IntroTag.ToString() ) );
@@ -54,24 +55,28 @@ namespace I2PCore.TransportLayer.SSU
         {
             var addrs = new List<I2PRouterAddress>();
 
-            var addr = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.UDPPort, 5, "SSU" );
-
             var ssucaps = "";
             if ( PeerTestSupported ) ssucaps += "B";
             if ( IntroductionSupported ) ssucaps += "C";
 
-            addr.Options["caps"] = ssucaps;
-            addr.Options["key"] = FreenetBase64.Encode( RouterContext.Inst.IntroKey );
-            addr.Options["mtu"] = RouterContext.IPV4MTU.ToString();
-            foreach ( var intro in IntroducersInfo )
+            if ( RouterContext.UseIpV4 )
             {
-                addr.Options[intro.Key] = intro.Value;
+                var addr4 = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.UDPPort, 5, "SSU" );
+
+                addr4.Options["caps"] = ssucaps;
+                addr4.Options["key"] = FreenetBase64.Encode( RouterContext.Inst.IntroKey );
+                addr4.Options["mtu"] = RouterContext.IPV4MTU.ToString();
+                foreach ( var intro in IntroducersInfo )
+                {
+                    addr4.Options[intro.Key] = intro.Value;
+                }
+                addrs.Add( addr4 );
             }
-            addrs.Add( addr );
 
             if ( RouterContext.UseIpV6 )
             {
                 var lv6 = GetLocalIpV6Address();
+
                 var addr6 = new I2PRouterAddress( lv6, RouterContext.Inst.UDPPort, 5, "SSU" );
 
                 addr6.Options["caps"] = ssucaps;
@@ -85,8 +90,25 @@ namespace I2PCore.TransportLayer.SSU
         static readonly IPAddressMask GlobalUnicast = new IPAddressMask( "2000::/3" );
         public static IPAddress GetLocalIpV6Address()
         {
-            UnicastIPAddressInformation ipv6addr = null;
+            var addrs = GetLocalIpV6Addresses();
 
+            try
+            {
+                return addrs 
+                    .OrderByDescending( uiai => uiai.AddressValidLifetime )
+                    .Select( uiai => uiai.Address )
+                    .FirstOrDefault();
+            }
+            catch( PlatformNotSupportedException )
+            {
+                return addrs 
+                    .Select( uiai => uiai.Address )
+                    .FirstOrDefault();
+            }
+        }
+
+        public static IEnumerable<UnicastIPAddressInformation> GetLocalIpV6Addresses()
+        {
             var interfaces = NetworkInterface.GetAllNetworkInterfaces();
 
             foreach( var interf in interfaces )
@@ -107,13 +129,10 @@ namespace I2PCore.TransportLayer.SSU
 
                     if ( GlobalUnicast.BelongsTo( addr.Address ) )
                     {
-                        ipv6addr = addr;
-                        break;
+                        yield return addr;
                     }
                 }
             }
-
-            return ipv6addr?.Address;
         }
     }
 }

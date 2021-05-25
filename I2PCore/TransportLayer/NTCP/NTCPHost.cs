@@ -132,12 +132,17 @@ namespace I2PCore.TransportLayer.NTCP
             else
             {
                 var addrs = new List<I2PRouterAddress>();
-                var addr = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.TCPPort, 11, "NTCP" );
-                addrs.Add( addr );
+
+                if ( RouterContext.UseIpV4 )
+                {
+                    var addr4 = new I2PRouterAddress( RouterContext.Inst.ExtIPV4Address, RouterContext.Inst.TCPPort, 11, "NTCP" );
+                    addrs.Add( addr4 );
+                }
 
                 if ( RouterContext.UseIpV6 )
                 {
                     var lv6 = SSU.SSUHost.GetLocalIpV6Address();
+
                     var addr6 = new I2PRouterAddress( lv6, RouterContext.Inst.TCPPort, 11, "NTCP" );
                     addrs.Add( addr6 );
                 }
