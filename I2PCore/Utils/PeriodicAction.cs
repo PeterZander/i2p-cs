@@ -41,7 +41,7 @@ namespace I2PCore.Utils
             }
         }
 
-        bool Autotrigger;
+        public bool Autotrigger { get; protected set; }
 
         public PeriodicAction( TickSpan freq, bool hastimedout = false )
         {

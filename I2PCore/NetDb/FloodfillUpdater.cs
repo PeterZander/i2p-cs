@@ -93,7 +93,7 @@ namespace I2PCore
 
         public void TrigUpdateRouterInfo( string reason )
         {
-            if ( StartNewUpdateRouterInfo.LastAction.DeltaToNowSeconds > 15 )
+            if ( StartNewUpdateRouterInfo.Autotrigger || StartNewUpdateRouterInfo.LastAction.DeltaToNowSeconds > 15 )
             {
                 Logging.LogDebug( $"FloodFillUpdater: New update triggered. Reason: {reason}" );
                 StartNewUpdateRouterInfo.TimeToAction = TickSpan.Seconds( 5 );
@@ -341,24 +341,23 @@ namespace I2PCore
                 {
                     Id = i,
                     NetDb.Inst.Statistics[i].Score
-                } ).ToArray();
-
-            var scores = p.Select( wr => wr.Score );
-            var pmin = scores.Min();
-            var pabsd = Math.Max( 1, scores.AbsDev() );
+                } ).ToList();
 
             var result = new List<I2PIdentHash>();
+            var pmin = p.Min( s => s.Score );
 
-            while ( result.Count < count )
+            var i = 0;
+            while ( i++ < count * 2 && result.Count < count )
             {
                 var r = p.RandomWeighted( wr =>
-                    wr.Score - pmin + pabsd * 0.2,
+                    float.IsNaN( wr.Score ) ? 1f : wr.Score - pmin + 1,
                     false,
                     2.0 );
 
-                if ( !result.Contains( r.Id ) )
+                if ( !result.Any( id => id == r.Id ) )
                 {
                     result.Add( r.Id );
+                    p.Remove( r );
                 }
             }
 
