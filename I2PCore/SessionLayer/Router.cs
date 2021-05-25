@@ -327,23 +327,28 @@ namespace I2PCore.SessionLayer
         static readonly List<DestinationLookupEntry> UnresolvedDestinations =
                 new List<DestinationLookupEntry>();
 
-        internal static void StartDestLookup(
+        internal static bool StartDestLookup(
                 I2PIdentHash hash,
                 DestinationLookupResult cb,
                 object tag,
                 Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
         {
-            lock ( UnresolvedDestinations )
+            var result = NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash, keygen );
+
+            if ( result )
             {
-                UnresolvedDestinations.Add( new DestinationLookupEntry()
+                lock ( UnresolvedDestinations )
                 {
-                    Id = hash,
-                    Callback = cb,
-                    Tag = tag,
-                } );
+                    UnresolvedDestinations.Add( new DestinationLookupEntry()
+                    {
+                        Id = hash,
+                        Callback = cb,
+                        Tag = tag,
+                    } );
+                }
             }
 
-            NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash, keygen );
+            return result;
         }
 
         public static void LookupDestination( 

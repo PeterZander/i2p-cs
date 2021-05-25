@@ -644,18 +644,19 @@ namespace I2PCore.SessionLayer
         /// <param name="dest">Destination.</param>
         /// <param name="cb">Cb.</param>
         /// <param name="tag">Tag.</param>
-        public void LookupDestination(
+        /// <return>True if a new search was started.</return>
+        public bool LookupDestination(
                 I2PIdentHash dest,
                 DestinationLookupResult cb,
                 object tag = null )
         {
-            if ( cb is null ) return;
+            if ( cb is null ) return false;
 
             var lls = MyRemoteDestinations.GetLeases( dest, true );
             if ( lls != null && NetDb.IsLeasesGood( lls.LeaseSet ) )
             {
                 cb?.Invoke( dest, lls.LeaseSet, tag );
-                return;
+                return true;
             }
 
             var ls = NetDb.Inst.FindLeaseSet( dest );
@@ -663,10 +664,10 @@ namespace I2PCore.SessionLayer
             if ( NetDb.IsLeasesGood( ls ) )
             {
                 cb?.Invoke( dest, ls, tag );
-                return;
+                return true;
             }
 
-            Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
+            return Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
         }
 
         protected void HandleDestinationLookupResult(

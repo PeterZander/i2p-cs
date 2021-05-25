@@ -64,7 +64,7 @@ namespace I2PCore
             db.DatabaseSearchReplies += NetDb_DatabaseSearchReplies;
         }
 
-        public void LookupRouterInfo( I2PIdentHash ident )
+        public bool LookupRouterInfo( I2PIdentHash ident )
         {
             bool inprogress = true;
 
@@ -84,7 +84,7 @@ namespace I2PCore
 #if LOG_ALL_IDENT_LOOKUPS
                 Logging.LogDebug( $"IdentResolver: Lookup of RouterInfo {ident.Id32Short} already in progress." );
 #endif
-                return;
+                return false;
             }
 
 #if LOG_ALL_IDENT_LOOKUPS
@@ -92,9 +92,11 @@ namespace I2PCore
 #endif
 
             SendRIDatabaseLookup( ident, updateinfo );
+
+            return true;
         }
 
-        public void LookupLeaseSet( I2PIdentHash ident, Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
+        public bool LookupLeaseSet( I2PIdentHash ident, Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
         {
             bool inprogress = true;
 
@@ -115,11 +117,13 @@ namespace I2PCore
             if ( inprogress )
             {
                 Logging.LogDebug( $"IdentResolver: Lookup of LeaseSet {ident.Id32Short} already in progress." );
-                return;
+                return false;
             }
 
             Logging.LogDebug( $"IdentResolver: Starting lookup of LeaseSet for {ident.Id32Short}." );
             SendLSDatabaseLookup( ident, updateinfo );
+
+            return true;
         }
 
         void NetDb_DatabaseSearchReplies( DatabaseSearchReplyMessage dsm )
@@ -240,6 +244,8 @@ namespace I2PCore
             ff.Shuffle();
             ff = ff.Take( DatabaseLookupSelectFloodfillCountRI ).ToArray();
 
+            info.LastQuery = TickCounter.Now;
+
             foreach ( var oneff in ff )
             {
                 try
@@ -274,7 +280,7 @@ namespace I2PCore
             if ( outtunnel is null || replytunnel is null )
             {
                 Logging.LogDebug( $"SendLSDatabaseLookup: " +
-                    $"outtunnel: {outtunnel}, replytunnel: {replytunnel}" );
+                    $"outtunnel: {outtunnel?.ToString() ?? "[null]"}, replytunnel: {replytunnel?.ToString() ?? "[null]"}" );
                 return;
             }
 
@@ -316,6 +322,8 @@ namespace I2PCore
 
             var minscore = ff.Min( r => r.Score );
             var fflist = ff.ToList();
+
+            info.LastQuery = TickCounter.Now;
 
             for ( int i = 0; i < DatabaseLookupSelectFloodfillCountLS; ++i )
             {
@@ -448,12 +456,10 @@ namespace I2PCore
                 if ( one.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo )
                 {
                     SendRIDatabaseLookup( one.IdentKey, one );
-                    one.LastQuery = TickCounter.Now;
                 }
                 else
                 {
                     SendLSDatabaseLookup( one.IdentKey, one );
-                    one.LastQuery = TickCounter.Now;
                 }
             }
         }
