@@ -32,7 +32,7 @@ namespace I2PCore.TransportLayer.SSU
             Port = reader.ReadBufLen( 2 );
             RelayTag = reader.ReadBufLen( 4 );
             SignOnTime = reader.ReadBufLen( 4 );
-            SignatureEncrBuf = new BufLen( reader, 0, reader.Length & ~0xf );
+            SignatureEncrBuf = new BufLen( reader, 0, cert.SignatureLength + BufUtils.Get16BytePadding( cert.SignatureLength ) );
             Signature = reader.ReadBufLen( cert.SignatureLength );
         }
     }
