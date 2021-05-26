@@ -19,10 +19,6 @@ namespace I2PCore.Utils
 
         static readonly SecureRandom Rnd = new SecureRandom();
 
-        public class HashCheckFailException: Exception
-        {
-        }
-
         public static byte[] Encrypt( BufLen data, I2PPublicKey key, bool zeropad )
         {
             var result = new byte[zeropad ? EncryptedPaddedLength : EncryptedShortLength];
@@ -83,12 +79,12 @@ namespace I2PCore.Utils
         {
             if ( data == null || zeropad && data.Length != EncryptedPaddedLength )
             {
-                throw new ArgumentException( $"ElGamal padded data to decrypt must be exactly {EncryptedPaddedLength} bytes!" );
+                throw new ArgumentException( $"ElGamal padded data ({data?.Length}) to decrypt must be exactly {EncryptedPaddedLength} bytes!" );
             }
 
             if ( !zeropad && data.Length != EncryptedShortLength )
             {
-                throw new ArgumentException( $"ElGamal data to decrypt must be exactly {EncryptedShortLength} bytes!" );
+                throw new ArgumentException( $"ElGamal data ({data?.Length}) to decrypt must be exactly {EncryptedShortLength} bytes!" );
             }
 
             var x = I2PConstants.ElGamalPMinusOne.Subtract( pkey.ToBigInteger() );
@@ -109,7 +105,7 @@ namespace I2PCore.Utils
             var hash = I2PHashSHA256.GetHash( payload );
             if ( !BufUtils.Equal( m, 1, hash, 0, 32 ) )
             {
-                throw new HashCheckFailException();
+                throw new ChecksumFailureException();
             }
 
             return payload;
