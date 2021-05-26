@@ -127,6 +127,23 @@ namespace I2PCore.TransportLayer.SSU
 
         public ProtocolCapabilities ContactCapability( I2PRouterInfo router )
         {
+            var addrs = router.Adresses
+                    .Select( a => new
+                    {
+                        addr = a.Host,
+                    } )
+                    .Select( a => new
+                    {
+                        info = a?.addr is null ? null : SessionRequestState.SignatureCheckFailures.TryGetValue( a.addr, out var val ) ? val : null,
+                    } )
+                    .Where( a => a.info != null );
+
+            if ( addrs.Any( a => ( a.info?.Failures.Count ?? 0 ) >= 3 ) )
+            {
+                Logging.LogDebug( $"SSUHost: ContactCapability: {router.Identity.IdentHash.Id32Short} refused for Signature Check failures." );
+                return ProtocolCapabilities.None;
+            }
+
             return router.Adresses.Any( ra => ra.TransportStyle == "SSU"
                         && ra.Options.Contains( "key" ) )
                             ? ProtocolCapabilities.NATTraversal

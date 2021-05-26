@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define LOG_SIG_FAIL_HOSTS
+
+using System;
 using System.Linq;
 using I2PCore.Utils;
 using System.Net;
@@ -6,6 +8,9 @@ using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Modes;
 using I2PCore.Data;
 using I2PCore.TransportLayer.SSU.Data;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace I2PCore.TransportLayer.SSU
 {
@@ -90,7 +95,7 @@ namespace I2PCore.TransportLayer.SSU
                 baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
                 SCMessage.RelayTag, SCMessage.SignOnTime );
 
-            Logging.LogTransport( $"SSU {this}: Signature check: {sok}. {Session.RemoteCert.SignatureType}" );
+            Logging.LogDebug( $"SSU {this}: Signature check: {sok}. {Session.RemoteCert.SignatureType}, {SCMessage.SignatureEncrBuf.Length}, {SCMessage.Address.Length}" );
 
 #if DEBUG
             Session.Host.SignatureChecks.Success( sok );
@@ -98,11 +103,50 @@ namespace I2PCore.TransportLayer.SSU
             {
                 Logging.LogDebug( $"SSU {this}: " + 
                     $"Signature checks success: {Session.Host.SignatureChecks} " );
+
+#if LOG_SIG_FAIL_HOSTS
+
+                DebugLogSignatureCheckFailures.Do( () => 
+                {
+                    var scfa = SignatureCheckFailures
+                            .OrderByDescending( scf => scf.Value.Failures.Count )
+                            .ToArray();
+
+                    foreach( var scf in scfa )
+                    {
+                        if ( scf.Value.RouterVersion == null )
+                        {
+                            var fria = NetDb.Inst.FindRouterInfo( ( id, ri ) => 
+                                    ri.Adresses.Any( a =>
+                                    {
+                                        var hostaddr = IPAddress.TryParse( a.Options.TryGet( "host" )?.ToString(), out var ha ) ? ha : null;
+                                        return scf.Key?.Equals( hostaddr ) ?? false;
+                                    } ) );
+
+                            if ( fria.Any() )
+                            {
+                                scf.Value.RouterVersion = fria.First().Options.TryGet( "router.version" )?.ToString() ?? "Unknown";
+                            }
+                            else
+                            {
+                                scf.Value.RouterVersion = "Not found";
+                            }
+                        }
+                        Logging.LogDebug( $"SessionRequestState: Signature check failures: Host: {scf.Key,50}, " + 
+                            $"Failures: {scf.Value.Failures.Count,7}, {scf.Value.RouterVersion}" );
+                    }
+                } );
+#endif                
             }
 #endif
 
             if ( !sok )
             {
+                var fi = SignatureCheckFailures.GetOrAdd( 
+                        Session.UnwrappedRemoteAddress,
+                        ( s ) => new SignatureCheckFailInfo() );
+                fi.Failures[DateTime.UtcNow] = 0;
+
                 var aliceip = SCMessage.Address.Length == 4 || SCMessage.Address.Length == 16
                         ? new IPAddress( SCMessage.Address.ToByteArray() )
                         : IPAddress.Loopback;
@@ -178,5 +222,31 @@ namespace I2PCore.TransportLayer.SSU
                 } );
         }
 
+#if LOG_SIG_FAIL_HOSTS
+        static PeriodicAction DebugLogSignatureCheckFailures = new PeriodicAction( TickSpan.Minutes( 10 ) );
+#endif
+
+        internal class SignatureCheckFailInfo
+        {
+            public TimeWindowDictionary<DateTime,object> Failures { get; set; } = new TimeWindowDictionary<DateTime, object>( TickSpan.Hours( 5 ) );
+            public string RouterVersion { get; set; }
+        }
+
+        internal static ConcurrentDictionary<IPAddress,SignatureCheckFailInfo> 
+                SignatureCheckFailures = new ConcurrentDictionary<IPAddress, SignatureCheckFailInfo>( new IPAddressComparer() );
+
+        class IPAddressComparer : IEqualityComparer<IPAddress>
+        {
+            public bool Equals(IPAddress x, IPAddress y)
+            {
+                if ( x is null || y is null ) return false;
+                return x.Equals( y );
+            }
+
+            public int GetHashCode([DisallowNull] IPAddress obj)
+            {
+                return obj.GetHashCode();
+            }
+        }
     }
 }
