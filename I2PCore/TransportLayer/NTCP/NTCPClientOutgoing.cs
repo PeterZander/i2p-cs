@@ -59,7 +59,7 @@ namespace I2PCore.TransportLayer.NTCP
 
         internal I2PRouterAddress SelectAddress( I2PRouterInfo router )
         {
-            var addrs = router.Adresses.Where( a => ( a.TransportStyle == "NTCP" ) );
+            var addrs = router.Adresses.Where( a => a.TransportStyle == "NTCP" );
 
             I2PRouterAddress addr = RouterContext.UseIpV6
                     ? addrs.FirstOrDefault( a => a.Options.ValueContains( "host", ":" ) )

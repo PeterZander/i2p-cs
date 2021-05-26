@@ -7,7 +7,7 @@ namespace I2PCore.TunnelLayer
 {
     public class ZeroHopTunnel: InboundTunnel
     {
-        public override TickSpan Lifetime => TickSpan.Seconds( 20 );
+        public override TickSpan Lifetime => TickSpan.Minutes( 5 );
 
         public override TickSpan TunnelEstablishmentTimeout => TickSpan.Seconds( 100 );
 
