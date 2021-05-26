@@ -109,7 +109,7 @@ namespace I2PCore.SessionLayer
         {
             var newtags = GenerateNewTags();
 #if LOG_ALL_LEASE_MGMT
-            Logging.LogInformation( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey}, {newtags.MessageId}" );
+            Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey}, {newtags.MessageId}" );
 #endif
 
             var myleases = new DatabaseStoreMessage( publishedleases );
