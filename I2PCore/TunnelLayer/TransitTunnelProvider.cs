@@ -48,8 +48,12 @@ namespace I2PCore.TunnelLayer
         }
 
         readonly PeriodicAction Maintenance = new PeriodicAction( TickSpan.Minutes( 15 ) );
-        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 30 ) );
 
+#if DEBUG
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Seconds( 30 ) );
+#else
+        PeriodicAction LogStatus = new PeriodicAction( TickSpan.Minutes( 2 ) );
+#endif
         public void Execute()
         {
             LogStatus.Do( LogStatusReport );
@@ -57,7 +61,6 @@ namespace I2PCore.TunnelLayer
 
         private void LogStatusReport()
         {
-#if DEBUG
             var gtc = RunningGatewayTunnels.Count;
             var gbrr = RunningGatewayTunnels.Sum( gt => 
                 gt.Key.Bandwidth.ReceiveBandwidth.Bitrate ) / 1024f;
@@ -91,22 +94,22 @@ namespace I2PCore.TunnelLayer
             var tbs = RunningTransitTunnels.Sum( gt =>
                 gt.Key.Bandwidth.SendBandwidth.DataBytes );
 
-            Logging.LogDebug(
+            Logging.LogInformation(
                 $"Established gateway tunnels   : {gtc,2}, Send / Receive: " +
                 $"{gbrs,8:F1} kbps / {gbrr,8:F1} kbps   " +
                 $"{BytesToReadable( gbs ),10} / {BytesToReadable( gbr ),10}" );
 
-            Logging.LogDebug(
+            Logging.LogInformation(
                 $"Established endpoint tunnels  : {etc,2}, Send / Receive: " +
                 $"{ebrs,8:F1} kbps / {ebrr,8:F1} kbps   " +
                 $"{BytesToReadable( ebs ),10} / {BytesToReadable( ebr ),10}" );
 
-            Logging.LogDebug(
+            Logging.LogInformation(
                 $"Established transit tunnels   : {ttc,2}, Send / Receive: " +
                 $"{tbrs,8:F1} kbps / {tbrr,8:F1} kbps   " +
                 $"{BytesToReadable( tbs ),10} / {BytesToReadable( tbr ),10}" );
-#endif
         }
+
         public void ReadAppConfig()
         {
             if ( !string.IsNullOrWhiteSpace( CM.AppSettings["MaxTransitTunnels"] ) )
