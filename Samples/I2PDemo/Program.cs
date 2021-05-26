@@ -29,6 +29,7 @@ namespace I2PDemo
         static void Main( string[] args )
         {
             PeriodicAction SendInterval = new PeriodicAction( TickSpan.Seconds( 20 ) );
+            PeriodicAction LookupInterval = new PeriodicAction( TickSpan.Minutes( 4 ) );
 
             Logging.LogToDebug = false;
             Logging.LogToConsole = true;
@@ -193,32 +194,42 @@ namespace I2PDemo
                 {
                     Connected = true;
 
-                    MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
-
                     var sendevents = 0;
 
                     while ( Connected )
                     {
                         Thread.Sleep( 2000 );
 
-                        if ( LookedUpDestination != null 
-                            && MyOrigin.ClientState == ClientDestination.ClientStates.Established )
+                        if ( MyOrigin.ClientState == ClientDestination.ClientStates.Established )
                         {
-                            SendInterval.Do( () =>
+                            if ( LookedUpDestination == null )
                             {
-                                if ( sendevents++ < 10 )
+                                MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
+                            }
+                            else
+                            {
+                                LookupInterval.Do( () =>
                                 {
-                                    // Send some data to the MyDestination
-                                    DataSent = new BufLen(
-                                                    BufUtils.RandomBytes(
-                                                        (int)( 1 + BufUtils.RandomDouble( 25 ) * 1024 ) ) );
+                                    // Keep remote leases up to date
+                                    MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
+                                } );
 
-                                    var ok = MyOrigin.Send( LookedUpDestination, DataSent );
-                                    Logging.LogInformation( $"Program {MyOrigin}: Send[{sendevents}] {ok}, {DataSent:15}" );
-                                }
+                                SendInterval.Do( () =>
+                                {
+                                    if ( sendevents++ < 10 )
+                                    {
+                                        // Send some data to the MyDestination
+                                        DataSent = new BufLen(
+                                                        BufUtils.RandomBytes(
+                                                            (int)( 1 + BufUtils.RandomDouble( 25 ) * 1024 ) ) );
 
-                                if ( sendevents > 100 ) sendevents = 0;
-                            } );
+                                        var ok = MyOrigin.Send( LookedUpDestination, DataSent );
+                                        Logging.LogInformation( $"Program {MyOrigin}: Send[{sendevents}] to {LookedUpDestination.IdentHash.Id32Short} {ok}, {DataSent:15}" );
+                                    }
+
+                                    if ( sendevents > 100 ) sendevents = 0;
+                                } );
+                            }
                         }
                     }
                 }
@@ -249,7 +260,8 @@ namespace I2PDemo
         {
             var compareok = DataSent is null ? false : DataSent == data;
             Logging.LogInformation( $"Program {MyDestination}: MyDestination data received. Matches send: {compareok} {data:15}" );
-            PublishedDestination.Send( MyOrigin.Destination, data );
+            var ok = PublishedDestination.Send( MyOrigin.Destination, data );
+            Logging.LogInformation( $"Program {MyDestination}: Send to {MyOrigin.Destination.IdentHash.Id32Short} {ok}" );
         }
 
         static void MyOrigin_DataReceived( ClientDestination dest, BufLen data )
