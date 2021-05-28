@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
-    <DefineConstants>NOLOG_ALL_TUNNEL_TRANSFER;NOLOG_ALL_IDENT_LOOKUPS;NOLOG_MUCH_TRANSPORT;NOLOG_ALL_LEASE_MGMT</DefineConstants>
+    <DefineConstants>NOLOG_ALL_TUNNEL_TRANSFER;NOLOG_ALL_IDENT_LOOKUPS;NOLOG_MUCH_TRANSPORT;NOLOG_ALL_LEASE_MGMT,NOLOG_TUNNEL_SELECTION</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

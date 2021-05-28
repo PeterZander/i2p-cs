@@ -146,9 +146,8 @@ namespace I2PCore.TunnelLayer
 
         public override string ToString()
         {
-            string pool;
-            if ( Config != null ) pool = Config.Pool.ToString(); else pool = "<?>";
-            return $"{this.GetType().Name} {pool} {TunnelDebugTrace}";
+            var pool = Config?.Pool.ToString() ?? "<?>";
+            return $"{this.GetType().Name} {pool} {TunnelDebugTrace} {CreationTime.DeltaToNow}";
         }
     }
 }

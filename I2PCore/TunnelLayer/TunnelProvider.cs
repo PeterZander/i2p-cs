@@ -944,8 +944,9 @@ namespace I2PCore.TunnelLayer
                 var result = (T)tunnels.RandomWeighted(
                     GenerateTunnelWeight, true, TunnelSelectionElitism );
 
-#if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( $"SelectTunnel<{result.GetType().Name}>: {result}" );
+#if LOG_TUNNEL_SELECTION
+                var available = string.Join( ',', tunnels.Select( t => t.CreationTime.DeltaToNow.ToString( "MS" ) ) );
+                Logging.LogDebug( $"TunnelProvider: SelectTunnel {result}, ({available})" );
 #endif
                 return result;
             }
@@ -960,6 +961,7 @@ namespace I2PCore.TunnelLayer
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
             result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
             result += ( t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? Tunnel.ExpectedTunnelBuildTimePerHop.ToMilliseconds * 2 );
+            result += t.CreationTime.DeltaToNowSeconds * 10;
             if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
             if ( t.Expired ) result += penalty;

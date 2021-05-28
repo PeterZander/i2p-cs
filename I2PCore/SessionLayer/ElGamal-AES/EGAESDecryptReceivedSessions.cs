@@ -31,8 +31,6 @@ namespace I2PCore.SessionLayer
 
         public Garlic DecryptMessage( GarlicMessage message )
         {
-            var egdata = message.EGData;
-
             var (aesblock,sessionkey) = Garlic.RetrieveAESBlock(
                     message, 
                     PrivateKeys.First( pk => pk.Certificate.PublicKeyType == I2PKeyType.KeyTypes.ElGamal2048 ), 
