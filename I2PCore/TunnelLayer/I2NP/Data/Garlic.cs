@@ -199,7 +199,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             var tag = new I2PSessionTag( new BufRefLen( garlic.EGData, 0, 32 ) );
             var sessionkey = findsessionkey?.Invoke( tag );
 #if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( $"Garlic: Session key found {sessionkey}" );
+            Logging.LogDebug( $"RetrieveAESBlock: Garlic: Session key {sessionkey?.Key.ToString() ?? "[null]"}" );
 #endif
             if ( sessionkey != null )
             {
@@ -233,21 +233,30 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             }
 
 #if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( "Garlic: No session key. Using ElGamal to decrypt." );
+            Logging.LogDebug( "RetrieveAESBlock: Garlic: No session key. Using ElGamal to decrypt." );
 #endif
 
             try
             {
                 (result,sessionkey) = Garlic.EGDecryptGarlic( garlic, privatekey );
 #if LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"Garlic: EG session key {sessionkey}" );
+                Logging.LogDebug( $"RetrieveAESBlock: Garlic: EG session key {sessionkey?.Key.ToString() ?? "[null]"}" );
 #endif
             }
-            catch ( Exception ex )
+            catch ( ChecksumFailureException ex )
             {
-                Logging.LogDebug( "Garlic: ElGamal DecryptMessage failed" );
-                Logging.LogDebugData( $"ReceivedSessions {ex}" );
+                Logging.LogDebug( "RetrieveAESBlock: Garlic: ElGamal DecryptMessage failed" );
+                Logging.LogDebugData( $"RetrieveAESBlock: ReceivedSessions {ex}" );
                 return (null,null);
+            }
+            catch ( ArgumentException ex )
+            {
+                Logging.LogDebug( $"RetrieveAESBlock: Garlic: {ex}" );
+                throw;
+            }
+            catch
+            {
+                throw;
             }
 
             return (result,sessionkey);
