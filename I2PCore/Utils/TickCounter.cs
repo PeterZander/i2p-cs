@@ -32,38 +32,57 @@ namespace I2PCore.Utils
         public static TickSpan Hours( int hours ) { return new TickSpan( hours * 60 * 60 * 1000 ); }
         public static TickSpan Days( int days ) { return new TickSpan( days * 24 * 60 * 60 * 1000 ); }
 
-        public static string DebugText( TickSpan tickspan )
+        class TimeDivisionName
+        {
+            public char FormatCode;
+            public string Label;
+            public int Milliseconds;
+        }
+
+        static TimeDivisionName[] TimeDivisions = new TimeDivisionName[] {
+            new TimeDivisionName {
+                FormatCode = 'D',
+                Label = "d",
+                Milliseconds = 1000 * 60 * 60 * 24
+            },
+            new TimeDivisionName {
+                FormatCode = 'H',
+                Label = "h",
+                Milliseconds = 1000 * 60 * 60
+            },
+            new TimeDivisionName {
+                FormatCode = 'M',
+                Label = "m",
+                Milliseconds = 1000 * 60
+            },
+            new TimeDivisionName {
+                FormatCode = 'S',
+                Label = "s",
+                Milliseconds = 1000
+            },
+            new TimeDivisionName {
+                FormatCode = 'm',
+                Label = "ms",
+                Milliseconds = 1
+            },
+        };
+
+        public static string DebugText( TickSpan tickspan, string format = null )
         {
             var result = new StringBuilder();
             var reminder = tickspan.ToMilliseconds;
 
-            var span = 1000 * 60 * 60;
-            var remove = reminder / span;
-            if ( remove > 0 )
+            foreach( var span in TimeDivisions )
             {
-                result.AppendFormat( "{0} h", remove );
-                reminder -= remove * span;
-            }
-
-            span = 1000 * 60;
-            remove = reminder / span;
-            if ( remove > 0 )
-            {
-                result.AppendFormat( "{0}{1} min", ( result.Length == 0 ? "" : ", " ), remove );
-                reminder -= remove * span;
-            }
-
-            span = 1000;
-            remove = reminder / span;
-            if ( remove > 0 )
-            {
-                result.AppendFormat( "{0}{1} sec", ( result.Length == 0 ? "" : ", " ), remove );
-                reminder -= remove * span;
-            }
-
-            if ( reminder > 0 )
-            {
-                result.AppendFormat( "{0}{1} msec", ( result.Length == 0 ? "" : ", " ), reminder );
+                var remove = reminder / span.Milliseconds;
+                if ( remove > 0 && ( format?.Contains( span.FormatCode ) ?? true ) )
+                {
+                    result.AppendFormat( "{0}{1}{2}",
+                        ( result.Length == 0 ? "" : " " ),
+                        remove,
+                        span.Label );
+                    reminder -= remove * span.Milliseconds;
+                }
             }
 
             return result.ToString();
@@ -74,6 +93,13 @@ namespace I2PCore.Utils
             return $"TickSpan: {DebugText( this )}";
         }
 
+        /// <summary>
+        /// Generate a string with only selected time spans: "D" days, "H" hours, "M" minutes, "S" seconds, "m" milliseconds.
+        /// </summary>
+        public string ToString( string format )
+        {
+            return $"{DebugText( this, format )}";
+        }
         #region IEquatable<TickSpan> Members
 
         bool IEquatable<TickSpan>.Equals( TickSpan other )
