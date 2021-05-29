@@ -134,7 +134,7 @@ namespace I2PCore
                         Id = ri.Key,
                         Q = ri.Value.CachedStatistics
                     } )
-                    .Where( inf => ( inf.Q?.Score ?? 0f ) > minfit );
+                    .Where( inf => double.IsNaN( minfit ) || ( inf.Q?.Score ?? 0f ) > minfit );
 
             return qlist
                 .Select( p => new
