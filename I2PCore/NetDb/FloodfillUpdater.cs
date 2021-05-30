@@ -303,6 +303,8 @@ namespace I2PCore
                             null );
 
                 var ff = list.Random();
+                if ( ff is null ) continue;
+                
                 var ffident = NetDb.Inst[ff];
 
                 Logging.Log( $"FloodfillUpdater: LS {ls.Destination.IdentHash.Id32Short} " +

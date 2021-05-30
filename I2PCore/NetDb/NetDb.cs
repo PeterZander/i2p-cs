@@ -264,12 +264,9 @@ namespace I2PCore
 
         public bool Contains( I2PIdentHash key )
         {
-            lock ( RouterInfos )
+            if ( RouterInfos.TryGetValue( key, out var pair ) )
             {
-                if ( RouterInfos.TryGetValue( key, out var pair ) )
-                {
-                    return !pair.Meta.Deleted;
-                }
+                return !pair.Meta.Deleted;
             }
             return false;
         }
@@ -278,13 +275,17 @@ namespace I2PCore
         {
             get
             {
-                lock ( RouterInfos )
+                if ( key is null ) return null;
+
+                if ( RouterInfos.TryGetValue( key, out var pair ) )
                 {
-                    if ( RouterInfos.TryGetValue( key, out var pair ) )
+                    if ( pair?.Meta?.Deleted ?? true )
                     {
-                        if ( pair.Meta.Deleted ) return null;
-                        return pair.Router;
+                        Logging.LogDebug( $"NetDb[]: Meta is null." );
+                        return null;
                     }
+
+                    return pair.Router;
                 }
                 return null;
             }
@@ -338,10 +339,7 @@ namespace I2PCore
         {
             foreach ( var key in hashes )
             {
-                lock ( RouterInfos )
-                {
-                    if ( RouterInfos.TryGetValue( key, out var result ) ) yield return result.Router;
-                }
+                if ( RouterInfos.TryGetValue( key, out var result ) ) yield return result.Router;
             }
         }
 
