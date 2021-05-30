@@ -95,7 +95,7 @@ namespace I2PCore.TransportLayer.SSU
                 baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
                 SCMessage.RelayTag, SCMessage.SignOnTime );
 
-            Logging.LogDebug( $"SSU {this}: Signature check: {sok}. {Session.RemoteCert.SignatureType}, {SCMessage.SignatureEncrBuf.Length}, {SCMessage.Address.Length}" );
+            Logging.LogDebugData( $"SSU {this}: Signature check: {sok}. {Session.RemoteCert.SignatureType}, {SCMessage.SignatureEncrBuf.Length}, {SCMessage.Address.Length}" );
 
 #if DEBUG
             Session.Host.SignatureChecks.Success( sok );
