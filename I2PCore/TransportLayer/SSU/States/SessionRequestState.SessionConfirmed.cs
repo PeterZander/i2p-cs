@@ -5,38 +5,8 @@ using I2PCore.Data;
 
 namespace I2PCore.TransportLayer.SSU
 {
-    public class SessionConfirmedState: SSUState
+    public partial class SessionRequestState: SSUState
     {
-        SessionRequestState Request;
-
-        public SessionConfirmedState( SSUSession sess, SessionRequestState req )
-            : base( sess )
-        {
-            Request = req;
-        }
-
-        public override SSUState Run()
-        {
-            Logging.LogTransport( $"SSU {this}: Sending SessionConfirmed message." );
-
-            // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
-            /**
-                * From InboundEstablishState.java
-                * 
-                -----8<-----
-                *  Note that while a SessionConfirmed could in theory be fragmented,
-                *  in practice a RouterIdentity is 387 bytes and a single fragment is 512 bytes max,
-                *  so it will never be fragmented.
-                -----8<-----
-                */
-
-            SendUnfragmentedSessionConfirmed();
-            
-            Session.ReportConnectionEstablished();
-
-            return new EstablishedState( Session );
-        }
-
         private void SendUnfragmentedSessionConfirmed()
         {
             var ri = new BufLen( Session.MyRouterContext.MyRouterInfo.ToByteArray() );
@@ -67,10 +37,10 @@ namespace I2PCore.TransportLayer.SSU
 #endif
 
                     var sign = I2PSignature.DoSign( Session.MyRouterContext.PrivateSigningKey,
-                            Request.X.Key, Request.Y.Key, 
-                            Request.SCMessage.Address, Request.SCMessage.Port,
+                            X.Key, Y.Key, 
+                            SCMessage.Address, SCMessage.Port,
                             baddr, bport, 
-                            Request.SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
+                            SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
                         );
                     writer.Write( sign );
 
@@ -128,10 +98,10 @@ namespace I2PCore.TransportLayer.SSU
                     var baddr = new BufLen( Session.UnwrappedRemoteAddress.GetAddressBytes() );
 
                     var sign = I2PSignature.DoSign( Session.MyRouterContext.PrivateSigningKey,
-                            Request.X.Key, Request.Y.Key, 
-                            Request.SCMessage.Address, Request.SCMessage.Port,
+                            X.Key, Y.Key, 
+                            SCMessage.Address, SCMessage.Port,
                             baddr, BufUtils.Flip16BL( (ushort)Session.RemoteEP.Port ), 
-                            Request.SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
+                            SCMessage.RelayTag, BufUtils.To32BL( Session.SignOnTimeA )
                        );
                     writer.Write( sign );
 
@@ -142,28 +112,30 @@ namespace I2PCore.TransportLayer.SSU
                 } );
         }
 
-        protected override BufLen CurrentMACKey { get { return Session.MACKey; } }
-        protected override BufLen CurrentPayloadKey { get { return Session.SharedKey; } }
-
-        public override SSUState HandleMessage( SSUHeader header, BufRefLen reader )
+        protected SSUState SendConnectionEstablished()
         {
-            return this;
+            Logging.LogTransport( $"SSU {this}: Sending SessionConfirmed message." );
 
-            if ( header.MessageType == SSUHeader.MessageTypes.SessionCreated )
-            {
-                Logging.LogTransport( $"SSU SessionConfirmedState {Session.DebugId}: Unexpected message received: {header.MessageType}" );
-                return this;
-            }
+            // SendFragmentedSessionConfirmed(); // Not all routers seem to support this
+            /**
+                * From InboundEstablishState.java
+                * 
+                -----8<-----
+                *  Note that while a SessionConfirmed could in theory be fragmented,
+                *  in practice a RouterIdentity is 387 bytes and a single fragment is 512 bytes max,
+                *  so it will never be fragmented.
+                -----8<-----
+                */
 
-            Logging.LogTransport( $"SSU SessionConfirmedState: Session {Session.DebugId} established. " + 
-                $"{header.MessageType} received. Moving to Established state." );
+            SendUnfragmentedSessionConfirmed();
 
-            var next = new EstablishedState( Session );
+            Logging.LogTransport( $"SSU SessionRequestState: Session {Session.DebugId} established. " + 
+                $"Moving to Established state." );
 
             Session.Host.ReportConnectionCreated( Session, Session.RemoteRouterIdentity.IdentHash );
             Session.ReportConnectionEstablished();
 
-            return next.HandleMessage( header, reader );
+            return new EstablishedState( Session );
         }
     }
 }

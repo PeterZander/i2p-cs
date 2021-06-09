@@ -14,7 +14,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace I2PCore.TransportLayer.SSU
 {
-    public class SessionRequestState: SSUState
+    public partial class SessionRequestState: SSUState
     {
         internal I2PPrivateKey PrivateKey;
         internal I2PPublicKey X;
@@ -195,11 +195,9 @@ namespace I2PCore.TransportLayer.SSU
             }
 
             Logging.LogTransport( $"SSU {this}: SessionCreated received " +
-            	$"from {Session.RemoteEP} created. Moving to SessionConfirmedState." );
+            	$"from {Session.RemoteEP} created." );
 
-            Session.ReportConnectionEstablished();
-
-            return new SessionConfirmedState( Session, this );
+            return SendConnectionEstablished();
         }
 
         private void SendSessionRequest()
