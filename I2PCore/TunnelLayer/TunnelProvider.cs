@@ -960,7 +960,6 @@ namespace I2PCore.TunnelLayer
 
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
             result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
-            result += ( t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? Tunnel.ExpectedTunnelBuildTimePerHop.ToMilliseconds * 2 );
             result += t.CreationTime.DeltaToNowSeconds * 10;
             if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
