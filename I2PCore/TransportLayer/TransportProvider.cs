@@ -310,19 +310,28 @@ namespace I2PCore.TransportLayer
             if ( routerid is null )
                     throw new ArgumentNullException( "TransportProvider.AddTransport: routerid cannot be null." );
 
+            // Overwrite any older connection
+            if ( EstablishedTransports.TryGetValue( routerid, out var oldr ) )
+            {
+                if ( !object.ReferenceEquals( oldr.Transport, transport ) )
+                {
+                    Logging.LogTransport(
+                        $"TransportProvider: old transport {transport.DebugId} terminated." );
+                    oldr.Transport.Terminate();
+                    EstablishedTransports.TryRemove( routerid, out var _ );
+                }
+                else
+                {
+                    return;
+                }
+            }
+
             transport.ConnectionShutDown += Transport_ConnectionShutDown;
             transport.ConnectionEstablished += Transport_ConnectionEstablished;
 
             transport.DataBlockReceived += Transport_DataBlockReceived;
             transport.ConnectionException += Transport_ConnectionException;
 
-            // Overwrite any older connection
-            if ( EstablishedTransports.TryRemove( routerid, out var oldr ) )
-            {
-                Logging.LogTransport(
-                    $"TransportProvider: old transport {transport.DebugId} terminated." );
-                oldr.Transport.Terminate();
-            }
             EstablishedTransports[routerid] = new EstablishedTransportInfo() { Transport = transport };
         }
 
@@ -331,7 +340,7 @@ namespace I2PCore.TransportLayer
         void TransportProtocol_ConnectionCreated( ITransport transport, I2PIdentHash router )
         {
             Logging.LogTransport(
-                $"TransportProvider: incoming transport {transport.DebugId} added." );
+                $"TransportProvider: TransportProtocol_ConnectionCreated: incoming transport {transport.DebugId} added." );
 
             AddTransport( router, transport );
         }
@@ -398,7 +407,7 @@ namespace I2PCore.TransportLayer
             }
 
             Logging.LogTransport(
-                $"TransportProvider: transport_ConnectionEstablished: {instance.DebugId} to {hash.Id32Short}." );
+                $"TransportProvider: Transport_ConnectionEstablished: {instance.DebugId} to {hash.Id32Short}." );
         }
 
         void Transport_ConnectionShutDown( ITransport instance )
