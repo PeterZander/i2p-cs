@@ -144,6 +144,32 @@ namespace I2PCore.TunnelLayer
         /// <returns></returns>
         public abstract bool Exectue();
 
+        internal static TunnelInfo CreateOutboundTunnelChain( int hops, bool exploratory )
+        {
+            var hopinfo = new List<HopInfo>();
+
+            foreach( var hop in NetDb.Inst.GetRandomRoutersForTunnelBuild( exploratory, hops ) )
+            {
+                hopinfo.Add( new HopInfo( NetDb.Inst[hop].Identity, new I2PTunnelId() ) );
+            }
+
+            return new TunnelInfo( hopinfo );
+        }
+
+        internal static TunnelInfo CreateInboundTunnelChain( int hops, bool exploratory )
+        {
+            var hopinfo = new List<HopInfo>();
+
+            foreach( var hop in NetDb.Inst.GetRandomRoutersForTunnelBuild( exploratory, hops ) )
+            {
+                hopinfo.Add( new HopInfo( NetDb.Inst[hop].Identity, new I2PTunnelId() ) );
+            }
+
+            hopinfo.Add( new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() ) );
+
+            return new TunnelInfo( hopinfo );
+        }
+
         public override string ToString()
         {
             var pool = Config?.Pool.ToString() ?? "<?>";

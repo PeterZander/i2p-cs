@@ -21,21 +21,24 @@ namespace I2PCore
             I2PIdentHash result;
             var me = RouterContext.Inst.MyRouterIdentity.IdentHash;
 
+            var retries = 0;
+
             if ( exploratory )
             {
-                var subset = RouterInfos
-                        .Where( k => !exclude.Contains( k.Key ) );
+                var subset = exclude is null
+                            ? RouterInfos
+                            : RouterInfos.Where( k => !exclude.Contains( k.Key ) );
                 do
                 {
                     result = subset
+
                         .Random()
                         .Key;
-                } while ( result == me );
+                } while ( result == me && ++retries < 20 );
 
                 return result;
             }
 
-            var retries = 0;
             bool tryagain;
             do
             {
@@ -58,19 +61,58 @@ namespace I2PCore
             return GetRandomRouterInfo( Roulette, exploratory );
         }
 
-        private ItemFilterWindow<I2PIdentHash> RecentlyUsedForTunnel =
-                new ItemFilterWindow<I2PIdentHash>( TickSpan.Minutes( 15 ), 2 );
+#if LOG_ROUTER_SELECTION_HISTORY && DEBUG
+        ConcurrentDictionary<I2PIdentHash, int> RouterSelectionHistory =
+            new ConcurrentDictionary<I2PIdentHash, int>();
+
+        PeriodicAction LogRouterSelectionHistory = new PeriodicAction( TickSpan.Minutes( 5 ) );
+#endif        
 
         public I2PIdentHash GetRandomRouterForTunnelBuild( bool exploratory )
         {
             I2PIdentHash result;
 
-            result = GetRandomRouter( Roulette, new ConcurrentBag<I2PIdentHash>( RecentlyUsedForTunnel ), exploratory );
+            result = GetRandomRouter( Roulette, null, exploratory );
             if ( result is null ) return null;
 
-            RecentlyUsedForTunnel.Update( result );
+#if LOG_ROUTER_SELECTION_HISTORY && DEBUG
+            RouterSelectionHistory.AddOrUpdate( result, ih => 1, ( ih, count ) => count + 1 );
+
+            LogRouterSelectionHistory.Do( () =>
+            {
+                var hist = RouterSelectionHistory
+                    .OrderByDescending( h => h.Value )
+                    .ToArray();
+
+                foreach( var one in hist )
+                {
+                    Logging.LogDebug( $"NetDb: GetRandomRouterForTunnelBuild: {one.Key.Id32Short} {one.Value, 15}" );
+                }
+            } );
+#endif        
 
             return result;
+        }
+
+        public IEnumerable<I2PIdentHash> GetRandomRoutersForTunnelBuild( bool exploratory, int hops )
+        {
+            if ( hops <= 0 ) throw new ArgumentException( "Hops must be > 0" );
+
+            var exclude = new ConcurrentBag<I2PIdentHash>();
+
+            for ( int i = 0; i < hops; ++i )
+            {
+                var retry = 0;
+                I2PIdentHash ih;
+
+                do
+                {
+                    ih = NetDb.Inst.GetRandomRouterForTunnelBuild( exploratory );
+                } while ( exclude.Contains( ih ) && ++retry < 5 );
+
+                exclude.Add( ih );
+                yield return ih;
+            }
         }
 
         public I2PRouterInfo GetRandomNonFloodfillRouterInfo( bool exploratory )

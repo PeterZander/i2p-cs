@@ -65,43 +65,12 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        TunnelInfo CreateOutgoingTunnelChain()
-        {
-            var hops = new List<HopInfo>();
-
-            for ( int i = 0; i < DefaultExploratoryTunnelHopCount; ++i )
-            {
-                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( true );
-                if ( ih is null ) return new TunnelInfo( hops );
-
-                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
-            }
-
-            return new TunnelInfo( hops );
-        }
-
-        TunnelInfo CreateIncommingTunnelChain()
-        {
-            var hops = new List<HopInfo>();
-
-            for ( int i = 0; i < DefaultExploratoryTunnelHopCount; ++i )
-            {
-                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( true );
-                if ( ih is null ) return new TunnelInfo( hops );
-
-                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
-            }
-            hops.Add( new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() ) );
-
-            return new TunnelInfo( hops );
-        }
-
         private Tunnel CreateExploratoryOutboundTunnel()
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
                 TunnelConfig.TunnelPool.Exploratory,
-                CreateOutgoingTunnelChain() );
+                Tunnel.CreateOutboundTunnelChain( DefaultExploratoryTunnelHopCount, true ) );
 
             var tunnel = TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
@@ -117,7 +86,7 @@ namespace I2PCore.TunnelLayer
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
                 TunnelConfig.TunnelPool.Exploratory,
-                CreateIncommingTunnelChain() );
+                Tunnel.CreateInboundTunnelChain( DefaultExploratoryTunnelHopCount, true ) );
 
             var tunnel = TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )

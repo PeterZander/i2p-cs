@@ -63,43 +63,12 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        TunnelInfo CreateOutgoingTunnelChain( IClient dest )
-        {
-            var hops = new List<HopInfo>();
-
-            for ( int i = 0; i < dest.OutboundTunnelHopCount; ++i )
-            {
-                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( false );
-                if ( ih is null ) return new TunnelInfo( hops );
-
-                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
-            }
-
-            return new TunnelInfo( hops );
-        }
-
-        TunnelInfo CreateIncommingTunnelChain( IClient dest )
-        {
-            var hops = new List<HopInfo>();
-
-            for ( int i = 0; i < dest.InboundTunnelHopCount; ++i )
-            {
-                var ih = NetDb.Inst.GetRandomRouterForTunnelBuild( false );
-                if ( ih is null ) return new TunnelInfo( hops );
-
-                hops.Add( new HopInfo( NetDb.Inst[ih].Identity, new I2PTunnelId() ) );
-            }
-            hops.Add( new HopInfo( RouterContext.Inst.MyRouterIdentity, new I2PTunnelId() ) );
-
-            return new TunnelInfo( hops );
-        }
-
         private OutboundTunnel CreateOutboundTunnel( IClient client, TunnelInfo prototype )
         {
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Outbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype ?? CreateOutgoingTunnelChain( client ) );
+                prototype ?? Tunnel.CreateOutboundTunnelChain( client.OutboundTunnelHopCount, false ) );
 
             var tunnel = (OutboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
@@ -116,7 +85,7 @@ namespace I2PCore.TunnelLayer
             var config = new TunnelConfig(
                 TunnelConfig.TunnelDirection.Inbound,
                 TunnelConfig.TunnelPool.Client,
-                prototype ?? CreateIncommingTunnelChain( client ) );
+                prototype ?? Tunnel.CreateInboundTunnelChain( client.InboundTunnelHopCount, false ) );
 
             var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )

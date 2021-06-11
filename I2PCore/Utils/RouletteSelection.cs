@@ -21,7 +21,7 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 1.002;
+        private const double Elitism = 1.001;
         internal const int IncludeTop = 3000;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
@@ -102,7 +102,7 @@ namespace I2PCore.Utils
 
                 var subset = Wheel;
 
-                if ( exclude != null && exclude.Any() )
+                if ( exclude?.Any() ?? false )
                 {
                     subset = Wheel.Where( one => !exclude.Contains( one.Id ) );
                 }
