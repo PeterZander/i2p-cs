@@ -370,5 +370,45 @@ namespace I2PTests
             }
 
         }
+
+        [Test]
+        public void TestMurMurHash3()
+        {
+            // From https://stackoverflow.com/questions/14747343/murmurhash3-test-vectors
+            /*
+                | Input        | Seed       | Expected   |
+                |--------------|------------|------------|
+                | (no bytes)   | 0          | 0          | with zero data and zero seed, everything becomes zero
+                | (no bytes)   | 1          | 0x514E28B7 | ignores nearly all the math
+                | (no bytes)   | 0xffffffff | 0x81F16F39 | make sure your seed uses unsigned 32-bit math
+                | FF FF FF FF  | 0          | 0x76293B50 | make sure 4-byte chunks use unsigned math
+                | 21 43 65 87  | 0          | 0xF55B516B | Endian order. UInt32 should end up as 0x87654321
+                | 21 43 65 87  | 0x5082EDEE | 0x2362F9DE | Special seed value eliminates initial key with xor
+                | 21 43 65     | 0          | 0x7E4A8634 | Only three bytes. Should end up as 0x654321
+                | 21 43        | 0          | 0xA0F7B07A | Only two bytes. Should end up as 0x4321
+                | 21           | 0          | 0x72661CF4 | Only one byte. Should end up as 0x21
+                | 00 00 00 00  | 0          | 0x2362F9DE | Make sure compiler doesn't see zero and convert to null
+                | 00 00 00     | 0          | 0x85F0B427 | 
+                | 00 00        | 0          | 0x30F4C306 |
+                | 00           | 0          | 0x514E28B7 |            
+            */
+
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[0] ), 0 ) == 0 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[0] ), 1 ) == 0x514E28B7 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[0] ), 0xffffffff ) == 0x81F16F39 );
+
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0xff, 0xff, 0xff, 0xff } ), 0 ) == 0x76293B50 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0x21, 0x43, 0x65, 0x87 } ), 0 ) == 0xF55B516B );
+
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0x21, 0x43, 0x65, 0x87 } ), 0x5082EDEE ) == 0x2362F9DE );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0x21, 0x43, 0x65 } ), 0 ) == 0x7E4A8634 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0x21, 0x43 } ), 0 ) == 0xA0F7B07A );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0x21 } ), 0 ) == 0x72661CF4 );
+
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0, 0, 0, 0 } ), 0 ) == 0x2362F9DE );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0, 0, 0 } ), 0 ) == 0x85F0B427 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0, 0 } ), 0 ) == 0x30F4C306 );
+            Assert.IsTrue( MurMurHash3.Hash( new BufRefLen( new byte[] { 0 } ), 0 ) == 0x514E28B7 );
+        }
     }
 }
