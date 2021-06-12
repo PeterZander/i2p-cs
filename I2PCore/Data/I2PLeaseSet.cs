@@ -33,12 +33,15 @@ namespace I2PCore.Data
             PublicKey = pubkey;
             PublicSigningKey = spubkey;
 
-            if ( leases != null && leases.Any() )
-            {
-                LeasesField.AddRange( leases );
-            }
+            if ( leases is null ) return;
+            
+            leases = leases.Where( l => l.Expire > DateTime.UtcNow );
 
-            if ( sprivkey != null && ( Leases?.Any() ?? false ) )
+            if ( !leases?.Any() ?? true ) return;
+
+            LeasesField.AddRange( leases );
+
+            if ( sprivkey != null )
             {
                 Signature = new I2PSignature(
                     new BufRefLen(
@@ -70,6 +73,8 @@ namespace I2PCore.Data
         public void AddLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDate enddate )
         {
             RemoveExpired();
+
+            if ( (DateTime)enddate > DateTime.UtcNow ) return;
 
             var expsort = LeasesField
                     .OrderBy( l => (ulong)l.EndDate )
@@ -222,8 +227,9 @@ namespace I2PCore.Data
         public override string ToString()
         {
             return $"I2PLeaseSet [{Leases?.Count()}]: {Destination?.IdentHash.Id32Short} " +
-                $"{string.Join( ",", LeasesField )}";
+                $"TTL: {Expire - DateTime.UtcNow} {string.Join( ",", LeasesField )}";
         }
+
         byte[] ILeaseSet.ToByteArray()
         {
             return this.ToByteArray();

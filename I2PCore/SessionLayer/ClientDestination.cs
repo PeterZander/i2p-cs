@@ -564,7 +564,7 @@ namespace I2PCore.SessionLayer
                 // Auto sign
                 SignedLeases = new I2PLeaseSet2(
                     Destination,
-                    EstablishedLeases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId ) ),
+                    EstablishedLeases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId, new I2PDateShort( l.Expire ) ) ),
                     MySessions.PublicKeys,
                     Destination.SigningPublicKey,
                     ThisDestinationInfo.PrivateSigningKey );

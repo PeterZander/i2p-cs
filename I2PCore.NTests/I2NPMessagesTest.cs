@@ -195,7 +195,14 @@ namespace I2PTests
         public void TestSimpleDatabaseStoreLeaseSetEd25519Creation()
         {
             var leases = new List<I2PLease>();
-            for ( int i = 0; i < 5; ++i ) leases.Add( new I2PLease( new I2PIdentHash( true ), (uint)( ( i * 72 + 6 ) * i * 1314 + 5 ) % 40000, I2PDate.Now ) );
+            for ( int i = 0; i < 5; ++i )
+            {
+                leases.Add( 
+                        new I2PLease( new I2PIdentHash( true ),
+                        (uint)( ( i * 72 + 6 ) * i * 1314 + 5 ) % 40000,
+                        new I2PDate( (ulong)I2PDate.Now + 5 * 60 * 1000 ) ) );
+            }
+
             var ls = new I2PLeaseSet( new I2PDestination( Public, PublicSigningEd25519 ), leases, Public, PublicSigningEd25519, PrivateSigningEd25519 );
 
             var dbsm = new DatabaseStoreMessage( ls );

@@ -37,7 +37,7 @@ namespace I2PCore.Data
             Options = new I2PMapping();
 
             PublicKeysField = pubkeys;
-            LeasesField = new List<I2PLease2>( leases );
+            LeasesField = new List<I2PLease2>( leases?.Where( l => l.Expire > DateTime.UtcNow ) );
             PublicSigningKey = spubkey;
             PrivateSigningKey = sprivkey;
         }
@@ -147,6 +147,8 @@ namespace I2PCore.Data
         }
         public void AddLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDate enddate )
         {
+            if ( (DateTime)enddate > DateTime.UtcNow ) return;
+
             RemoveExpired();
 
             var endshort = new I2PDateShort( enddate );
@@ -189,6 +191,12 @@ namespace I2PCore.Data
                 Logging.LogDebug( "I2PLeaseSet RemoveLease: No lease found to remove" );
             }
 #endif
+        }
+
+        public override string ToString()
+        {
+            return $"I2PLeaseSet2 [{Leases?.Count()}]: {Destination?.IdentHash.Id32Short} " +
+                $"TTL: {Expire - DateTime.UtcNow} {string.Join( ",", LeasesField )}";
         }
 
         byte[] ILeaseSet.ToByteArray()
