@@ -150,7 +150,7 @@ namespace I2PCore.SessionLayer
 
         internal void LeaseSetIsUpdated()
         {
-            var t = TickCounter.Now - TickSpan.Minutes( 10 );
+            var t = TickCounter.Now - TimeBetweenLeasesUpdates * 10;
             foreach ( var s in Subscribers )
             {
                 s.Value.LastUpdate = t;
