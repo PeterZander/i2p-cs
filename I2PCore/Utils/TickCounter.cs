@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace I2PCore.Utils
 {
-    public class TickSpan : IEquatable<TickSpan>, IComparable<TickSpan>
+    public class TickSpan : IEquatable<TickSpan>, IComparable<TickSpan>, IFormattable
     {
         public readonly int Ticks;
 
@@ -96,10 +94,11 @@ namespace I2PCore.Utils
         /// <summary>
         /// Generate a string with only selected time spans: "D" days, "H" hours, "M" minutes, "S" seconds, "m" milliseconds.
         /// </summary>
-        public string ToString( string format )
+        public string ToString( string format, IFormatProvider formatprovider )
         {
-            return $"{DebugText( this, format )}";
+            return DebugText( this, format );
         }
+
         #region IEquatable<TickSpan> Members
 
         bool IEquatable<TickSpan>.Equals( TickSpan other )

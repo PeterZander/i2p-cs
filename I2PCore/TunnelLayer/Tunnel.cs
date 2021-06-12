@@ -173,7 +173,7 @@ namespace I2PCore.TunnelLayer
         public override string ToString()
         {
             var pool = Config?.Pool.ToString() ?? "<?>";
-            return $"{this.GetType().Name} {pool} {TunnelDebugTrace} {CreationTime.DeltaToNow}";
+            return $"{this.GetType().Name} {pool} {TunnelDebugTrace} {CreationTime.DeltaToNow:MS}";
         }
     }
 }
