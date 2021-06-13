@@ -277,6 +277,8 @@ namespace I2PCore.TransportLayer
                 {
                     Logging.LogTransport(
                         $"TransportProvider: CreateTransport: No usable address found for {ri.Identity.IdentHash.Id32Short}!" );
+                        
+                    NetDb.Inst.Statistics.FailedToConnect( ri.Identity.IdentHash );
                     return null;
                 }
 
