@@ -16,7 +16,7 @@ namespace I2PCore.SessionLayer
 {
     public class ClientDestination : IClient
     {
-        static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 2 );
+        static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 3 );
 
         public static TickSpan InitiatorInactivityLimit = TickSpan.Minutes( 5 );
 
@@ -328,11 +328,22 @@ namespace I2PCore.SessionLayer
 
         public static ILease SelectLease( ILeaseSet ls )
         {
-            return ls
+            var result = ls
                     .Leases
+                    .Where( l => l.Expire > DateTime.UtcNow + MinLeaseLifetime )
                     .OrderByDescending( l => l.Expire )
-                    .Take( 2 )
-                    .Random();
+                    .Take( 2 );
+
+            if ( !result.Any() )
+            {
+                result = ls
+                    .Leases
+                    .Where( l => l.Expire > DateTime.UtcNow )
+                    .OrderByDescending( l => l.Expire )
+                    .Take( 2 );
+            }
+
+            return result.Random();
         }
 
         void IClient.AddOutboundPending( OutboundTunnel tunnel )
@@ -597,7 +608,7 @@ namespace I2PCore.SessionLayer
 
         private void UpdateRemoteDestinationWithLeases( DestLeaseInfo lsinfo )
         {
-            var dtn = lsinfo.LastUse.DeltaToNow;
+            var dtn = lsinfo.LastLeaseSetCacheUse.DeltaToNow;
 
             if ( dtn > InitiatorInactivityLimit )
             {
@@ -840,7 +851,8 @@ namespace I2PCore.SessionLayer
 
             var remoteleases = MyRemoteDestinations
                     .GetLeases( dest.IdentHash, false );
-            if ( remoteleases is null ) throw new InvalidOperationException( $"Destination {dest} is unknown." );
+            if ( remoteleases?.LeaseSet is null ) 
+                throw new InvalidOperationException( $"Destination {dest} is unknown." );
 
             var remotepubkeys = remoteleases
                     .LeaseSet

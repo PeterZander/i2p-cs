@@ -11,14 +11,26 @@ namespace I2PCore.SessionLayer
     /// </summary>
     public class RemoteDestinationsLeasesUpdates
     {
-        public TickSpan TimeBetweenLeasesUpdates = TickSpan.Minutes( 3 );
+        public static TickSpan TimeBetweenLeasesUpdates = TickSpan.Minutes( 3 );
+
+        public static int NumberOfResendsPerUpdate = 3;
 
         public class DestLeaseInfo
         {
             public int LookupFailures = 0;
             public ILeaseSet LeaseSet;
-            internal TickCounter LastUse = TickCounter.Now;
-            internal TickCounter LastUpdate = new TickCounter();
+            
+            /// <summary>
+            /// Last time we used the cached remote LeaseSet
+            /// </summary>
+            internal TickCounter LastLeaseSetCacheUse = TickCounter.Now;
+
+            /// <summary>
+            /// Last time we updated the remote destination with our LeaseSet
+            /// </summary>
+            internal TickCounter LastRemoteUpdate = TickCounter.Now - TimeBetweenLeasesUpdates * 10;
+
+            internal int NumberOfUpdatesSent = 0;
         }
 
         ConcurrentDictionary<I2PIdentHash, DestLeaseInfo> Subscribers =
@@ -91,10 +103,10 @@ namespace I2PCore.SessionLayer
         {
             PurgeExpired();
             var result = Subscribers
-                    .Where( s => s.Value.LastUpdate.DeltaToNow > TimeBetweenLeasesUpdates )
-                    .OrderByDescending( s => s.Value.LastUpdate.DeltaToNow )
+                    .Where( s => s.Value.LastRemoteUpdate.DeltaToNow > TimeBetweenLeasesUpdates )
+                    .OrderByDescending( s => s.Value.LastRemoteUpdate.DeltaToNow )
                     .Take( maxcount )
-                    .Select( s => { s.Value.LastUpdate.SetNow(); return s; } )
+                    .Select( s => { s.Value.LastRemoteUpdate.SetNow(); return s; } )
                     .ToArray();
 
             return result;
@@ -114,7 +126,7 @@ namespace I2PCore.SessionLayer
         again:
             var result = Subscribers.TryGetValue( d, out var ls ) ? ls : null;
 
-            if ( result is null )
+            if ( result?.LeaseSet is null )
             {
                 var cachedls = NetDb.Inst.FindLeaseSet( d );
                 if ( cachedls != null )
@@ -124,25 +136,39 @@ namespace I2PCore.SessionLayer
                 }
             }
 
-            if ( result != null && updateactivity )
-            {
-                result.LastUse.SetNow();
-                result.LastUpdate.SetNow();
-            }
-
+            result?.LastLeaseSetCacheUse?.SetNow();
             return result;
         }
 
         public bool NeedsLeasesUpdate( I2PIdentHash d, bool updateactivity = true )
         {
-            var remote = Subscribers.TryGetValue( d, out var ls ) ? ls : null;
-            if ( remote is null ) return false;
+            if ( !Subscribers.TryGetValue( d, out var remote ) )
+            {
+                Logging.LogDebug(
+                    $"{Owner} RemoteDestinations: NeedsLeasesUpdate: adding {d.Id32Short}" );
 
-            var result = remote.LastUpdate.DeltaToNow > TimeBetweenLeasesUpdates;
+                remote = new DestLeaseInfo();
+                Subscribers[d] = remote;
+            }
+
+            var result = remote.LastRemoteUpdate.DeltaToNow > TimeBetweenLeasesUpdates;
             if ( result && updateactivity )
             {
-                remote.LastUse.SetNow();
-                remote.LastUpdate.SetNow();
+                if ( ++remote.NumberOfUpdatesSent >= NumberOfResendsPerUpdate )
+                {
+                    Logging.LogDebug(
+                        $"{Owner}: NeedsLeasesUpdate: " +
+                        $"Sending final update ({NumberOfResendsPerUpdate}) to {d.Id32Short}" );
+
+                    remote.LastRemoteUpdate.SetNow();
+                    remote.NumberOfUpdatesSent = 0;
+                }
+                else
+                {
+                    Logging.LogDebug(
+                        $"{Owner}: NeedsLeasesUpdate: " +
+                        $"Sending our LeaseSet update ({remote.NumberOfUpdatesSent}) to {d.Id32Short}" );
+                }
             }
 
             return result;
@@ -153,7 +179,7 @@ namespace I2PCore.SessionLayer
             var t = TickCounter.Now - TimeBetweenLeasesUpdates * 10;
             foreach ( var s in Subscribers )
             {
-                s.Value.LastUpdate = t;
+                s.Value.LastRemoteUpdate = t;
             }
         }
 

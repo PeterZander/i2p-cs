@@ -37,8 +37,8 @@ namespace I2PCore.TunnelLayer
             get
             {
                 return RouterContext.Inst.IsFirewalled 
-                    ? TickSpan.Seconds( 5 )
-                    : TickSpan.Seconds( 3 );
+                    ? TickSpan.Seconds( 8 )
+                    : TickSpan.Seconds( 6 );
             }
         }
 
