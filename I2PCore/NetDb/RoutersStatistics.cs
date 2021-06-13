@@ -218,7 +218,7 @@ namespace I2PCore
             Update( hash, ds => ds.IsFirewalled = isfw, true );
         }
 
-        internal static float BandwidthMax = 0f;
+        internal static float BandwidthMax = 1f;
 
         public void UpdateScore()
         {
@@ -227,6 +227,8 @@ namespace I2PCore
             if ( !rar.Any() ) return;
 
             BandwidthMax = rar.Max( r => r.Value.MaxBandwidthSeen );
+            if ( float.IsNaN( BandwidthMax ) || BandwidthMax < 1f ) BandwidthMax = 1f;
+
             foreach ( var one in rar ) one.Value.UpdateScore();
         }
 
