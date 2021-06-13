@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using I2PCore.Data;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
@@ -178,9 +178,10 @@ namespace I2PCore.SessionLayer
 
                     var myleases = new DatabaseStoreMessage( publishedleases );
                     newcloveslist.Add(
-                            new GarlicClove(
-                                new GarlicCloveDeliveryLocal(
-                                    myleases ) ) );
+                        new GarlicClove(
+                            new GarlicCloveDeliveryDestination(
+                                myleases,
+                                RemoteDestination ) ) );
                 }
 
                 newcloves = newcloveslist.ToArray();
