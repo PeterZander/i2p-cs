@@ -34,12 +34,13 @@ namespace I2PCore.Data
             PublicSigningKey = spubkey;
 
             if ( leases is null ) return;
-            
+
             leases = leases.Where( l => l.Expire > DateTime.UtcNow );
 
-            if ( !leases?.Any() ?? true ) return;
-
-            LeasesField.AddRange( leases );
+            if ( leases?.Any() ?? false )
+            {
+                LeasesField.AddRange( leases );
+            }
 
             if ( sprivkey != null )
             {
