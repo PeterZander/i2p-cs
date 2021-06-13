@@ -145,7 +145,10 @@ namespace I2PCore.TunnelLayer
             var test = TestResults.Get( intunnel, () => new TunnelTestResult( intunnel ) );
 
             var outtunnels = TunnelProvider.Inst.GetOutboundTunnels()
-                .Where( t => t.Active )
+                .Where( t => t.Active
+                    && !run.FailurePartners.Contains( t )
+                    && !run.SuccessPartners.Contains( t )
+                    && !run.TestedPartners.Contains( t ) )
                 .Shuffle()
                 .Take( RunsPerTest )
                 .ToArray(); ;
@@ -162,10 +165,6 @@ namespace I2PCore.TunnelLayer
 
             foreach ( var outtunnel in outtunnels )
             {
-                if ( run.FailurePartners.Contains( outtunnel ) || 
-                    run.SuccessPartners.Contains( outtunnel ) || 
-                    run.TestedPartners.Contains( outtunnel ) ) continue;
-
                 run.TestedPartners.Add( outtunnel );
                 var probe = new ProbesSent()
                 {
@@ -216,7 +215,10 @@ namespace I2PCore.TunnelLayer
             var test = TestResults.Get( outtunnel, () => new TunnelTestResult( outtunnel ) );
 
             var intunnels = TunnelProvider.Inst.GetInboundTunnels()
-                .Where( t => t.Active )
+                .Where( t => t.Active
+                    && !run.FailurePartners.Contains( t )
+                    && !run.SuccessPartners.Contains( t )
+                    && !run.TestedPartners.Contains( t ) )
                 .Shuffle()
                 .Take( RunsPerTest * 2 )
                 .ToArray();
@@ -233,10 +235,6 @@ namespace I2PCore.TunnelLayer
 
             foreach ( var intunnel in intunnels )
             {
-                if ( run.FailurePartners.Contains( intunnel ) ||
-                    run.SuccessPartners.Contains( intunnel ) ||
-                    run.TestedPartners.Contains( intunnel ) ) continue;
-
                 run.TestedPartners.Add( intunnel );
                 var probe = new ProbesSent()
                 {
@@ -305,8 +303,8 @@ namespace I2PCore.TunnelLayer
             var run = OutstandingTests[probe.Tunnel];
             if ( run == null ) return;
 
-            Logging.LogDebug( "TunnelTester: Test with " +
-                run.TunnelUnderTest.TunnelDebugTrace + " and " + probe.Partner.TunnelDebugTrace + " timeout." );
+            Logging.LogDebug( $"TunnelTester: Test with {run.TunnelUnderTest.TunnelDebugTrace}" +
+                $" and {probe.Partner.TunnelDebugTrace} timeout." );
 
             run.OutstandingProbes.Remove( probe );
             run.FailurePartners.Add( probe.Partner );
@@ -323,49 +321,48 @@ namespace I2PCore.TunnelLayer
 
             var testresult = TestResults.Get( run.TunnelUnderTest, () => new TunnelTestResult( run.TunnelUnderTest ) );
 
-            if ( run.SuccessPartners.Count > 0 )
+            var resultcount = run.SuccessPartners.Count + run.FailurePartners.Count + testresult.Pass + testresult.Fail;
+
+            // Test run finished?
+            if ( resultcount < RunsPerTest ) return;
+
+            testresult.Pass += run.SuccessPartners.Count;
+            testresult.Fail += run.FailurePartners.Count;
+
+            // Collect statistics for the partner tunnel
+            foreach ( var onepartner in run.SuccessPartners )
             {
-                ++testresult.Pass;
-            }
-            else
-            {
-                ++testresult.Fail;
+                foreach ( var onehop in onepartner.TunnelMembers )
+                {
+                    NetDb.Inst.Statistics.SuccessfulTunnelTest( onehop.IdentHash );
+                }
+
+                var partnertestresult = TestResults.Get( onepartner, () => new TunnelTestResult( onepartner ) );
+                ++partnertestresult.Pass;
             }
 
-            if ( run.TestedPartners.Count < RunsPerTest ) return;
-
-            if ( testresult.Pass > 0 && testresult.Pass * 3 >= testresult.Fail )
+            foreach ( var onepartner in run.FailurePartners )
             {
-                Logging.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} passed tests. Successes: {1}, Failures {2}.",
-                    run.TunnelUnderTest, testresult.Pass, testresult.Fail ) );
+                foreach ( var onehop in onepartner.TunnelMembers )
+                {
+                    NetDb.Inst.Statistics.FailedTunnelTest( onehop.IdentHash );
+                }
+
+                var partnertestresult = TestResults.Get( onepartner, () => new TunnelTestResult( onepartner ) );
+                ++partnertestresult.Fail;
+            }
+
+            // Success
+            if ( testresult.Pass > 0 && testresult.Pass >= testresult.Fail )
+            {
+                Logging.LogDebug( $"TunnelTester: Run result: Tunnel {run.TunnelUnderTest} passed tests. " +
+                    $"Successes: {testresult.Pass}, Failures {testresult.Fail}." );
 
                 run.TunnelUnderTest.Metrics.PassedTunnelTest = true;
 
                 foreach ( var onehop in run.TunnelUnderTest.TunnelMembers )
                 {
                     NetDb.Inst.Statistics.SuccessfulTunnelTest( onehop.IdentHash );
-                }
-
-                foreach ( var onepartner in run.SuccessPartners )
-                {
-                    foreach ( var onehop in onepartner.TunnelMembers )
-                    {
-                        NetDb.Inst.Statistics.SuccessfulTunnelTest( onehop.IdentHash );
-                    }
-
-                    var partnertestresult = TestResults.Get( onepartner, () => new TunnelTestResult( onepartner ) );
-                    ++partnertestresult.Pass;
-                }
-
-                foreach ( var onepartner in run.FailurePartners )
-                {
-                    foreach ( var onehop in onepartner.TunnelMembers )
-                    {
-                        NetDb.Inst.Statistics.FailedTunnelTest( onehop.IdentHash );
-                    }
-
-                    var partnertestresult = TestResults.Get( onepartner, () => new TunnelTestResult( onepartner ) );
-                    ++partnertestresult.Fail;
                 }
 
                 return;
@@ -377,16 +374,8 @@ namespace I2PCore.TunnelLayer
                 NetDb.Inst.Statistics.FailedTunnelTest( onehop.IdentHash );
             }
 
-            foreach ( var onepartner in run.FailurePartners )
-            {
-                foreach ( var onehop in onepartner.TunnelMembers )
-                {
-                    NetDb.Inst.Statistics.FailedTunnelTest( onehop.IdentHash );
-                }
-            }
-
-            Logging.LogDebug( string.Format( "TunnelTester: Run result: Tunnel {0} failed tests and is removed. Successes: {1}, Failures {2}.",
-                run.TunnelUnderTest, testresult.Pass, testresult.Fail ) );
+            Logging.LogDebug( $"TunnelTester: Run result: Tunnel {run.TunnelUnderTest} failed tests and is removed. " +
+                $"Successes: {testresult.Pass}, Failures {testresult.Fail}." );
 
             TunnelProvider.Inst.TunnelTestFailed( run.TunnelUnderTest );
             run.TunnelUnderTest.Shutdown();

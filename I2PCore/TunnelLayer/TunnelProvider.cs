@@ -884,7 +884,7 @@ namespace I2PCore.TunnelLayer
                 }
 
 #if RUN_TUNNEL_TESTS
-                TunnelTester.Inst.Test( tunnel );
+                if ( !tunnel?.Terminated ?? false ) TunnelTester.Inst.Test( tunnel );
 #endif
             }
 
@@ -919,7 +919,7 @@ namespace I2PCore.TunnelLayer
                 }
 
 #if RUN_TUNNEL_TESTS
-                TunnelTester.Inst.Test( tunnel );
+                if ( !tunnel?.Terminated ?? false ) TunnelTester.Inst.Test( tunnel );
 #endif
             }
 
