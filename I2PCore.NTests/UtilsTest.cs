@@ -99,28 +99,31 @@ namespace I2PTests
         [Test]
         public void TestRoulette()
         {
-            var l = BufUtils.RandomBytes( 10000 ).AsEnumerable();
-            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => k == 42 ? 30f : 1f );
-
-            int is42 = 0;
             int samples = 10000;
-            for ( int i = 0; i < samples; ++i )
-            {
-                if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
-            }
+            var ftweight = 30f;
+            var minexpected = samples / ( 256 * 2 );
 
-            Assert.IsTrue( is42 > ( 3 * samples ) / 256 );
+            for ( int runs = 0; runs < 20; ++runs )
+            {
+                var l = BufUtils.RandomBytes( samples ).AsEnumerable();
+                var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => k == 42 ? ftweight : 1f, samples );
+
+                int is42 = l.Sum( _ => r.GetWeightedRandom( null ) == 42 ? 1 : 0 );
+
+                Assert.IsTrue( is42 > minexpected );
+            }
         }
 
         [Test]
         public void TestRoulette2()
         {
-            var l = BufUtils.RandomBytes( 10000 ).AsEnumerable();
+            int samples = 10000;
+            var l = BufUtils.RandomBytes( samples ).AsEnumerable();
             l = l.Concat( BufUtils.Populate<byte>( 42, 10000 ) );
-            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f );
+            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f, samples );
 
             int is42 = 0;
-            int samples = 10000;
+
             for ( int i = 0; i < samples; ++i )
             {
                 if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
@@ -132,11 +135,11 @@ namespace I2PTests
         [Test]
         public void TestRoulette3()
         {
-            var populationcount = RouletteSelection<float, float>.IncludeTop;
             var samplecount = 50000;
+            var populationcount = samplecount / 2;
 
             var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), populationcount );
-            var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k );
+            var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k, populationcount );
 
             int iszero = 0;
             for ( int i = 0; i < samplecount; ++i )

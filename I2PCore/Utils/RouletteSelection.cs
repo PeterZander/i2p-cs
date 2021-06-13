@@ -21,8 +21,9 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double Elitism = 1.001;
-        internal const int IncludeTop = 3000;
+        private const double DefaultElitism = 1.0 / 500;
+        public double Elitism { get; protected set; }
+        public int IncludeTop { get; protected set; }
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
         readonly double TotalSpaceSum;
@@ -37,23 +38,24 @@ namespace I2PCore.Utils
         public RouletteSelection( 
             IEnumerable<T> infos, 
             Func<T,K> selkey, 
-            Func<K,float> selfit )
+            Func<K,float> selfit,
+            int maxinfos,
+            double elitism = DefaultElitism )
         {
+            IncludeTop = maxinfos;
+            Elitism = elitism;
+
             TotalSpaceSum = 0;
 
-            var newwheel = new ConcurrentBag<RouletteSpace<K>>();
-            foreach ( var info in infos )
-            {
-                var space = new RouletteSpace<K>()
-                {
-                    Id = selkey( info ),
-                };
-                space.Fit = selfit( space.Id );
-
-                newwheel.Add( space );
-            }
-
-            Wheel = newwheel;
+            Wheel = infos.Select( inf => 
+                        {
+                            var space = new RouletteSpace<K>()
+                            {
+                                Id = selkey( inf ),
+                            };
+                            space.Fit = selfit( space.Id );
+                            return space;
+                        } );
 
             if ( !Wheel.Any() )
             {
@@ -63,21 +65,17 @@ namespace I2PCore.Utils
                 return;
             }
 
-            var i = 1.0;
+            // Makes OrderByDescending makes GetWeightedRandom faster
+            Wheel = Wheel
+                .OrderByDescending( rs => rs.Fit )
+                .ToArray();
+            var wheelcount = Wheel.Count();
 
-            var selection = Wheel
-                .Select( sp => sp );
-
-            var selcount = selection.Count();
-
-            if ( selcount > IncludeTop )
+            if ( wheelcount > IncludeTop )
             {
-                selection = selection
-                    .Skip( selcount - IncludeTop )
+                Wheel = Wheel
                     .Take( IncludeTop );
             }
-
-            Wheel = new ConcurrentBag<RouletteSpace<K>>( selection );
 
             var fits = Wheel.Select( sp => sp.Fit );
             MinFit = fits.Min();
@@ -86,28 +84,31 @@ namespace I2PCore.Utils
             AbsDevFit = fits.AbsDev();
             StdDevFit = fits.StdDev();
 
-            foreach ( var one in Wheel.OrderBy( sp => sp.Fit ) )
+            var i = 1.0 + Wheel.Count() * Elitism;
+
+            foreach ( var one in Wheel )
             {
                 one.Space = i;
-                i *= Elitism;
+                i -= Elitism;
                 TotalSpaceSum += one.Space;
             }
         }
 
-        public K GetWeightedRandom( ConcurrentBag<K> exclude )
+        public K GetWeightedRandom( IEnumerable<K> exclude )
         {
             lock ( Wheel )
             {
                 var pos = 0.0;
 
                 var subset = Wheel;
+                var subsetsum = TotalSpaceSum;
 
                 if ( exclude?.Any() ?? false )
                 {
                     subset = Wheel.Where( one => !exclude.Contains( one.Id ) );
+                    subsetsum = subset.Sum( one => one.Space );
                 }
 
-                var subsetsum = subset.Sum( one => one.Space );
                 var target = BufUtils.RandomDouble( subsetsum );
 
                 foreach ( var one in subset )

@@ -19,6 +19,7 @@ namespace I2PCore
         public static readonly TickSpan RouterInfoExpiryTime = TickSpan.Minutes( 60 );
 
         const int RouterInfoCountLowWaterMark = 100;
+        const int RouletteIncludeTop = 3000;
 
         ConcurrentDictionary<I2PIdentHash, RouterEntry> RouterInfos = 
                 new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
@@ -145,18 +146,21 @@ namespace I2PCore
             Roulette = new RouletteSelection<I2PRouterInfo, I2PIdentHash>( 
                     havehost.Select( p => p.Router ),
                     ih => ih.Identity.IdentHash, 
-                    i => Statistics[i].Score );
+                    i => Statistics[i].Score,
+                    RouletteIncludeTop );
 
             RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     FloodfillInfos.Select( rp => rp.Value.Router ),
                     ih => ih.Identity.IdentHash,
-                    i => Statistics[i].Score );
+                    i => Statistics[i].Score,
+                    RouletteIncludeTop );
 
             RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     havehost.Where( ri => !ri.IsFloodfill )
                         .Select( ri => ri.Router ),
                     ih => ih.Identity.IdentHash, 
-                    i => Statistics[i].Score );
+                    i => Statistics[i].Score,
+                    RouletteIncludeTop );
 
             Logging.LogInformation( "All routers" );
             ShowRouletteStatistics( Roulette );
