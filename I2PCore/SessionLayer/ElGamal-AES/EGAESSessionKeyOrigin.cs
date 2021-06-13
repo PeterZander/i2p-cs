@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using I2PCore.Data;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
@@ -13,9 +13,9 @@ namespace I2PCore.SessionLayer
     /// </summary>
     public class EGAESSessionKeyOrigin
     {
-        public static readonly TickSpan TagLifetime = TickSpan.Minutes( 15 );
+        public static readonly TickSpan SentTagLifetime = TickSpan.Minutes( 30 );
+        public static readonly TickSpan ACKedTagLifetime = SentTagLifetime - TickSpan.Minutes( 3 );
         public static readonly TickSpan UnACKedTagLifetime = TickSpan.Minutes( 3 );
-        public static readonly TickSpan SessionLifetime = TickSpan.Minutes( 15 );
 
         public int LowWatermarkForNewTags
         {
@@ -35,14 +35,14 @@ namespace I2PCore.SessionLayer
             public uint MessageId;
             public I2PSessionKey SessionKey;
             public readonly TimeWindowDictionary<I2PSessionTag, object> Tags =
-                new TimeWindowDictionary<I2PSessionTag, object>( TagLifetime );
+                new TimeWindowDictionary<I2PSessionTag, object>( SentTagLifetime );
         }
 
         TimeWindowDictionary<uint,SessionAndTags> NotAckedTags =
             new TimeWindowDictionary<uint, SessionAndTags>( UnACKedTagLifetime );
 
         TimeWindowDictionary<I2PSessionKey, SessionAndTags> AckedTags =
-            new TimeWindowDictionary<I2PSessionKey, SessionAndTags>( SessionLifetime );
+            new TimeWindowDictionary<I2PSessionKey, SessionAndTags>( ACKedTagLifetime );
 
         readonly ClientDestination Owner;
         readonly I2PDestination MyDestination;

@@ -19,7 +19,7 @@ namespace I2PCore.SessionLayer
         public List<I2PPrivateKey> PrivateKeys { get; set; }
 
         TimeWindowDictionary<I2PSessionTag, I2PSessionKey> SessionTags = 
-                new TimeWindowDictionary<I2PSessionTag, I2PSessionKey>( TickSpan.Minutes( 15 ) );
+                new TimeWindowDictionary<I2PSessionTag, I2PSessionKey>( EGAESSessionKeyOrigin.SentTagLifetime );
 
         protected CbcBlockCipher Cipher = new CbcBlockCipher( new AesEngine() );
         readonly object Owner;
