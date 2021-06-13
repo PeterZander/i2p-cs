@@ -164,7 +164,7 @@ namespace I2PDemo
                 MyDestinationInfo,
                 true, out _ );
 #endif
-            
+            PublishedDestination.ClientStateChanged += MyDestination_ClientStateChanged;
             PublishedDestination.DataReceived += MyDestination_DataReceived;
             PublishedDestination.Name = "PublishedDestination";
 
@@ -216,7 +216,7 @@ namespace I2PDemo
 
                                 SendInterval.Do( () =>
                                 {
-                                    if ( sendevents++ < 10 )
+                                    if ( sendevents++ < 20 )
                                     {
                                         // Send some data to the MyDestination
                                         DataSent = new BufLen(
@@ -227,7 +227,7 @@ namespace I2PDemo
                                         Logging.LogInformation( $"Program {MyOrigin}: Send[{sendevents}] to {LookedUpDestination.IdentHash.Id32Short} {ok}, {DataSent:15}" );
                                     }
 
-                                    if ( sendevents > 100 ) sendevents = 0;
+                                    if ( sendevents > 70 ) sendevents = 0;
                                 } );
                             }
                         }
@@ -256,6 +256,11 @@ namespace I2PDemo
         static I2PDestination LookedUpDestination;
         static BufLen DataSent;
 
+        static void MyDestination_ClientStateChanged( ClientDestination dest, ClientDestination.ClientStates state )
+        {
+            Logging.LogInformation( $"Program {MyDestination}: Client state {state}" );
+        }
+        
         static void MyDestination_DataReceived( ClientDestination dest, BufLen data )
         {
             var compareok = DataSent is null ? false : DataSent == data;
