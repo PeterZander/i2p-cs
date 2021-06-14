@@ -126,7 +126,6 @@ namespace I2PCore.SessionLayer
 
         public DestLeaseInfo GetLeases( I2PIdentHash d, bool updateactivity = true )
         {
-        again:
             var result = Subscribers.TryGetValue( d, out var ls ) ? ls : null;
 
             if ( result?.LeaseSet is null )
@@ -135,7 +134,7 @@ namespace I2PCore.SessionLayer
                 if ( cachedls != null )
                 {
                     LeaseSetReceived( cachedls );
-                    goto again;
+                    return Subscribers.TryGetValue( d, out var lsr ) ? lsr : null;
                 }
             }
 
