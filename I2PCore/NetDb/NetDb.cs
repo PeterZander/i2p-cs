@@ -20,6 +20,10 @@ namespace I2PCore
 
         const int RouterInfoCountLowWaterMark = 100;
         const int RouletteIncludeTop = 3000;
+        
+        // Makes the top scoring space 12 + 1 times larger than the lowest, or 13x the probability
+        // for RouletteIncludeTop routers (less elitism if there are fewer routers)
+        const double RouletteElitism = 12.0 / RouletteIncludeTop;
 
         ConcurrentDictionary<I2PIdentHash, RouterEntry> RouterInfos = 
                 new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
@@ -147,20 +151,23 @@ namespace I2PCore
                     havehost.Select( p => p.Router ),
                     ih => ih.Identity.IdentHash, 
                     i => Statistics[i].Score,
-                    RouletteIncludeTop );
+                    RouletteIncludeTop,
+                    RouletteElitism );
 
             RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     FloodfillInfos.Select( rp => rp.Value.Router ),
                     ih => ih.Identity.IdentHash,
                     i => Statistics[i].Score,
-                    RouletteIncludeTop );
+                    RouletteIncludeTop,
+                    RouletteElitism );
 
             RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     havehost.Where( ri => !ri.IsFloodfill )
                         .Select( ri => ri.Router ),
                     ih => ih.Identity.IdentHash, 
                     i => Statistics[i].Score,
-                    RouletteIncludeTop );
+                    RouletteIncludeTop,
+                    RouletteElitism );
 
             Logging.LogInformation( "All routers" );
             ShowRouletteStatistics( Roulette );
