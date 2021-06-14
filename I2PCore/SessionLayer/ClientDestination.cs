@@ -514,7 +514,6 @@ namespace I2PCore.SessionLayer
                                     if ( dbsmsg.LeaseSet != null )
                                     {
                                         Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination}." );
-                                        NetDb.Inst.AddLeaseSet( dbsmsg.LeaseSet );
                                         MyRemoteDestinations.LeaseSetReceived(
                                             dbsmsg.LeaseSet );
                                         UpdateClientState();
@@ -648,71 +647,6 @@ namespace I2PCore.SessionLayer
             return;
         }
 
-        /// <summary>
-        /// Lookups the destination. cb will be called on success or timeout
-        /// with the supplied tag.
-        /// </summary>
-        /// <param name="dest">Destination.</param>
-        /// <param name="cb">Cb.</param>
-        /// <param name="tag">Tag.</param>
-        /// <return>True if a new search was started.</return>
-        public bool LookupDestination(
-                I2PIdentHash dest,
-                DestinationLookupResult cb,
-                object tag = null )
-        {
-            if ( cb is null ) return false;
-
-            var lls = MyRemoteDestinations.GetLeases( dest, true );
-            if ( lls != null && NetDb.IsLeasesGood( lls.LeaseSet ) )
-            {
-                cb?.Invoke( dest, lls.LeaseSet, tag );
-                return true;
-            }
-
-            var ls = NetDb.Inst.FindLeaseSet( dest );
-
-            if ( NetDb.IsLeasesGood( ls ) )
-            {
-                cb?.Invoke( dest, ls, tag );
-                return true;
-            }
-
-            return Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
-        }
-
-        protected void HandleDestinationLookupResult(
-                I2PIdentHash hash,
-                ILeaseSet ls,
-                object tag )
-        {
-            if ( ls is null )
-            {
-                if ( MyRemoteDestinations.LookupFailures( hash ) < 5 )
-                {
-                    Logging.LogDebug(
-                        $"{this}: Lease set lookup failed. Trying again." );
-
-                    LookupDestination( hash, HandleDestinationLookupResult, null );
-                    return;
-                }
-                else
-                {
-                    Logging.LogDebug(
-                        $"{this}: Lease set lookup failed. Giving up." );
-
-                    MyRemoteDestinations.Remove( hash );
-                }
-                return;
-            }
-
-            Logging.LogDebug(
-                    $"{this}: Lease set for {hash.Id32Short} found ({ls.Expire})." );
-
-            NetDb.Inst.AddLeaseSet( ls );
-            MyRemoteDestinations.LeaseSetReceived( ls );
-        }
-
         protected void UpdateClientState()
         {
             if ( InboundEstablishedPool.IsEmpty || OutboundEstablishedPool.IsEmpty )
@@ -844,6 +778,8 @@ namespace I2PCore.SessionLayer
         /// <param name="cloves">Cloves</param>
         public ClientStates Send( I2PDestination dest, params GarlicClove[] cloves )
         {
+            MyRemoteDestinations.MarkAsActive( dest.IdentHash );
+            
             if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );
 
             var needsleaseupdate = MyRemoteDestinations.NeedsLeasesUpdate( dest.IdentHash );
@@ -877,6 +813,8 @@ namespace I2PCore.SessionLayer
         /// <param name="msg">I2NPMessage</param>
         ClientStates Send( I2PDestination dest, I2NPMessage msg )
         {
+            MyRemoteDestinations.MarkAsActive( dest.IdentHash );
+
             if ( Terminated ) throw new InvalidOperationException( $"This Destination {this} is terminated." );
 
             var result = CheckSendPreconditions( dest.IdentHash, out var outtunnel, out var remoteleases );
@@ -963,6 +901,71 @@ namespace I2PCore.SessionLayer
                     }
                 } );
             }
+        }
+
+        /// <summary>
+        /// Lookups the destination. cb will be called on success or timeout
+        /// with the supplied tag.
+        /// </summary>
+        /// <param name="dest">Destination.</param>
+        /// <param name="cb">Cb.</param>
+        /// <param name="tag">Tag.</param>
+        /// <return>True if a new search was started.</return>
+        public bool LookupDestination(
+                I2PIdentHash dest,
+                DestinationLookupResult cb,
+                object tag = null )
+        {
+            if ( cb is null ) return false;
+
+            var lls = MyRemoteDestinations.GetLeases( dest, true );
+            if ( lls != null && NetDb.IsLeasesGood( lls.LeaseSet ) )
+            {
+                cb?.Invoke( dest, lls.LeaseSet, tag );
+                return true;
+            }
+
+            MyRemoteDestinations.MarkAsActive( dest );
+            var ls = NetDb.Inst.FindLeaseSet( dest );
+
+            if ( NetDb.IsLeasesGood( ls ) )
+            {
+                cb?.Invoke( dest, ls, tag );
+                return true;
+            }
+
+            return Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
+        }
+
+        protected void HandleDestinationLookupResult(
+                I2PIdentHash hash,
+                ILeaseSet ls,
+                object tag )
+        {
+            if ( ls is null || ls.Expire < DateTime.UtcNow )
+            {
+                if ( MyRemoteDestinations.LookupFailures( hash ) < 5 )
+                {
+                    Logging.LogDebug(
+                        $"{this}: Lease set lookup failed. Trying again." );
+
+                    LookupDestination( hash, HandleDestinationLookupResult, null );
+                    return;
+                }
+                else
+                {
+                    Logging.LogDebug(
+                        $"{this}: Lease set lookup failed. Giving up." );
+
+                    MyRemoteDestinations.Remove( hash );
+                }
+                return;
+            }
+
+            Logging.LogDebug(
+                    $"{this}: Lease set for {hash.Id32Short} found ({ls.Expire})." );
+
+            MyRemoteDestinations.LeaseSetReceived( ls );
         }
 
         void NetDb_LeaseSetUpdates( ILeaseSet ls )

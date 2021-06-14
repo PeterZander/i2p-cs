@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using I2PCore.Data;
 using I2PCore.Utils;
 using System.Collections.Generic;
@@ -40,6 +40,11 @@ namespace I2PCore.SessionLayer
         public RemoteDestinationsLeasesUpdates( ClientDestination owner )
         {
             Owner = owner;
+        }
+
+        public void MarkAsActive( I2PIdentHash dest )
+        {
+            Subscribers.GetOrAdd( dest, d => new DestLeaseInfo() );
         }
 
         /// <summary>
