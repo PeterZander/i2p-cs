@@ -221,7 +221,7 @@ namespace I2PCore.TunnelLayer
 #if DEBUG
                 removedtunnels.Add( one );
 #endif
-                one.Owner?.TunnelBuildTimeout( one );
+                one.Owner?.TunnelBuildFailed( one, true );
 
                 foreach ( var dest in one.TunnelMembers )
                 {
@@ -309,7 +309,7 @@ namespace I2PCore.TunnelLayer
                     if ( ispending )
                     {
                         Logging.LogDebug( $"TunnelProvider: ExecuteQueue removing failed tunnel {tunnel} during build." );
-                        tunnel.Owner?.TunnelBuildTimeout( tunnel );
+                        tunnel.Owner?.TunnelBuildFailed( tunnel, false );
                     }
                     else
                     {
@@ -755,6 +755,7 @@ namespace I2PCore.TunnelLayer
                 {
                     Logging.LogDebug( $"HandleIncomingTunnelBuildRecords: Tunnel {tunnel.TunnelDebugTrace} build rejected." );
 
+                    tunnel.Owner?.TunnelBuildFailed( tunnel, false );
                     tunnel.Shutdown();
                 }
             }
@@ -848,6 +849,8 @@ namespace I2PCore.TunnelLayer
             }
             else
             {
+                obtunnel.Owner?.TunnelBuildFailed( obtunnel, false );
+
                 foreach ( var one in hops )
                 {
                     NetDb.Inst.Statistics.DeclinedTunnelMember( one.Peer.IdentHash );

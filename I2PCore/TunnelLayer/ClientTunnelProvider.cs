@@ -27,6 +27,7 @@ namespace I2PCore.TunnelLayer
             new ConcurrentDictionary<Tunnel, TunnelUnderReplacement>();
 
         internal TunnelProvider TunnelMgr;
+        public SuccessRatio ClientTunnelBuildSuccessRatio = new SuccessRatio();
 
         protected class TunnelUnderReplacement
         {
@@ -160,7 +161,7 @@ namespace I2PCore.TunnelLayer
 #endif
 
             Logging.LogInformation(
-                $"Established client tunnels in : {ei,2} ( {pi,2} {pist}), out: {eo,2} ( {po,2} {post})" );
+                $"Established client tunnels in : {ei,2} ( {pi,2} {pist}), out: {eo,2} ( {po,2} {post}) {ClientTunnelBuildSuccessRatio}" );
         }
 
         class TunnelsNeededInfo
@@ -219,6 +220,8 @@ namespace I2PCore.TunnelLayer
         {
             TunnelUnderReplacement replace = null;
 
+            ClientTunnelBuildSuccessRatio.Success();
+
             if ( !PendingTunnels.TryRemove( tunnel, out var client ) )
             {
                 Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for established tunnel {tunnel}" );
@@ -252,8 +255,10 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        public void TunnelBuildTimeout( Tunnel tunnel )
+        public void TunnelBuildFailed( Tunnel tunnel, bool timeout )
         {
+            ClientTunnelBuildSuccessRatio.Failure();
+
             if ( !PendingTunnels.TryRemove( tunnel, out var client ) )
             {
                 Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client TunnelBuildTimeout! {tunnel}" );

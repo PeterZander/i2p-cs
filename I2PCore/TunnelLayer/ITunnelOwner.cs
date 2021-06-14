@@ -3,7 +3,7 @@ namespace I2PCore.TunnelLayer
 {
     public interface ITunnelOwner
     {
-        void TunnelBuildTimeout( Tunnel tunnel );
+        void TunnelBuildFailed( Tunnel tunnel, bool timeout );
         void TunnelEstablished( Tunnel tunnel );
         void TunnelFailed( Tunnel tunnel );
         void TunnelExpired( Tunnel tunnel );

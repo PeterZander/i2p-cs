@@ -1,12 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using I2PCore.Utils;
-using I2PCore.TunnelLayer;
-using I2PCore.TunnelLayer.I2NP.Data;
-using I2PCore.Data;
-using I2PCore.SessionLayer;
 using CM = System.Configuration.ConfigurationManager;
 using System.Collections.Concurrent;
 
@@ -22,6 +15,7 @@ namespace I2PCore.TunnelLayer
         ConcurrentDictionary<Tunnel, bool> Tunnels = new ConcurrentDictionary<Tunnel, bool>();
 
         TunnelProvider TunnelMgr;
+        public SuccessRatio ExplorationTunnelBuildSuccessRatio = new SuccessRatio();
 
         internal ExplorationTunnelProvider( TunnelProvider tp )
         {
@@ -114,7 +108,7 @@ namespace I2PCore.TunnelLayer
             var po = Tunnels.Count( t => !t.Value && t.Key.Config.Direction == TunnelConfig.TunnelDirection.Outbound );
 
             Logging.LogInformation(
-                $"Established explor  tunnels in: {ei,2} ( {pi,2} ), out: {eo,2} ( {po,2} )" );
+                $"Established explor  tunnels in: {ei,2} ( {pi,2} ), out: {eo,2} ( {po,2} ) {ExplorationTunnelBuildSuccessRatio}" );
         }
 
         private void BuildNewTunnels()
@@ -160,11 +154,15 @@ namespace I2PCore.TunnelLayer
 
         public void TunnelEstablished( Tunnel tunnel )
         {
+            ExplorationTunnelBuildSuccessRatio.Success();
+
             Tunnels[tunnel] = true;
         }
 
-        public void TunnelBuildTimeout( Tunnel tunnel )
+        public void TunnelBuildFailed( Tunnel tunnel, bool timeout )
         {
+            ExplorationTunnelBuildSuccessRatio.Failure();
+
             Tunnels.TryRemove( tunnel, out _ );
         }
 

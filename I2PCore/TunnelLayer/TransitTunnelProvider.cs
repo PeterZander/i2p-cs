@@ -333,7 +333,7 @@ namespace I2PCore.TunnelLayer
         {
         }
 
-        public void TunnelBuildTimeout( Tunnel tunnel )
+        public void TunnelBuildFailed( Tunnel tunnel, bool timeout )
         {
         }
 
