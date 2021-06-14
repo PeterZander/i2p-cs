@@ -32,7 +32,7 @@ namespace I2PCore
         public event IdentResolverResultRouterInfo RouterInfoReceived;
         public event IdentResolverResultLeaseSet LeaseSetReceived;
 
-        class IdentUpdateRequestInfo
+        protected class IdentUpdateRequestInfo
         {
             public readonly TickCounter Start = TickCounter.Now;
             public readonly I2PIdentHash IdentKey;
@@ -195,6 +195,16 @@ namespace I2PCore
                     $"{ls.Destination.IdentHash.Id32Short} succeeded " +
                     $"but is no longer monitored." );
 #endif
+                return;
+            }
+
+            if ( ls.Expire < DateTime.UtcNow )
+            {
+                Logging.LogDebug( $"IdentResolver: Lookup of LeaseSet " +
+                    $"{ls} succeeded, but has expired. {info.Start.DeltaToNow}" );
+
+                SendRetries( new IdentUpdateRequestInfo[] { info } );
+
                 return;
             }
 
@@ -422,30 +432,31 @@ namespace I2PCore
 
         void CheckTimeouts()
         {
-            var timeout = OutstandingQueries.Where( i => 
-                    i.Value.Start.DeltaToNow > DatabaseLookupWaitTime 
-                    && i.Value.Retries >= DatabaseLookupRetries )
-                .Select( i => i.Value )
-                .ToArray();
-
-            foreach ( var one in timeout )
-            {
-                OutstandingQueries.TryRemove( one.IdentKey, out _ );
-
-                Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} failed with timeout.",
-                    ( one.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ), 
-                    one.IdentKey.Id32Short ) );
-
-                if ( LookupFailure != null ) ThreadPool.QueueUserWorkItem( a => LookupFailure( one.IdentKey ) );
-            }
-
             var retry = OutstandingQueries.Where( i =>
                     i.Value.Start.DeltaToNow > DatabaseLookupWaitTime )
                 .Select( i => i.Value )
                 .ToArray();
 
+            SendRetries( retry );
+        }
+
+        protected void SendRetries( IEnumerable<IdentUpdateRequestInfo> retry )
+        {
             foreach ( var one in retry )
             {
+                if ( one.Retries >= DatabaseLookupRetries )
+                {
+                    OutstandingQueries.TryRemove( one.IdentKey, out _ );
+
+                    Logging.Log( string.Format( "IdentResolver: Lookup of {0} {1} failed with timeout.",
+                        ( one.LookupType == DatabaseLookupMessage.LookupTypes.RouterInfo ? "RouterInfo" : "LeaseSet" ), 
+                        one.IdentKey.Id32Short ) );
+
+                    if ( LookupFailure != null ) ThreadPool.QueueUserWorkItem( a => LookupFailure( one.IdentKey ) );
+
+                    continue;
+                }
+
                 ++one.Retries;
 
 #if LOG_ALL_IDENT_LOOKUPS

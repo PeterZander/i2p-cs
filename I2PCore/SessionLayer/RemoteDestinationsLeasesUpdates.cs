@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using I2PCore.Data;
 using I2PCore.Utils;
 using System.Collections.Generic;
@@ -72,7 +72,10 @@ namespace I2PCore.SessionLayer
                 Logging.LogDebug(
                     $"{Owner} RemoteDestinations: updating {ls.Destination}" );
 
-                info.LeaseSet = ls;
+                if ( ls.Expire > info?.LeaseSet?.Expire )
+                {
+                    info.LeaseSet = ls;
+                }
             }
         }
 
