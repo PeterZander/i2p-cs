@@ -786,9 +786,11 @@ namespace I2PCore.SessionLayer
             var replytunnel = SelectInboundTunnel();
 
             var remoteleases = MyRemoteDestinations
-                    .GetLeases( dest.IdentHash, false );
-            if ( remoteleases?.LeaseSet is null ) 
-                throw new InvalidOperationException( $"Destination {dest} is unknown." );
+                    .GetLeases( dest.IdentHash, true );
+            if ( remoteleases?.LeaseSet is null )
+            { 
+                return ClientStates.NoLeases;
+            }
 
             var remotepubkeys = remoteleases
                     .LeaseSet
