@@ -263,8 +263,11 @@ namespace I2PCore
 
         internal void RemoveOldStatistics( ICollection<I2PIdentHash> keep )
         {
+            var now = DateTime.UtcNow;
+
             var toremove = Routers
-                .Where( one => !keep.Contains( one.Key ) )
+                .Where( one => ( now - (DateTime)one.Value.LastSeen ).TotalDays > 2
+                            && !keep.Contains( one.Key ) )
                 .ToArray();
 
             foreach( var one in toremove )
