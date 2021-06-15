@@ -19,8 +19,8 @@ namespace I2PCore.TunnelLayer
         public abstract TickSpan TunnelEstablishmentTimeout { get; }
 
         // "each hop expires the tunnel after 10 minutes" https://geti2p.net/spec/tunnel-creation
-        public static readonly TickSpan TunnelLifetime = TickSpan.Seconds( 10 * 60 );
-        public static readonly TickSpan TunnelRecreationMargin = TickSpan.Seconds( 2 * 60 );
+        public static readonly TickSpan TunnelLifetime = TickSpan.Minutes( 10 );
+        public static readonly TickSpan TunnelRecreationMargin = TickSpan.Minutes( 4 );
         public static TickSpan TunnelRecreationMarginPerHop
         {
             get
@@ -65,9 +65,11 @@ namespace I2PCore.TunnelLayer
                     && !TunnelProvider.Inst.ClientTunnelsStatusOk;
 
                 return CreationTime.DeltaToNow > (
-                    Lifetime -
-                    ( panic ? TunnelRecreationMargin * 2 : TunnelRecreationMargin ) -
-                    TunnelRecreationMarginPerHop * TunnelMemberHops );
+                    Lifetime
+                        - ( panic
+                            ? TunnelRecreationMargin * 1.5
+                            : TunnelRecreationMargin )
+                        - TunnelRecreationMarginPerHop * TunnelMemberHops );
             }
         }
 
