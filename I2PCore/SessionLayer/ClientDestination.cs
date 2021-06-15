@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using I2PCore.Data;
@@ -455,8 +455,9 @@ namespace I2PCore.SessionLayer
                 }
 
 #if LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this}: GarlicMessageReceived: {decr}" );
+                Logging.LogDebug( $"{this}: GarlicMessageReceived: {decr}: {string.Join( ',', decr.Cloves.Select( c => c.Message ) ) }" );
 #endif
+                List<I2NPMessage> DestinationMessages = null;
 
                 foreach ( var clove in decr.Cloves )
                 {
@@ -478,7 +479,7 @@ namespace I2PCore.SessionLayer
                                 Logging.LogDebug(
                                     $"{this}: GarlicMessageReceived: Delivered Router: {dest.Id32Short} {clove.Message}" );
 #endif
-                                TransportProvider.Send( dest, clove.Message );
+                                ThreadPool.QueueUserWorkItem( a => TransportProvider.Send( dest, clove.Message ) );
                                 break;
 
                             case GarlicCloveDelivery.DeliveryMethod.Tunnel:
@@ -489,11 +490,11 @@ namespace I2PCore.SessionLayer
                                     $"Delivered Tunnel: {tone.Destination.Id32Short} " +
                                     $"TunnelId: {tone.Tunnel} {clove.Message}" );
 #endif
-                                TransportProvider.Send(
+                                ThreadPool.QueueUserWorkItem( a => TransportProvider.Send(
                                         tone.Destination,
                                         new TunnelGatewayMessage(
                                             clove.Message,
-                                            tone.Tunnel ) );
+                                            tone.Tunnel ) ) );
                                 break;
 
                             case GarlicCloveDelivery.DeliveryMethod.Destination:
@@ -511,22 +512,34 @@ namespace I2PCore.SessionLayer
                                         break;
                                     }
 
+                                    MyRemoteDestinations.MarkAsActive( dbsmsg.LeaseSet?.Destination?.IdentHash );
+
                                     if ( dbsmsg.LeaseSet.Expire > DateTime.UtcNow )
                                     {
-                                        Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination}." );
+                                        Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination} {dbsmsg.LeaseSet}." );
                                         MyRemoteDestinations.LeaseSetReceived(
                                             dbsmsg.LeaseSet );
-                                        UpdateClientState();
+                                        ThreadPool.QueueUserWorkItem( a => UpdateClientState() );
                                     }
                                 }
 
-                                DestinationMessageReceived( clove.Message );
+                                if ( DestinationMessages is null )
+                                        DestinationMessages = new List<I2NPMessage>();
+                                DestinationMessages.Add( clove.Message );
                                 break;
                         }
                     }
                     catch ( Exception ex )
                     {
                         Logging.Log( "ClientDestination GarlicDecrypt Clove", ex );
+                    }
+                }
+
+                if ( DestinationMessages != null )
+                {
+                    foreach( var dmsg in DestinationMessages )
+                    {
+                        ThreadPool.QueueUserWorkItem( a => DestinationMessageReceived( dmsg ) );
                     }
                 }
             }
