@@ -101,54 +101,22 @@ namespace I2PTests
         {
             int samples = 10000;
             var ftweight = 30f;
-            var minexpected = samples / ( 256 * 2 );
+            var spaceboost = 1000;
+            var minexpected = ( 1.0 / 256 ) * samples * 3;
 
             for ( int runs = 0; runs < 20; ++runs )
             {
                 var l = BufUtils.RandomBytes( samples ).AsEnumerable();
-                var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => k == 42 ? ftweight : 1f, samples );
+                var r = new I2PCore.Utils.RouletteSelection<byte, byte>( 
+                        l, v => v, 
+                        k => k == 42 ? ftweight : 1f,
+                        samples,
+                        Math.Pow( spaceboost, 1.0 / samples ) );
 
                 int is42 = l.Sum( _ => r.GetWeightedRandom( null ) == 42 ? 1 : 0 );
 
                 Assert.IsTrue( is42 > minexpected );
             }
-        }
-
-        [Test]
-        public void TestRoulette2()
-        {
-            int samples = 10000;
-            var l = BufUtils.RandomBytes( samples ).AsEnumerable();
-            l = l.Concat( BufUtils.Populate<byte>( 42, 10000 ) );
-            var r = new I2PCore.Utils.RouletteSelection<byte, byte>( l, v => v, k => 1f, samples );
-
-            int is42 = 0;
-
-            for ( int i = 0; i < samples; ++i )
-            {
-                if ( r.GetWeightedRandom( null ) == 42 ) ++is42;
-            }
-
-            Assert.IsTrue( is42 > samples / 1000 );
-        }
-
-        [Test]
-        public void TestRoulette3()
-        {
-            var samplecount = 50000;
-            var populationcount = samplecount / 2;
-
-            var l = BufUtils.Populate<float>( () => BufUtils.RandomInt( 2 ) == 0 ? 0f : BufUtils.RandomFloat( 100000 ), populationcount );
-            var r = new I2PCore.Utils.RouletteSelection<float, float>( l, v => v, k => k, populationcount );
-
-            int iszero = 0;
-            for ( int i = 0; i < samplecount; ++i )
-            {
-                if ( r.GetWeightedRandom( null ) < float.Epsilon ) ++iszero;
-            }
-
-            Assert.IsTrue( iszero > 0 );
-            Assert.IsTrue( iszero < samplecount / 2 );
         }
 
         [Test]

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("I2PCore.NTests")]
@@ -11,9 +10,15 @@ namespace I2PCore.Utils
     {
         public class RouletteSpace<K2>
         {
-            public K2 Id;
+            public readonly K2 Id;
+            public readonly float Fit;
             public double Space;
-            public float Fit;
+
+            public RouletteSpace( K2 id, Func<K2,float> selfit )
+            {
+                Id = id;
+                Fit = selfit( Id );
+            }
 
             public override string ToString()
             {
@@ -21,12 +26,11 @@ namespace I2PCore.Utils
             }
         }
 
-        private const double DefaultElitism = 1.0 / 500;
-        public double Elitism { get; protected set; }
-        public int IncludeTop { get; protected set; }
+        public readonly double Elitism;
+        public readonly int IncludeTop;
 
         public readonly IEnumerable<RouletteSpace<K>> Wheel;
-        readonly double TotalSpaceSum;
+        public readonly double TotalSpaceSum;
 
         public readonly float AverageFit;
         public readonly float AbsDevFit;
@@ -35,27 +39,21 @@ namespace I2PCore.Utils
         public readonly float MinFit;
         public readonly float MaxFit;
 
+        public readonly int Count;
+
         public RouletteSelection( 
             IEnumerable<T> infos, 
             Func<T,K> selkey, 
             Func<K,float> selfit,
             int maxinfos,
-            double elitism = DefaultElitism )
+            double elitism )
         {
             IncludeTop = maxinfos;
             Elitism = elitism;
 
             TotalSpaceSum = 0;
 
-            Wheel = infos.Select( inf => 
-                        {
-                            var space = new RouletteSpace<K>()
-                            {
-                                Id = selkey( inf ),
-                            };
-                            space.Fit = selfit( space.Id );
-                            return space;
-                        } );
+            Wheel = infos.Select( inf => new RouletteSpace<K>( selkey( inf ), selfit ) );
 
             if ( !Wheel.Any() )
             {
@@ -69,12 +67,14 @@ namespace I2PCore.Utils
             Wheel = Wheel
                 .OrderByDescending( rs => rs.Fit )
                 .ToArray();
-            var wheelcount = Wheel.Count();
+            Count = Wheel.Count();
 
-            if ( wheelcount > IncludeTop )
+            if ( Count > IncludeTop )
             {
                 Wheel = Wheel
-                    .Take( IncludeTop );
+                    .Take( IncludeTop )
+                    .ToArray();
+                Count = IncludeTop;
             }
 
             var fits = Wheel.Select( sp => sp.Fit );
@@ -84,17 +84,16 @@ namespace I2PCore.Utils
             AbsDevFit = fits.AbsDev();
             StdDevFit = fits.StdDev();
 
-            var i = 1.0 + Wheel.Count() * Elitism;
+            var i = 0;
 
             foreach ( var one in Wheel )
             {
-                one.Space = i;
-                i -= Elitism;
+                one.Space = Math.Pow( Elitism, Count - i++ );
                 TotalSpaceSum += one.Space;
             }
         }
 
-        public K GetWeightedRandom( IEnumerable<K> exclude )
+        public K GetWeightedRandom( ICollection<K> exclude )
         {
             lock ( Wheel )
             {

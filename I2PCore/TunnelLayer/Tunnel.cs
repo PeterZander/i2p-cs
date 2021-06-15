@@ -20,12 +20,12 @@ namespace I2PCore.TunnelLayer
 
         // "each hop expires the tunnel after 10 minutes" https://geti2p.net/spec/tunnel-creation
         public static readonly TickSpan TunnelLifetime = TickSpan.Minutes( 10 );
-        public static readonly TickSpan TunnelRecreationMargin = TickSpan.Minutes( 4 );
+        public static readonly TickSpan TunnelRecreationMargin = TickSpan.Minutes( 3 );
         public static TickSpan TunnelRecreationMarginPerHop
         {
             get
             {
-                return ExpectedTunnelBuildTimePerHop * 8;
+                return ExpectedTunnelBuildTimePerHop * 1.5;
             }
         }
 

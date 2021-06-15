@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
@@ -19,11 +19,42 @@ namespace I2PCore
         public static readonly TickSpan RouterInfoExpiryTime = TickSpan.Minutes( 60 );
 
         const int RouterInfoCountLowWaterMark = 100;
-        const int RouletteIncludeTop = 3000;
+        static int RouletteIncludeTopField = 3000;
+        public static int RouletteIncludeTop
+        {
+            get
+            {
+                return RouletteIncludeTopField;
+            }
+            set
+            {
+                var elitism = RouletteElitism;
+                RouletteIncludeTopField = value;
+                RouletteElitism = elitism;
+            }
+        }
+
         
-        // Makes the top scoring space 12 + 1 times larger than the lowest, or 13x the probability
-        // for RouletteIncludeTop routers (less elitism if there are fewer routers)
-        const double RouletteElitism = 12.0 / RouletteIncludeTop;
+        /// <summary>
+        /// The how many times more probable the highest scoring router is choosen than the lowest
+        /// scoring router, if the number of routers are equal to RouletteIncludeTop.
+        /// If the number of routers are less than RouletteIncludeTop, the elitism is reduced
+        /// linearely. See: "Fitness proportionate selection"
+        /// </summary>
+        public static double RouletteElitism
+        {
+            get
+            {
+                return Math.Pow( RouletteElitismIncrement, RouletteIncludeTop );
+            }
+            set
+            {
+                RouletteElitismIncrement = Math.Pow( value, 1.0 / RouletteIncludeTop );
+            }
+        }
+
+        // Defaults to 20000x
+        public static double RouletteElitismIncrement = Math.Pow( 20000.0, 1.0 / RouletteIncludeTop );
 
         ConcurrentDictionary<I2PIdentHash, RouterEntry> RouterInfos = 
                 new ConcurrentDictionary<I2PIdentHash, RouterEntry>();
@@ -152,14 +183,14 @@ namespace I2PCore
                     ih => ih.Identity.IdentHash, 
                     i => Statistics[i].Score,
                     RouletteIncludeTop,
-                    RouletteElitism );
+                    RouletteElitismIncrement );
 
             RouletteFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     FloodfillInfos.Select( rp => rp.Value.Router ),
                     ih => ih.Identity.IdentHash,
                     i => Statistics[i].Score,
                     RouletteIncludeTop,
-                    RouletteElitism );
+                    RouletteElitismIncrement );
 
             RouletteNonFloodFill = new RouletteSelection<I2PRouterInfo, I2PIdentHash>(
                     havehost.Where( ri => !ri.IsFloodfill )
@@ -167,7 +198,7 @@ namespace I2PCore
                     ih => ih.Identity.IdentHash, 
                     i => Statistics[i].Score,
                     RouletteIncludeTop,
-                    RouletteElitism );
+                    RouletteElitismIncrement );
 
             Logging.LogInformation( "All routers" );
             ShowRouletteStatistics( Roulette );

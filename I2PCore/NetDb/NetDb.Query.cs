@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
@@ -76,17 +76,24 @@ namespace I2PCore
             if ( result is null ) return null;
 
 #if LOG_ROUTER_SELECTION_HISTORY && DEBUG
-            RouterSelectionHistory.AddOrUpdate( result, ih => 1, ( ih, count ) => count + 1 );
+            if ( !exploratory )
+            {
+                RouterSelectionHistory.AddOrUpdate( result, ih => 1, ( ih, count ) => count + 1 );
+            }
 
             LogRouterSelectionHistory.Do( () =>
             {
+                var sum = RouterSelectionHistory.Sum( rh => rh.Value );
                 var hist = RouterSelectionHistory
                     .OrderByDescending( h => h.Value )
                     .ToArray();
 
+                Logging.LogDebug( $"NetDb: GetRandomRouterForTunnelBuild: Different routers: " +
+                    $"{hist.Count()} / {Roulette.Count} ({(100.0*hist.Count())/Roulette.Count:F2}%)" );
                 foreach( var one in hist )
                 {
-                    Logging.LogDebug( $"NetDb: GetRandomRouterForTunnelBuild: {one.Key.Id32Short} {one.Value, 15}" );
+                    Logging.LogDebug( $"NetDb: GetRandomRouterForTunnelBuild: {one.Key.Id32Short} {one.Value,8} " +
+                        $"{(1E6*one.Value)/sum,10:F0} ppm, all {(100.0*one.Value)/Roulette.Count,8:F3} %" );
                 }
             } );
 #endif        
