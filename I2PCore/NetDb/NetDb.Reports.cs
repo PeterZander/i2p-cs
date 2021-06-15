@@ -91,7 +91,7 @@ namespace I2PCore
             var l = new List<I2PIdentHash>();
             for ( int i = 0; i < 1000; ++i )
             {
-                l.Add( GetRandomRouter( Roulette, new ConcurrentBag<I2PIdentHash>(), false ) );
+                l.Add( GetRandomRouter( Roulette, null, false ) );
             }
             var lines = l.GroupBy( i => i ).OrderByDescending( g => g.Count() );
             foreach ( var one in lines )

@@ -43,7 +43,7 @@ namespace I2PCore
             public TickCounter LastQuery = TickCounter.MaxDelta;
             public Func<I2PIdentHash,DatabaseLookupKeyInfo> KeyGenerator { get; set; }
 
-            public ConcurrentBag<I2PIdentHash> AlreadyQueried = new ConcurrentBag<I2PIdentHash>();
+            public HashSet<I2PIdentHash> AlreadyQueried = new HashSet<I2PIdentHash>();
 
             public IdentUpdateRequestInfo( I2PIdentHash id, DatabaseLookupMessage.LookupTypes lookuptype, int outstanding )
             {

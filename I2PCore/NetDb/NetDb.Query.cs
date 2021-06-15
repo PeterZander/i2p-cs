@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
@@ -15,7 +15,7 @@ namespace I2PCore
 
         private I2PIdentHash GetRandomRouter(
             RouletteSelection<I2PRouterInfo, I2PIdentHash> r,
-            ConcurrentBag<I2PIdentHash> exclude,
+            ICollection<I2PIdentHash> exclude,
             bool exploratory )
         {
             I2PIdentHash result;
@@ -53,7 +53,7 @@ namespace I2PCore
 
         I2PRouterInfo GetRandomRouterInfo( RouletteSelection<I2PRouterInfo, I2PIdentHash> r, bool exploratory )
         {
-            return this[GetRandomRouter( r, new ConcurrentBag<I2PIdentHash>(), exploratory )];
+            return this[GetRandomRouter( r, null, exploratory )];
         }
 
         public I2PRouterInfo GetRandomRouterInfo( bool exploratory )
@@ -98,7 +98,7 @@ namespace I2PCore
         {
             if ( hops <= 0 ) throw new ArgumentException( "Hops must be > 0" );
 
-            var exclude = new ConcurrentBag<I2PIdentHash>();
+            var exclude = new HashSet<I2PIdentHash>();
 
             for ( int i = 0; i < hops; ++i )
             {
@@ -129,7 +129,7 @@ namespace I2PCore
 
         public I2PIdentHash GetRandomFloodfillRouter( bool exploratory )
         {
-            return GetRandomRouter( RouletteFloodFill, new ConcurrentBag<I2PIdentHash>( RecentlyUsedForFF ), exploratory );
+            return GetRandomRouter( RouletteFloodFill, RecentlyUsedForFF.ToHashSet(), exploratory );
         }
 
         public IEnumerable<I2PIdentHash> GetRandomFloodfillRouter( bool exploratory, int count )
@@ -159,7 +159,7 @@ namespace I2PCore
         public IEnumerable<I2PIdentHash> GetClosestFloodfill(
                 I2PIdentHash dest,
                 int count,
-                ConcurrentBag<I2PIdentHash> exclude )
+                ICollection<I2PIdentHash> exclude )
         {
             var minfit = RouletteFloodFill.AverageFit -
                     Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
@@ -193,7 +193,7 @@ namespace I2PCore
         public IEnumerable<I2PRouterInfo> GetClosestFloodfillInfo(
             I2PIdentHash reference,
             int count,
-            ConcurrentBag<I2PIdentHash> exclude )
+            ICollection<I2PIdentHash> exclude )
         {
             return Find( GetClosestFloodfill( reference, count, exclude ) );
         }
