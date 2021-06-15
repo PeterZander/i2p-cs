@@ -14,7 +14,7 @@ namespace I2PCore
 {
     public class FloodfillUpdater
     {
-        public static readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 8 );
+        public static readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 15 );
 
         PeriodicAction StartNewUpdateRouterInfo = new PeriodicAction( NetDb.RouterInfoExpiryTime / 5, true );
         PeriodicAction CheckForTimouts = new PeriodicAction( TickSpan.Seconds( 5 ) );
@@ -27,6 +27,8 @@ namespace I2PCore
 
             public I2PIdentHash CurrentTargetFF { get; set; }
 
+            public TimeWindowDictionary<I2PIdentHash,object> Exclude;
+
             public TickSpan Timeout => LeaseSet is null
                     ? DatabaseStoreNonReplyTimeout
                     : DatabaseStoreNonReplyTimeout * 2;
@@ -36,6 +38,7 @@ namespace I2PCore
 
             public FFUpdateRequestInfo( I2PIdentHash ff, uint token, I2PIdentHash id )
             {
+                Exclude = new TimeWindowDictionary<I2PIdentHash,object>( DatabaseStoreNonReplyTimeout * 10 );
                 CurrentTargetFF = ff;
                 Token = token;
                 IdentToUpdate = id;
@@ -43,6 +46,7 @@ namespace I2PCore
 
             public FFUpdateRequestInfo( I2PIdentHash ff, uint token, ILeaseSet ls, int retries )
             {
+                Exclude = new TimeWindowDictionary<I2PIdentHash,object>( DatabaseStoreNonReplyTimeout * 10 );
                 CurrentTargetFF = ff;
                 Token = token;
                 LeaseSet = ls;
@@ -113,7 +117,8 @@ namespace I2PCore
         {
             var list = GetNewFFList(
                     RouterContext.Inst.MyRouterIdentity.IdentHash,
-                    4 );
+                    4,
+                    null );
 
             foreach ( var ff in list )
             {
@@ -152,7 +157,8 @@ namespace I2PCore
 
             var list = GetNewFFList(
                     ls.Destination.IdentHash,
-                    2 );
+                    3,
+                    null );
 
             var destinations = list.Select( i => NetDb.Inst[i] );
 
@@ -266,7 +272,8 @@ namespace I2PCore
         {
             var list = GetNewFFList(
                     RouterContext.Inst.MyRouterIdentity.IdentHash,
-                    rinfos.Count() );
+                    rinfos.Count(),
+                    rinfos.SelectMany( inf => inf.Exclude?.Select( e => e.Key ) ).ToHashSet() );
 
             foreach ( var rinfo in rinfos )
             {
@@ -280,10 +287,16 @@ namespace I2PCore
                     ff ^ RouterContext.Inst.MyRouterIdentity.IdentHash.RoutingKey ) );
 
                 SendUpdate( ff, token );
-                OutstandingRequests[token] = new FFUpdateRequestInfo( 
+
+                var newreq = new FFUpdateRequestInfo( 
                         ff, 
                         token,
                         RouterContext.Inst.MyRouterIdentity.IdentHash );
+                newreq.Exclude = rinfo.Exclude;
+                newreq.Exclude[ff] = 1;
+
+                OutstandingRequests[token] = newreq;
+
             }
         }
 
@@ -300,7 +313,7 @@ namespace I2PCore
                 var list = NetDb.Inst.GetClosestFloodfill(
                             ls.Destination.IdentHash,
                             2 + 2 * lsinfo.Retries,
-                            null );
+                            lsets.SelectMany( inf => inf.Exclude?.Select( e => e.Key ) ).ToHashSet() );
 
                 var ff = list.Random();
                 if ( ff is null ) continue;
@@ -317,15 +330,20 @@ namespace I2PCore
                         ls,
                         token );
 
-                OutstandingRequests[token] = new FFUpdateRequestInfo(
+                var newreq = new FFUpdateRequestInfo(
                         ff,
                         token,
                         ls,
                         lsinfo.Retries + 1 );
+
+                newreq.Exclude = lsinfo.Exclude;
+                newreq.Exclude[ff] = 1;
+
+                OutstandingRequests[token] = newreq;
             }
         }
 
-        private static IEnumerable<I2PIdentHash> GetNewFFList( I2PIdentHash id, int count )
+        private static IEnumerable<I2PIdentHash> GetNewFFList( I2PIdentHash id, int count, ICollection<I2PIdentHash> exclude )
         {
             var list = NetDb.Inst
                 .GetClosestFloodfill(
