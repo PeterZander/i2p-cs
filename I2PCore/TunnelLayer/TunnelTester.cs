@@ -20,11 +20,11 @@ namespace I2PCore.TunnelLayer
         public static TunnelTester Inst = new TunnelTester();
         protected static Thread Worker;
 
-        class TunnelTestResult
+        public class TunnelTestResult
         {
-            Tunnel TestedTunnel;
+            public readonly Tunnel TestedTunnel;
 
-            public TickCounter Created = TickCounter.Now;
+            public readonly TickCounter Created = TickCounter.Now;
             public int Pass;
             public int Fail;
 
@@ -37,28 +37,39 @@ namespace I2PCore.TunnelLayer
         TimeWindowDictionary<Tunnel, TunnelTestResult> TestResults = 
                 new TimeWindowDictionary<Tunnel, TunnelTestResult>( TickSpan.Minutes( 10 ) );
 
-        class ProbesSent
+        public class TestProbe
         {
-            public TickCounter Created = TickCounter.Now;
-            public int TotalHops;
-            public Tunnel Tunnel;
-            public Tunnel Partner;
-            public uint MessageId;
+            public readonly TickCounter Created = TickCounter.Now;
+            public readonly int TotalHops;
+            public readonly Tunnel Tunnel;
+            public readonly Tunnel Partner;
+            public readonly uint MessageId;
+
+            public TestProbe( Tunnel tunnel, Tunnel partner )
+            {
+                Tunnel = tunnel;
+                Partner = partner;
+                MessageId = I2NPMessage.GenerateMessageId();
+                TotalHops = Tunnel.Config.Info.Hops.Count + Partner.Config.Info.Hops.Count;
+            }
         }
 
-        class TestRun2
+        public delegate void TestRunFinishedEventHandler( bool success, TunnelTestResult result , TestRun run );
+        public event TestRunFinishedEventHandler TestRunFinished;
+
+        public class TestRun
         {
             public TickCounter Created = TickCounter.Now;
             public TickCounter LastRun = TickCounter.MaxDelta;
 
             public readonly Tunnel TunnelUnderTest;
 
-            public readonly List<ProbesSent> OutstandingProbes = new List<ProbesSent>();
+            public readonly List<TestProbe> OutstandingProbes = new List<TestProbe>();
             public readonly HashSet<Tunnel> FailurePartners = new HashSet<Tunnel>();
             public readonly HashSet<Tunnel> SuccessPartners = new HashSet<Tunnel>();
             public readonly HashSet<Tunnel> TestedPartners = new HashSet<Tunnel>();
 
-            internal TestRun2( Tunnel testtunnel )
+            internal TestRun( Tunnel testtunnel )
             {
                 TunnelUnderTest = testtunnel;
             }
@@ -67,10 +78,10 @@ namespace I2PCore.TunnelLayer
         ConcurrentQueue<OutboundTunnel> OutboundTunnels = new ConcurrentQueue<OutboundTunnel>();
         ConcurrentQueue<InboundTunnel> InboundTunnels = new ConcurrentQueue<InboundTunnel>();
 
-        TimeWindowDictionary<Tunnel, TestRun2> OutstandingTests = 
-                new TimeWindowDictionary<Tunnel, TestRun2>( MaxTestRunTime );
-        TimeWindowDictionary<uint, ProbesSent> OutstandingProbeIds = 
-                new TimeWindowDictionary<uint, ProbesSent>( MaxTestRunTime );
+        TimeWindowDictionary<Tunnel, TestRun> OutstandingTests = 
+                new TimeWindowDictionary<Tunnel, TestRun>( MaxTestRunTime );
+        TimeWindowDictionary<uint, TestProbe> OutstandingProbeIds = 
+                new TimeWindowDictionary<uint, TestProbe>( MaxTestRunTime );
 
         public TunnelTester()
         {
@@ -101,7 +112,7 @@ namespace I2PCore.TunnelLayer
                         if ( InboundTunnels.Count > 0 ) TestOneInboundTunnel();
                         if ( OutboundTunnels.Count > 0 ) TestOneOutboundTunnel();
 
-                        ProbesSent[] timeout = null;
+                        TestProbe[] timeout = null;
 
                         timeout = OutstandingProbeIds.Where( p => p.Value.Created.DeltaToNow / p.Value.TotalHops > PassTestTimePerHop ).
                             Select( p => p.Value ).ToArray();
@@ -138,7 +149,7 @@ namespace I2PCore.TunnelLayer
             }
             else
             {
-                run = new TestRun2( intunnel );
+                run = new TestRun( intunnel );
                 OutstandingTests[intunnel] = run;
             }
 
@@ -166,13 +177,7 @@ namespace I2PCore.TunnelLayer
             foreach ( var outtunnel in outtunnels )
             {
                 run.TestedPartners.Add( outtunnel );
-                var probe = new ProbesSent()
-                {
-                    Tunnel = intunnel,
-                    Partner = outtunnel,
-                    MessageId = I2NPMessage.GenerateMessageId(),
-                    TotalHops = outtunnel.Config.Info.Hops.Count + intunnel.Config.Info.Hops.Count
-                };
+                var probe = new TestProbe( intunnel, outtunnel );
 
                 tunneldbginfo += $"({outtunnel.TunnelDebugTrace}:{probe.MessageId})";
 
@@ -208,7 +213,7 @@ namespace I2PCore.TunnelLayer
             }
             else
             {
-                run = new TestRun2( outtunnel );
+                run = new TestRun( outtunnel );
                 OutstandingTests[outtunnel] = run;
             }
 
@@ -236,13 +241,7 @@ namespace I2PCore.TunnelLayer
             foreach ( var intunnel in intunnels )
             {
                 run.TestedPartners.Add( intunnel );
-                var probe = new ProbesSent()
-                {
-                    Tunnel = outtunnel,
-                    Partner = intunnel,
-                    MessageId = I2NPMessage.GenerateMessageId(),
-                    TotalHops = outtunnel.Config.Info.Hops.Count + intunnel.Config.Info.Hops.Count
-                };
+                var probe = new TestProbe( outtunnel, intunnel );
 
                 tunneldbginfo += $"({intunnel.TunnelDebugTrace}:{probe.MessageId})";
 
@@ -296,7 +295,7 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        private void DeliveryStatusTimeOut( ProbesSent probe )
+        private void DeliveryStatusTimeOut( TestProbe probe )
         {
             OutstandingProbeIds.Remove( probe.MessageId );
 
@@ -315,7 +314,7 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        private void HandleTunnelTestResult( TestRun2 run )
+        private void HandleTunnelTestResult( TestRun run )
         {
             if ( run.OutstandingProbes.Count > 0 ) return;
 
@@ -365,6 +364,8 @@ namespace I2PCore.TunnelLayer
                     NetDb.Inst.Statistics.SuccessfulTunnelTest( onehop.IdentHash );
                 }
 
+                if ( TestRunFinished != null ) ThreadPool.QueueUserWorkItem( a => TestRunFinished( true, testresult, run ) );
+
                 return;
             }
 
@@ -379,6 +380,8 @@ namespace I2PCore.TunnelLayer
 
             TunnelProvider.Inst.TunnelTestFailed( run.TunnelUnderTest );
             run.TunnelUnderTest.Shutdown();
+
+            if ( TestRunFinished != null ) ThreadPool.QueueUserWorkItem( a => TestRunFinished( false, testresult, run ) );
         }
 
         public void Test( OutboundTunnel tunnel )
