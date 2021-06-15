@@ -511,7 +511,7 @@ namespace I2PCore.SessionLayer
                                         break;
                                     }
 
-                                    if ( dbsmsg.LeaseSet != null )
+                                    if ( dbsmsg.LeaseSet.Expire > DateTime.UtcNow )
                                     {
                                         Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination}." );
                                         MyRemoteDestinations.LeaseSetReceived(

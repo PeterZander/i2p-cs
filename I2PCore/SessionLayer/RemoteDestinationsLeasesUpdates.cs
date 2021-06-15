@@ -3,6 +3,7 @@ using I2PCore.Data;
 using I2PCore.Utils;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System;
 
 namespace I2PCore.SessionLayer
 {
@@ -56,11 +57,17 @@ namespace I2PCore.SessionLayer
             if ( ls.Destination.IdentHash == Owner.Destination.IdentHash )
             {
                 // that is me
-#if LOG_ALL_LEASE_MGMT
                 Logging.LogDebug(
                     $"{Owner}: RemoteDestinationsLeasesUpdates: " +
                     $"LeaseSetReceived: discarding my lease set." );
-#endif
+                return;
+            }
+
+            if ( ls.Expire < DateTime.UtcNow )
+            {
+                Logging.LogDebug(
+                    $"{Owner}: RemoteDestinationsLeasesUpdates: " +
+                    $"LeaseSetReceived: discarding expired lease set." );
                 return;
             }
 
@@ -74,12 +81,17 @@ namespace I2PCore.SessionLayer
             }
             else
             {
-                Logging.LogDebug(
-                    $"{Owner} RemoteDestinations: updating {ls.Destination}" );
-
-                if ( ls.Expire > info?.LeaseSet?.Expire )
+                if ( info?.LeaseSet is null || ls.Expire > info?.LeaseSet?.Expire )
                 {
+                    Logging.LogDebug(
+                        $"{Owner} RemoteDestinations: updating {ls.Destination}" );
+
                     info.LeaseSet = ls;
+                }
+                else
+                {
+                    Logging.LogDebug(
+                        $"{Owner} RemoteDestinations: discarding older LS {ls.Destination}" );
                 }
             }
         }
