@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Data;
@@ -330,7 +330,7 @@ namespace I2PCore
             return LeaseSets[dest];
         }
 
-        public static bool IsLeasesGood( ILeaseSet ls )
+        public static bool AreLeasesGood( ILeaseSet ls )
         {
             if ( ls != null )
             {

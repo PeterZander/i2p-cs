@@ -147,7 +147,7 @@ namespace I2CP.I2CP.States
                         {
                             var ls = NetDb.Inst.FindLeaseSet( lookuphash );
 
-                            if ( NetDb.IsLeasesGood( ls ) )
+                            if ( NetDb.AreLeasesGood( ls ) )
                             {
                                 HandleHostLookupResult( lookuphash, ls,
                                     new HostLookupInfo { RequestId = hlum.RequestId, SessionId = hlum.SessionId } );

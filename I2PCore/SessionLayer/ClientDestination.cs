@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using I2PCore.Data;
@@ -919,7 +919,7 @@ namespace I2PCore.SessionLayer
             if ( cb is null ) return false;
 
             var lls = MyRemoteDestinations.GetLeases( dest, true );
-            if ( lls != null && NetDb.IsLeasesGood( lls.LeaseSet ) )
+            if ( lls != null && NetDb.AreLeasesGood( lls.LeaseSet ) )
             {
                 cb?.Invoke( dest, lls.LeaseSet, tag );
                 return true;
@@ -928,7 +928,7 @@ namespace I2PCore.SessionLayer
             MyRemoteDestinations.MarkAsActive( dest );
             var ls = NetDb.Inst.FindLeaseSet( dest );
 
-            if ( NetDb.IsLeasesGood( ls ) )
+            if ( NetDb.AreLeasesGood( ls ) )
             {
                 cb?.Invoke( dest, ls, tag );
                 return true;
