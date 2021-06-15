@@ -326,7 +326,7 @@ namespace I2PTests
 
         class TunnelOwner : ITunnelOwner
         {
-            public void TunnelBuildFailed( Tunnel tunnel )
+            public void TunnelBuildFailed( Tunnel tunnel, bool timeout )
             {
             }
 
