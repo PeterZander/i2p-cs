@@ -76,15 +76,6 @@ namespace I2PCore.Data
             return date.DateMilliseconds;
         }
 
-        public static I2PDate DefaultI2NPExpiration()
-        {
-            // Ref impl uses 1 minute DEFAULT_EXPIRATION_MS in I2NPMessageImpl.java
-            return new I2PDate( DateTime.UtcNow.AddMinutes( 1 ) );
-
-            // From I2Pd I2NPProtocol.h I2NP_MESSAGE_EXPIRATION_TIMEOUT
-            //return new I2PDate( DateTime.UtcNow.AddSeconds( 8 ) ); 
-        }
-
         public int CompareTo( object obj )
         {
             if ( obj is null ) return 1;

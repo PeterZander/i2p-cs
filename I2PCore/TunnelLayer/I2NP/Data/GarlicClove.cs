@@ -37,7 +37,7 @@ namespace I2PCore.TunnelLayer.I2NP.Data
             Delivery = delivery;
             Message = delivery.Message;
             CloveId = BufUtils.RandomUint();
-            Expiration = new I2PDate( DateTime.UtcNow + TimeSpan.FromSeconds( 8 ) );
+            Expiration = new I2PDate( DateTime.UtcNow + TimeSpan.FromMinutes( 5 ) );
         }
 
         static readonly byte[] ThreeZero = new byte[] { 0, 0, 0 };

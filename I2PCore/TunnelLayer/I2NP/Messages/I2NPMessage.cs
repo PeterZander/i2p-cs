@@ -83,7 +83,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                     return ExpirationField;
                 }
 
-                ExpirationField = I2PDate.DefaultI2NPExpiration();
+                ExpirationField = DefaultI2NPExpiration();
                 return ExpirationField;
             }
             set
@@ -185,5 +185,11 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             return result;
         }
 
+        public static I2PDate DefaultI2NPExpiration()
+        {
+            // Ref impl uses 1 minute DEFAULT_EXPIRATION_MS in I2NPMessageImpl.java
+            // From I2Pd I2NPProtocol.h I2NP_MESSAGE_EXPIRATION_TIMEOUT
+            return new I2PDate( DateTime.UtcNow.AddSeconds( 8 ) );
+        }
     }
 }
