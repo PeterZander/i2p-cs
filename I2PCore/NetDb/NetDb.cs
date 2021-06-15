@@ -332,17 +332,11 @@ namespace I2PCore
 
         public static bool AreLeasesGood( ILeaseSet ls )
         {
-            if ( ls != null )
+            if ( ls?.Leases?.Any() ?? false )
             {
-                if ( ls.Leases?.Any() ?? false )
-                {
-                    var max = ls.Leases.Max( l => l.Expire );
-                    if ( ( max - DateTime.UtcNow ).TotalMinutes > 3 )
-                    {
-                        return true;
-                    }
-                }
+                return ls.Expire > DateTime.UtcNow + TimeSpan.FromMinutes( 4 );
             }
+
             return false;
         }
 
