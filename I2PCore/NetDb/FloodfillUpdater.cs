@@ -14,7 +14,7 @@ namespace I2PCore
 {
     public class FloodfillUpdater
     {
-        public static readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 15 );
+        public static readonly TickSpan DatabaseStoreNonReplyTimeout = TickSpan.Seconds( 30 );
 
         PeriodicAction StartNewUpdateRouterInfo = new PeriodicAction( NetDb.RouterInfoExpiryTime / 5, true );
         PeriodicAction CheckForTimouts = new PeriodicAction( TickSpan.Seconds( 5 ) );

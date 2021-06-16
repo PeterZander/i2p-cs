@@ -168,28 +168,18 @@ namespace I2PCore
                 int count,
                 ICollection<I2PIdentHash> exclude )
         {
-            var minfit = RouletteFloodFill.AverageFit -
-                    Math.Max( 4.0, RouletteFloodFill.AbsDevFit * 0.8 );
-
             var subset = ( exclude != null && exclude.Any() )
                 ? FloodfillInfos.Where( inf => !exclude.Contains( inf.Key ) )
                 : FloodfillInfos;
 
             var refkey = dest.RoutingKey;
 
-            var qlist = subset
-                    .Select( ri => new
-                    {
-                        Id = ri.Key,
-                        Q = ri.Value.CachedStatistics
-                    } )
-                    .Where( inf => double.IsNaN( minfit ) || ( inf.Q?.Score ?? 0f ) > minfit );
-
-            return qlist
-                .Select( p => new
+            return subset
+                .Select( ri => new
                 {
-                    p.Id,
-                    Dist = p.Id ^ refkey
+                    Id = ri.Key,
+                    Dist = ri.Key ^ refkey,
+                    Q = ri.Value.CachedStatistics,
                 } )
                 .OrderBy( p => p.Dist )
                 .Take( count )
