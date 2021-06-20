@@ -120,6 +120,24 @@ namespace I2PTests
         }
 
         [Test]
+        public void TestRandomWeghted()
+        {
+            var samples = new int[] { 1, 2, 3, 30, 60 };
+
+            var isone = 0;
+            var issixty = 0;
+
+            for ( int runs = 0; runs < 10000; ++runs )
+            {
+                var l = BufUtils.RandomWeighted( samples, i => i, 200 );
+                if ( l == 1 ) ++isone;
+                if ( l == 60 ) ++issixty;
+            }
+
+            Assert.IsTrue( issixty > 130 * isone );
+        }
+
+        [Test]
         public void TestBase32()
         {
             /* Test vectors from RFC 4648 */

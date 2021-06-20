@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using I2PCore.Utils;
@@ -369,10 +369,7 @@ namespace I2PCore
             var i = 0;
             while ( i++ < count * 2 && result.Count < count )
             {
-                var r = p.RandomWeighted( wr =>
-                    float.IsNaN( wr.Score ) ? 1f : wr.Score - pmin + 1,
-                    false,
-                    2.0 );
+                var r = p.RandomWeighted( wr => wr.Score, 20.0 );
 
                 if ( !result.Any( id => id == r.Id ) )
                 {

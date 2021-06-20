@@ -45,11 +45,11 @@ namespace I2PCore
         {
             get
             {
-                return Math.Pow( RouletteElitismIncrement, RouletteIncludeTop );
+                return Math.Pow( RouletteElitismIncrement, ( RouletteIncludeTop - 1 ) );
             }
             set
             {
-                RouletteElitismIncrement = Math.Pow( value, 1.0 / RouletteIncludeTop );
+                RouletteElitismIncrement = Math.Pow( value, 1.0 / ( RouletteIncludeTop - 1 ) );
             }
         }
 
@@ -339,6 +339,7 @@ namespace I2PCore
             {
                 if ( extls.Expire > leaseset.Expire )
                 {
+                    Logging.LogDebug( $"NetDb: AddLeaseSet: Discarding as we already have a later version" );
                     return;
                 }
             }

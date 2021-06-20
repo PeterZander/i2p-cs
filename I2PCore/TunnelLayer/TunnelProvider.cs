@@ -1,4 +1,4 @@
-﻿#define RUN_TUNNEL_TESTS
+#define RUN_TUNNEL_TESTS
 
 using System;
 using System.Collections.Generic;
@@ -945,7 +945,7 @@ namespace I2PCore.TunnelLayer
             if ( tunnels.Any() )
             {
                 var result = (T)tunnels.RandomWeighted(
-                    GenerateTunnelWeight, true, TunnelSelectionElitism );
+                    GenerateTunnelWeight, TunnelSelectionElitism );
 
 #if LOG_TUNNEL_SELECTION
                 var available = string.Join( ',', tunnels.Select( t => t.CreationTime.DeltaToNow.ToString( "MS" ) ) );
@@ -971,7 +971,7 @@ namespace I2PCore.TunnelLayer
             if ( !t.Metrics.PassedTunnelTest ) result += penalty;
             if ( t is ZeroHopTunnel ) result += 10 * penalty;
 
-            return result;
+            return -result;
         }
 
         public override string ToString()

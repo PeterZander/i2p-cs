@@ -88,7 +88,7 @@ namespace I2PCore.Utils
 
             foreach ( var one in Wheel )
             {
-                one.Space = Math.Pow( Elitism, Count - i++ );
+                one.Space = Math.Pow( Elitism, Count - ++i );
                 TotalSpaceSum += one.Space;
             }
         }

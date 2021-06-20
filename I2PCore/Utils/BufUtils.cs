@@ -367,50 +367,45 @@ namespace I2PCore.Utils
         }
         public static bool EqualsDefaultValue<T>( T value ) => EqualityComparer<T>.Default.Equals( value, default(T) );
 
-        // Expects all weights > 0
+        /// <summary>
+        /// Select a random item with non uniform probability. Weight only determine the order, and the fittness is elitism^ix, ix=1..n
+        /// See: "Fitness proportionate selection"
+        /// </summary>
+        /// <param name="elitism">The how many times more probable the highest scoring item is choosen than the lowest scoring item.</param>
         public static T RandomWeighted<T>(
             this IEnumerable<T> src,
             Func<T, double> weight,
-            bool invertweight = false,
-            double powf = 1.0 )
+            double elitism )
         {
-            var wsrc = src.Select( s => new
-            {
-                obj = s,
-                weight = weight( s )
-            } ).ToArray();
+            var count = src.Count();
+            var inc = Math.Pow( elitism, 1.0 / ( count - 1) );
 
-#if DEBUG
-            if ( wsrc.Any( w => w.weight <= 0.0 ) )
-                throw new ArgumentException( "All weights must be > 0" ); 
-#endif
+            var wsrc = src.Select( s => new {
+                    Obj = s,
+                    Weight = weight( s ),
+                } )
+                .OrderByDescending( s => s.Weight )
+                .Select( ( s, ix ) => new {
+                    s.Obj,
+                    Space = Math.Pow( inc, count - ix + 1 ),
+                } )
+                .ToArray();
 
-            double min = 0.0;
-            double max = 0.0;
-            if ( invertweight )
+            var pos = 0.0;
+            var spacesum = wsrc.Sum( s => s.Space );
+            var target = RandomDouble( spacesum );
+
+            foreach ( var one in wsrc )
             {
-                min = wsrc.Min( s => s.weight );
-                max = wsrc.Max( s => s.weight );
+                pos += one.Space;
+                if ( pos >= target )
+                {
+                    Logging.LogDebugData( $"RandomWeighted: {one.Obj}" );
+                    return one.Obj;
+                }
             }
 
-            var invsrc = wsrc.Select( s => new
-            {
-                s.obj,
-                weight = invertweight
-                    ? Math.Pow( max + min - s.weight, powf )
-                    : Math.Pow( s.weight, powf )
-            } );
-
-            var totalweight = invsrc.Sum( s => s.weight );
-            var target = RandomDouble( totalweight );
-
-            var one = invsrc.GetEnumerator();
-            while ( one.MoveNext() )
-            {
-                target -= one.Current.weight;
-                if ( target <= 0f ) return one.Current.obj;
-            }
-            return src.Last();
+            return src.Random();
         }
 
         static readonly byte[] ZeroArray = new byte[0];

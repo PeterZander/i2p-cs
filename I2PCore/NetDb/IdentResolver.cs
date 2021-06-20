@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -330,17 +330,16 @@ namespace I2PCore
                 return;
             }
 
-            var minscore = ff.Min( r => r.Score );
-            var fflist = ff.ToList();
+            var floodfills = Enumerable.Range( 0, DatabaseLookupSelectFloodfillCountLS )
+                        .Select( i => {
+                            var one = ff.RandomWeighted( r => r.Score, 20.0 );
+                            ff.Remove( one );
+                            return one;
+                        } )
+                        .ToArray();
 
-            info.LastQuery = TickCounter.Now;
-
-            for ( int i = 0; i < DatabaseLookupSelectFloodfillCountLS; ++i )
+            foreach( var oneff in floodfills )
             {
-                var oneff = fflist
-                        .RandomWeighted( r => r.Score - minscore + 0.1 );
-                fflist.Remove( oneff );
-
                 var oneffid = oneff.Id;
 
                 try
