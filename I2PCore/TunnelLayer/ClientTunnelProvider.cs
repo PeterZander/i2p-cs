@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -266,7 +266,7 @@ namespace I2PCore.TunnelLayer
 
             try
             {
-                client.RemoveTunnel( tunnel );
+                client.RemoveTunnel( tunnel, RemovalReason.BuildFailed );
             }
             catch ( Exception ex )
             {
@@ -285,7 +285,7 @@ namespace I2PCore.TunnelLayer
                     Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
                         $"Old tunnel expired. {replace.OldTunnel}" );
 
-                    client.RemoveTunnel( replace.OldTunnel );
+                    client.RemoveTunnel( replace.OldTunnel, RemovalReason.Expired );
                 }
 
                 tunnel.Shutdown();
@@ -328,7 +328,14 @@ namespace I2PCore.TunnelLayer
 
         public void TunnelFailed( Tunnel tunnel )
         {
-            TunnelExpired( tunnel );
+            if ( !Destinations.TryRemove( tunnel, out var client ) )
+            {
+                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for TunnelFailed {tunnel}" );
+                return;
+            }
+
+            client.RemoveTunnel( tunnel, RemovalReason.Failed );
+            FindReplacement( tunnel, client );
         }
 
         public void TunnelExpired( Tunnel tunnel )
@@ -339,20 +346,17 @@ namespace I2PCore.TunnelLayer
                 return;
             }
 
-            try
-            {
-                client.RemoveTunnel( tunnel );
-            }
-            catch( Exception ex )
-            {
-                Logging.Log( ex );
-            }
+            client.RemoveTunnel( tunnel, RemovalReason.Expired );
+            FindReplacement( tunnel, client );
+        }
 
+        internal void FindReplacement( Tunnel tunnel, IClient client )
+        {
             var replace = FindReplaceRecord( tunnel );
 
             if ( replace != null )
             {
-                Logging.LogDebug( $"ClientTunnelProvider: TunnelTimeout: Failed replacing {replace.OldTunnel }" +
+                Logging.LogDebug( $"ClientTunnelProvider: TunnelTimeout: Failed replacing {replace.OldTunnel}" +
                     $" with {tunnel}" );
 
                 /*

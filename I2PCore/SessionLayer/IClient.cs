@@ -3,6 +3,7 @@ using I2PCore.TunnelLayer;
 
 namespace I2PCore.SessionLayer
 {
+    internal enum RemovalReason { BuildFailed, Expired, Failed }
     internal interface IClient
     {
         int InboundTunnelHopCount { get; }
@@ -19,7 +20,7 @@ namespace I2PCore.SessionLayer
         void AddOutboundPending( OutboundTunnel tunnel );
         void AddInboundPending( InboundTunnel tunnel );
         void TunnelEstablished( Tunnel tunnel );
-        void RemoveTunnel( Tunnel tunnel );
+        void RemoveTunnel( Tunnel tunnel, RemovalReason reason );
 
         void Execute();
     }

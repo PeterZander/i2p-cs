@@ -368,17 +368,20 @@ namespace I2PCore.SessionLayer
             if ( tunnel is InboundTunnel it )
             {
                 InboundEstablishedPool[it] = 0;
+
+                it.TunnelShutdown += InboundTunnel_TunnelShutdown;
                 it.GarlicMessageReceived += InboundTunnel_GarlicMessageReceived;
+
                 AddTunnelToEstablishedLeaseSet( it );
             }
 
             UpdateClientState();
         }
 
-        void IClient.RemoveTunnel( Tunnel tunnel )
+        void IClient.RemoveTunnel( Tunnel tunnel, RemovalReason reason )
         {
             RemovePendingTunnel( tunnel );
-            RemovePoolTunnel( tunnel );
+            RemovePoolTunnel( tunnel, reason );
 
             UpdateClientState();
         }
@@ -421,7 +424,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        void RemovePoolTunnel( Tunnel tunnel )
+        void RemovePoolTunnel( Tunnel tunnel, RemovalReason reason )
         {
             if ( tunnel is OutboundTunnel ot )
             {
@@ -430,8 +433,23 @@ namespace I2PCore.SessionLayer
 
             if ( tunnel is InboundTunnel it )
             {
-                InboundEstablishedPool.TryRemove( it, out _ );
+                var removed = InboundEstablishedPool.TryRemove( it, out _ );
                 RemoveTunnelFromEstablishedLeaseSet( (InboundTunnel)tunnel );
+
+                if ( removed && reason != RemovalReason.Expired )
+                {
+                    UpdateSignedLeases();
+                }
+            }
+        }
+
+        void InboundTunnel_TunnelShutdown( Tunnel tunnel )
+        {
+            tunnel.TunnelShutdown -= InboundTunnel_TunnelShutdown;
+
+            if ( tunnel is InboundTunnel )
+            {
+                ((InboundTunnel)tunnel).GarlicMessageReceived -= InboundTunnel_GarlicMessageReceived;
             }
         }
 
@@ -950,7 +968,7 @@ namespace I2PCore.SessionLayer
                 return true;
             }
 
-            return Router.StartDestLookup( dest, cb, tag, MySessions.KeyGenerator );
+            return Router.StartDestLookup( dest, cb, tag );
         }
 
         protected void HandleDestinationLookupResult(

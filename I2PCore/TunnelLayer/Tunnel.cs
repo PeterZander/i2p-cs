@@ -6,6 +6,7 @@ using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
 using I2PCore.SessionLayer;
+using System;
 
 namespace I2PCore.TunnelLayer
 {
@@ -118,9 +119,12 @@ namespace I2PCore.TunnelLayer
 
         public bool Terminated { get; private set; }
 
+        public event Action<Tunnel> TunnelShutdown;
+
         public virtual void Shutdown()
         {
             Terminated = true;
+            TunnelShutdown?.Invoke( this );
         }
 
         public virtual void MessageReceived( I2NPMessage msg, int recvdatasize )
