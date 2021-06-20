@@ -191,6 +191,29 @@ namespace I2PCore.Utils
             }
         }
 
+        public class ItemWithCreationTime<K,W>
+        {
+            public K Key { get; protected set; }
+            public W Value { get; protected set; }
+            public TickCounter Created { get; protected set; }
+
+            public ItemWithCreationTime( K key, W value, TickCounter created )
+            {
+                Key = key;
+                Value = value;
+                Created = created;
+            }
+        }
+
+        public IEnumerable<ItemWithCreationTime<T,V>> ItemsWithCreationTime()
+        {
+            Cleanup();
+            foreach( var one in Memory.ToArray() )
+            {
+                yield return new ItemWithCreationTime<T,V>( one.Key, one.Value.Key, one.Value.Value );
+            }
+        }
+
         #region IEnumerable<KeyValuePair<T,V>> Members
         public IEnumerator<KeyValuePair<T, V>> GetEnumerator()
         {
