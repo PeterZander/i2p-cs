@@ -88,10 +88,13 @@ namespace I2PCore.Data
         {
             var ar = WriteBody().ToByteArray();
 
-            Signature = new I2PSignature(
-                new BufRefLen(
-                    I2PSignature.DoSign( PrivateSigningKey, ThreeBL, new BufLen( ar ) ) ),
-                PrivateSigningKey.Certificate );
+            if ( Signature is null )
+            {
+                Signature = new I2PSignature(
+                    new BufRefLen(
+                        I2PSignature.DoSign( PrivateSigningKey, ThreeBL, new BufLen( ar ) ) ),
+                    PrivateSigningKey.Certificate );
+            }
 
             dest.Write( ar );
             Signature.Write( dest );
