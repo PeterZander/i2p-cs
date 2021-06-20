@@ -213,6 +213,21 @@ namespace I2PCore
             Update( hash, ds => Interlocked.Increment( ref ds.FloodfillUpdateSuccess ), true );
         }
 
+        public void IdentResolveTimeout( I2PIdentHash hash )
+        {
+            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveTimeout ), false );
+        }
+
+        public void IdentResolveSuccess( I2PIdentHash hash )
+        {
+            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveSuccess ), true );
+        }
+
+        public void IdentResolveReply( I2PIdentHash hash )
+        {
+            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveReply ), true );
+        }
+
         public void IsFirewalledUpdate( I2PIdentHash hash, bool isfw )
         {
             Update( hash, ds => ds.IsFirewalled = isfw, true );
@@ -232,22 +247,71 @@ namespace I2PCore
             foreach ( var one in rar ) one.Value.UpdateScore();
         }
 
-        bool OffsetCompare( long fail, long offset, long success, long multip )
+        bool OffsetCompare( double fail, double offset, double success, double multip )
         {
-            return fail > offset && fail > multip * success;
+            return fail - offset > multip * success;
         }
 
-        bool NodeInactive( RouterStatistics d )
+#if DEBUG
+        ConcurrentDictionary<string,int> NodeInactiveReason = new ConcurrentDictionary<string,int>();
+        PeriodicAction ReportInactiveReason = new PeriodicAction( TickSpan.Minutes( 7 ) );
+        HashSet<RouterStatistics> InactiveReasonAlreadyReported = new HashSet<RouterStatistics>();
+        bool UpdateInactiveStatistics;
+
+        void AddInactiveReason( string reason )
+        {
+            var nirc = NodeInactiveReason.GetOrAdd( reason, 0 );
+            NodeInactiveReason[reason] = nirc + 1;
+        }
+#endif
+
+        bool TestInactive( Func<bool> test, string desc )
+        {
+            var result = test();
+#if DEBUG            
+            if ( UpdateInactiveStatistics && result ) AddInactiveReason( desc );
+#endif      
+            return result;      
+        }
+        public bool NodeInactive( RouterStatistics d )
         {
             if ( d.InformationFaulty > 0 ) 
             {
                 return true;
             }
 
-            var result =
-                OffsetCompare( d.FailedTunnelTest, 20, d.SuccessfulTunnelTest, 2 ) ||
-                OffsetCompare( d.TunnelBuildTimeout, 60, d.SuccessfulTunnelMember, 3 ) ||
-                OffsetCompare( d.FailedConnects, 20, d.SuccessfulConnects, 2 );
+            var result = false;
+#if DEBUG
+            UpdateInactiveStatistics = !InactiveReasonAlreadyReported.Contains( d );
+#endif
+
+            result |= TestInactive( 
+                        () => OffsetCompare( d.FloodfillUpdateTimeout, 5, d.FloodfillUpdateSuccess, 1.5 ),
+                        "FloodfillUpdateTimeout" );
+
+            result |= TestInactive( 
+                        () => OffsetCompare( d.FailedTunnelTest, 20, d.SuccessfulTunnelTest, 3 ),
+                        "FailedTunnelTest" );
+
+            result |= TestInactive( 
+                        () => OffsetCompare( d.TunnelBuildTimeout, 50, d.SuccessfulTunnelMember, 5 ),
+                        "TunnelBuildTimeout" );
+
+            result |= TestInactive( 
+                        () => OffsetCompare( d.IdentResolveTimeout, 20, d.IdentResolveSuccess + d.IdentResolveReply * 0.2, 5 ),
+                        "IdentResolveTimeout" );
+
+            result |= TestInactive( 
+                        () => OffsetCompare( d.FailedConnects, 2, d.SuccessfulConnects, 1.5 ),
+                        "FailedConnects" );
+
+#if DEBUG
+            if ( result && UpdateInactiveStatistics )
+            {
+                InactiveReasonAlreadyReported.Add( d );
+                UpdateInactiveStatistics = false;
+            }
+#endif
 
             return result;
         }
@@ -256,9 +320,26 @@ namespace I2PCore
         {
             if ( !Routers.Any() ) return new HashSet<I2PIdentHash>();
 
-            return new HashSet<I2PIdentHash>( 
+            var result = new HashSet<I2PIdentHash>( 
                 Routers.Where( d => NodeInactive( d.Value ) )
                     .Select( d => d.Key ) );
+
+#if DEBUG
+            ReportInactiveReason.Do( () => 
+            {
+                var items = NodeInactiveReason
+                                .OrderByDescending( p => p.Value )
+                                .ToArray();
+
+                var sum = items.Sum( p => p.Value ) / 100.0;
+
+                var sta = items.Select( p => $" {p.Key}: {p.Value} ({p.Value / sum:F1}%)" );
+                var line = $"RoutersStatistics: NodeInactiveReason:{string.Join( ',', sta )}";
+                Logging.LogDebug( line );
+            } );
+#endif            
+
+            return result;
         }
 
         internal void RemoveOldStatistics( ICollection<I2PIdentHash> keep )

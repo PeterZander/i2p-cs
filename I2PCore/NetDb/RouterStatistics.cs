@@ -26,6 +26,10 @@ namespace I2PCore
         public long InformationFaulty;
         public long SlowHandshakeConnect;
 
+        public long IdentResolveTimeout;
+        public long IdentResolveSuccess;
+        public long IdentResolveReply;
+
         public long TunnelBuildTimeout;
         public long FloodfillUpdateTimeout;
         public long FloodfillUpdateSuccess;
@@ -66,8 +70,9 @@ namespace I2PCore
             score += DiminishingReturns( SuccessfulTunnelMember * 3.0f - DeclinedTunnelMember * 0.5f 
                 - TunnelBuildTimeout * 1.0f )
                 + DiminishingReturns( FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f );
-            score += DiminishingReturns( SuccessfulTunnelTest * 0.3f - FailedTunnelTest * 0.1f )
-                - ( IsFirewalled ? MaxScore / 4f : 0f );
+            score += DiminishingReturns( SuccessfulTunnelTest * 0.3f - FailedTunnelTest * 0.1f );
+            score += DiminishingReturns( IdentResolveSuccess + IdentResolveReply * 0.3f - IdentResolveTimeout );
+            score -= IsFirewalled ? MaxScore / 4f : 0f;
 
             CachedScore = score + MaxScore * ( MaxBandwidthSeen / RoutersStatistics.BandwidthMax )
                     - ( TunnelBuildTimeMsPerHop == 0 ? 5000f / 100f : TunnelBuildTimeMsPerHop / 100f )
@@ -141,6 +146,9 @@ namespace I2PCore
             SuccessfulTunnelTest = TryGet( mapping, "SuccessfulTunnelTest" );
             FailedTunnelTest = TryGet( mapping, "FailedTunnelTest" );
             IsFirewalled = TryGet( mapping, "IsFirewalled" ) != 0;
+            IdentResolveTimeout = TryGet( mapping, "IdentResolveTimeout" );
+            IdentResolveSuccess = TryGet( mapping, "IdentResolveSuccess" );
+            IdentResolveReply = TryGet( mapping, "IdentResolveReply" );
         }
 
         private I2PMapping CreateMapping()
@@ -161,6 +169,9 @@ namespace I2PCore
             mapping["SuccessfulTunnelTest"] = SuccessfulTunnelTest.ToString();
             mapping["FailedTunnelTest"] = FailedTunnelTest.ToString();
             mapping["IsFirewalled"] = IsFirewalled ? "1" : "0";
+            mapping["IdentResolveTimeout"] = IdentResolveTimeout.ToString();
+            mapping["IdentResolveSuccess"] = IdentResolveSuccess.ToString();
+            mapping["IdentResolveReply"] = IdentResolveReply.ToString();
 
             return mapping;
         }
