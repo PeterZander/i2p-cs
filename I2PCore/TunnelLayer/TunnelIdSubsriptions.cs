@@ -15,14 +15,8 @@ namespace I2PCore.TunnelLayer
         {
             Logging.LogDebug( $"TunnelIdSubsriptions: Added {id} to {tunnel}" );
             
-            if ( TunnelIds.TryGetValue( id, out var tunnels ) )
-            {
-                tunnels.Add( tunnel );
-            }
-            else
-            {
-                TunnelIds[id] = new HashSet<Tunnel> { tunnel };
-            }
+            var tunnels = TunnelIds.GetOrAdd( id, new HashSet<Tunnel>() );
+            tunnels.Add( tunnel );
         }
 
         public Tunnel Remove( uint id, Tunnel tunnel )

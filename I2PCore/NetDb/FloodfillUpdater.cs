@@ -64,11 +64,10 @@ namespace I2PCore
 
         public FloodfillUpdater()
         {
-            InboundTunnel.DeliveryStatusReceived += InboundTunnel_DeliveryStatusReceived;
             Router.DeliveryStatusReceived += InboundTunnel_DeliveryStatusReceived;
         }
 
-        void InboundTunnel_DeliveryStatusReceived( DeliveryStatusMessage msg )
+        void InboundTunnel_DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
         {
             if ( !OutstandingRequests.TryRemove( msg.StatusMessageId, out var info ) )
             {

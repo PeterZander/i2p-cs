@@ -24,7 +24,7 @@ namespace I2PCore.SessionLayer
         static TransitTunnelProvider TransitTunnelMgr;
         private static Thread Worker;
 
-        internal static event Action<DeliveryStatusMessage> DeliveryStatusReceived;
+        internal static event Action<DeliveryStatusMessage,InboundTunnel> DeliveryStatusReceived;
 
         /// <summary>
         /// Start the router with the current RouterContext settings.
@@ -73,7 +73,7 @@ namespace I2PCore.SessionLayer
         static bool Terminated = false;
         private static void Run()
         {
-            TunnelProvider.I2NPMessageReceived += TunnelProvider_I2NPMessageReceived;
+            TunnelProvider.I2NPMessageReceived += HandleI2NPMessageReceived;
             try
             {
                 Thread.Sleep( 2000 );
@@ -174,7 +174,7 @@ namespace I2PCore.SessionLayer
             RunningDestinations.TryRemove( dest.Destination, out _ );
         }
 
-        static void TunnelProvider_I2NPMessageReceived( II2NPHeader msg )
+        static internal void HandleI2NPMessageReceived( II2NPHeader msg, InboundTunnel from )
         {
             switch ( msg.MessageType )
             {
@@ -183,7 +183,7 @@ namespace I2PCore.SessionLayer
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.Log( $"Router: DatabaseStore : {ds.Key.Id32Short}" );
 #endif
-                    HandleDatabaseStore( ds );
+                    HandleDatabaseStore( ds, from );
                     break;
 
                 case I2NPMessage.MessageTypes.DatabaseSearchReply:
@@ -200,14 +200,22 @@ namespace I2PCore.SessionLayer
 #endif
 
                     var dsmsg = (DeliveryStatusMessage)msg.Message;
-                    DeliveryStatusReceived?.Invoke( dsmsg );
+                    DeliveryStatusReceived?.Invoke( dsmsg, from );
                     break;
 
                 case I2NPMessage.MessageTypes.Garlic:
 #if LOG_ALL_TUNNEL_TRANSFER
                     Logging.LogDebug( $"Router: Garlic: {msg.Message}" );
 #endif
-                    HandleGarlic( (GarlicMessage)msg.Message );
+                    HandleGarlic( (GarlicMessage)msg.Message, from );
+                    break;
+
+                case I2NPMessage.MessageTypes.VariableTunnelBuildReply:
+#if LOG_ALL_TUNNEL_TRANSFER
+                    Logging.LogDebug( $"{this}: VariableTunnelBuildReply: {msg}" );
+#endif
+                    ThreadPool.QueueUserWorkItem( cb => 
+                            TunnelProvider.Inst.HandleVariableTunnelBuildReply( (VariableTunnelBuildReplyMessage)msg.Message ) );
                     break;
 
                 default:
@@ -216,9 +224,9 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        internal static void HandleDatabaseStore( DatabaseStoreMessage ds )
+        internal static void HandleDatabaseStore( DatabaseStoreMessage ds, InboundTunnel from )
         {
-            if ( ds.RouterInfo == null && ds.LeaseSet == null )
+            if ( ds?.RouterInfo == null && ds?.LeaseSet == null )
             {
                 Logging.LogDebug( "DatabaseStore without Router or Lease info!" );
                 return;
@@ -229,7 +237,11 @@ namespace I2PCore.SessionLayer
 #if LOG_ALL_TUNNEL_TRANSFER
                 Logging.Log( $"HandleDatabaseStore: DatabaseStore RouterInfo {ds}" );
 #endif
-                NetDb.Inst.AddRouterInfo( ds.RouterInfo );
+                var stat = NetDb.Inst.Statistics[ds.RouterInfo.Identity.IdentHash];
+                if ( stat == null || !NetDb.Inst.Statistics.NodeInactive( stat ) )
+                {
+                    NetDb.Inst.AddRouterInfo( ds.RouterInfo );
+                }
             }
             else
             {
@@ -239,11 +251,11 @@ namespace I2PCore.SessionLayer
                 NetDb.Inst.AddLeaseSet( ds.LeaseSet );
             }
 
-            if ( ds.ReplyToken != 0 )
+            if ( ds.ReplyToken != 0 && from == null )
             {
                 if ( ds.ReplyTunnelId != 0 )
                 {
-                    var outtunnel = TunnelProvider.Inst.GetEstablishedOutboundTunnel( true );
+                    var outtunnel = TunnelProvider.Inst.GetEstablishedOutboundTunnel( TunnelPoolSelection.RequireExploratory );
                     if ( outtunnel != null )
                     {
                         outtunnel.Send( new TunnelMessageRouter(
@@ -261,7 +273,7 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        private static void HandleGarlic( GarlicMessage garlicmsg )
+        private static void HandleGarlic( GarlicMessage garlicmsg, InboundTunnel from )
         {
             try
             {
@@ -286,19 +298,17 @@ namespace I2PCore.SessionLayer
                 {
                     try
                     {
-                        // Only accept Local to not turn into a bot net.
                         switch ( clove.Delivery.Delivery )
                         {
                             case GarlicCloveDelivery.DeliveryMethod.Local:
-#if LOG_ALL_LEASE_MGMT
                                 Logging.LogDebug(
                                     $"Router: HandleGarlic: Delivered Local: {clove.Message}" );
-#endif
-                                TunnelProvider.Inst.DistributeIncomingMessage( null, clove.Message.CreateHeader16 );
+                                    
+                                TunnelProvider.Inst.HandleIncommingMessage( clove.Message.CreateHeader16, from );
                                 break;
 
                             default:
-                                Logging.LogDebug( $"Router HandleGarlic: Dropped clove ({clove})" );
+                                Logging.LogDebug( $"Router: HandleGarlic: Dropped clove ({clove})" );
                                 break;
 
                         }
@@ -330,10 +340,9 @@ namespace I2PCore.SessionLayer
         internal static bool StartDestLookup(
                 I2PIdentHash hash,
                 DestinationLookupResult cb,
-                object tag,
-                Func<I2PIdentHash,DatabaseLookupKeyInfo> keygen )
+                object tag )
         {
-            var result = NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash, keygen );
+            var result = NetDb.Inst.IdentHashLookup.LookupLeaseSet( hash );
 
             if ( result )
             {
@@ -357,7 +366,7 @@ namespace I2PCore.SessionLayer
                 object tag = null )
         {
             if ( cb == null ) return;
-            StartDestLookup( hash, cb, tag, null );
+            StartDestLookup( hash, cb, tag );
         }
 
         static void IdentHashLookup_LookupFailure( I2PIdentHash key )

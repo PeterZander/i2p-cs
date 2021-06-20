@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using I2PCore.Data;
@@ -503,29 +503,30 @@ namespace I2PCore.SessionLayer
                                     $"{this}: GarlicMessageReceived: " +
                                     $"Delivered Destination: {clove.Message}" );
 #endif
-                                if ( clove.Message.MessageType == I2NPMessage.MessageTypes.DatabaseStore )
+                                switch ( clove?.Message )
                                 {
-                                    var dbsmsg = (DatabaseStoreMessage)clove.Message;
+                                    case DatabaseStoreMessage dbsmsg when dbsmsg?.LeaseSet != null:
+                                        MyRemoteDestinations.MarkAsActive( dbsmsg.LeaseSet?.Destination?.IdentHash );
 
-                                    if ( dbsmsg?.LeaseSet is null )
-                                    {
+                                        if ( dbsmsg.LeaseSet.Expire > DateTime.UtcNow )
+                                        {
+                                            Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination} {dbsmsg.LeaseSet}." );
+                                            MyRemoteDestinations.LeaseSetReceived(
+                                                dbsmsg.LeaseSet );
+                                            ThreadPool.QueueUserWorkItem( a => UpdateClientState() );
+                                        }
                                         break;
-                                    }
 
-                                    MyRemoteDestinations.MarkAsActive( dbsmsg.LeaseSet?.Destination?.IdentHash );
+                                    case DataMessage dmsg when DataReceived != null:
+                                        if ( DestinationMessages is null )
+                                                DestinationMessages = new List<DataMessage>();
+                                        DestinationMessages.Add( dmsg );
+                                        break;
 
-                                    if ( dbsmsg.LeaseSet.Expire > DateTime.UtcNow )
-                                    {
-                                        Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination} {dbsmsg.LeaseSet}." );
-                                        MyRemoteDestinations.LeaseSetReceived(
-                                            dbsmsg.LeaseSet );
-                                        ThreadPool.QueueUserWorkItem( a => UpdateClientState() );
-                                    }
+                                    default:
+                                        Logging.LogDebug( $"{this}: Garlic discarded {clove.Message}" );
+                                        break;
                                 }
-
-                                if ( DestinationMessages is null )
-                                        DestinationMessages = new List<I2NPMessage>();
-                                DestinationMessages.Add( clove.Message );
                                 break;
                         }
                     }

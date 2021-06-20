@@ -21,13 +21,9 @@ namespace I2PCore.TunnelLayer
 
         internal I2PTunnelId GatewayTunnelId;
 
-        public readonly uint TunnelBuildReplyMessageId = BufUtils.RandomUint();
+        public readonly uint TunnelBuildReplyMessageId = I2NPMessage.GenerateMessageId();
         public readonly int OutTunnelHops;
 
-        static readonly object DeliveryStatusReceivedLock = new object();
-        public static event Action<DeliveryStatusMessage> DeliveryStatusReceived;
-
-        readonly object GarlicMessageReceivedLock = new object();
         public event Action<GarlicMessage> GarlicMessageReceived;
 
         public InboundTunnel( ITunnelOwner owner, TunnelConfig config, int outtunnelhops )
@@ -138,46 +134,8 @@ namespace I2PCore.TunnelLayer
 
             switch ( msg.MessageType )
             {
-                case I2NPMessage.MessageTypes.TunnelBuildReply:
                 case I2NPMessage.MessageTypes.TunnelData:
                     throw new NotImplementedException( $"Should not happen {TunnelDebugTrace}" );
-
-                case I2NPMessage.MessageTypes.VariableTunnelBuildReply:
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        TunnelProvider.Inst.HandleTunnelBuildReply( (VariableTunnelBuildReplyMessage)msg );
-                    } );
-                    return true;
-
-                case I2NPMessage.MessageTypes.DeliveryStatus:
-#if LOG_ALL_TUNNEL_TRANSFER
-                    Logging.LogDebug( $"{this}: DeliveryStatus: {msg}" );
-#endif
-
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        lock ( DeliveryStatusReceivedLock )
-                        {
-                            DeliveryStatusReceived?.Invoke( (DeliveryStatusMessage)msg );
-                        }
-                    } );
-                    break;
-
-                case I2NPMessage.MessageTypes.DatabaseStore:
-                    var ds = (DatabaseStoreMessage)msg;
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        Router.HandleDatabaseStore( ds );
-                    } );
-                    break;
-
-                case I2NPMessage.MessageTypes.DatabaseSearchReply:
-                    var dsr = (DatabaseSearchReplyMessage)msg;
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        NetDb.Inst.AddDatabaseSearchReply( dsr );
-                    } );
-                    break;
 
                 case I2NPMessage.MessageTypes.Garlic:
                     var garlic = (GarlicMessage)msg;
@@ -186,17 +144,15 @@ namespace I2PCore.TunnelLayer
                     Logging.Log( $"{this}: Garlic received" );
 #endif
 
-                    ThreadPool.QueueUserWorkItem( cb =>
-                    {
-                        lock ( GarlicMessageReceivedLock )
-                        {
-                            GarlicMessageReceived?.Invoke( garlic );
-                        }
-                    } );
+                    ThreadPool.QueueUserWorkItem( cb => GarlicMessageReceived?.Invoke( garlic ) );
                     break;
 
                 default:
-                    Logging.LogWarning( $"{this}: HandleReceiveQueue: Dropped {msg}" );
+#if LOG_ALL_TUNNEL_TRANSFER
+                    Logging.LogDebug( $"{this}: HandleReceiveQueue: not handled {msg?.MessageType}" );
+#endif
+
+                    Router.HandleI2NPMessageReceived( msg.CreateHeader16, this );
                     break;
             }
 
@@ -267,11 +223,7 @@ namespace I2PCore.TunnelLayer
 
         public I2NPMessage CreateBuildRequest()
         {
-            //TunnelSetup.Hops.Insert( 0, new HopInfo( RouterContext.Inst.MyRouterIdentity ) );
-
             var vtb = VariableTunnelBuildMessage.BuildInboundTunnel( Config.Info );
-
-            //Logging.Log( vtb.ToString() );
 
             return vtb;
         }

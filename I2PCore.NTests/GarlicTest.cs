@@ -347,7 +347,7 @@ namespace I2PTests
         {
             public void DeliveryStatusReceived( DeliveryStatusMessage msg )
             {
-                InboundTunnel_DeliveryStatusReceived( msg );
+                Router_DeliveryStatusReceived( msg, null );
             }
 
             public TestEGAESSessionKeyOrigin( 

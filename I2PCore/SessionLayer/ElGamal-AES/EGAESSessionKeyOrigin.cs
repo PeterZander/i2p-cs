@@ -54,15 +54,15 @@ namespace I2PCore.SessionLayer
             MyDestination = mydest;
             RemoteDestination = remotedest;
 
-            InboundTunnel.DeliveryStatusReceived += InboundTunnel_DeliveryStatusReceived;
+            Router.DeliveryStatusReceived += Router_DeliveryStatusReceived;
         }
 
         public void Terminate()
         {
-            InboundTunnel.DeliveryStatusReceived -= InboundTunnel_DeliveryStatusReceived;
+            Router.DeliveryStatusReceived -= Router_DeliveryStatusReceived;
         }
 
-        protected void InboundTunnel_DeliveryStatusReceived( DeliveryStatusMessage msg )
+        protected void Router_DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
         {
             if ( NotAckedTags.TryRemove( msg.StatusMessageId, out var tags ) )
             {

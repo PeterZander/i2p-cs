@@ -512,68 +512,75 @@ namespace I2PCore.TunnelLayer
                         if ( !IncomingMessageQueue.TryDequeue( out var msg ) )
                             continue;
 
-                        switch ( msg.MessageType )
-                        {
-                            case I2NPMessage.MessageTypes.VariableTunnelBuild:
-                                HandleVariableTunnelBuild( msg );
-                                break;
-
-                            case I2NPMessage.MessageTypes.TunnelBuild:
-                                HandleTunnelBuild( msg );
-                                break;
-
-                            case I2NPMessage.MessageTypes.TunnelGateway:
-                                var tg = (TunnelGatewayMessage)msg.Message;
-                                var tunnels = TunnelIds.FindTunnelFromTunnelId( tg.TunnelId );
-                                if ( tunnels != null && tunnels.Any() )
-                                {
-                                    foreach ( var tunnel in tunnels )
-                                    {
-#if LOG_ALL_TUNNEL_TRANSFER
-                                        Logging.Log( $"RunIncomingMessagePump: {tg}\r\n{tunnel}" );
-#endif
-                                        tunnel.MessageReceived(
-                                            I2NPMessage.ReadHeader16( (BufRefLen)tg.GatewayMessage ).Message,
-                                            msg.HeaderAndPayload.Length );
-                                    }
-                                }
-                                else
-                                {
-                                    Logging.LogDebug( $"RunIncomingMessagePump: Tunnel not found for TunnelGateway. Dropped. {tg}" );
-                                }
-                                break;
-
-                            case I2NPMessage.MessageTypes.TunnelData:
-                                var td = (TunnelDataMessage)msg.Message;
-                                tunnels = TunnelIds.FindTunnelFromTunnelId( td.TunnelId );
-                                if ( tunnels != null && tunnels.Any() )
-                                {
-                                    foreach ( var tunnel in tunnels )
-                                    {
-#if LOG_ALL_TUNNEL_TRANSFER
-                                        Logging.LogDebug( string.Format( "RunIncomingMessagePump: TunnelData ({0}): {1}.",
-                                            td, tunnel ) );
-#endif
-                                        tunnel.MessageReceived( td, msg.HeaderAndPayload.Length );
-                                    }
-                                }
-                                else
-                                {
-                                    Logging.LogDebug( $"RunIncomingMessagePump: Tunnel not found for TunnelData. Dropped. {td}" );
-                                }
-                                break;
-
-                            default:
-                                Logging.LogDebugData( () => $"TunnelProvider.RunIncomingMessagePump: Unhandled message ({msg.Message})" );
-                                I2NPMessageReceived?.Invoke( msg );
-                                break;
-                        }
+                        HandleIncommingMessage( msg );
                     }
                 }
                 catch ( Exception ex )
                 {
                     Logging.Log( ex );
                 }
+            }
+        }
+
+        internal void HandleIncommingMessage( II2NPHeader msg, InboundTunnel from = null )
+        {
+            switch ( msg.MessageType )
+            {
+                case I2NPMessage.MessageTypes.VariableTunnelBuild:
+                    HandleVariableTunnelBuild( msg );
+                    break;
+
+                case I2NPMessage.MessageTypes.TunnelBuild:
+                    HandleTunnelBuild( msg );
+                    break;
+
+                case I2NPMessage.MessageTypes.TunnelGateway:
+                    var tg = (TunnelGatewayMessage)msg.Message;
+                    var tunnels = TunnelIds.FindTunnelFromTunnelId( tg.TunnelId );
+
+                    if ( tunnels?.Any() ?? false )
+                    {
+                        foreach ( var tunnel in tunnels )
+                        {
+#if LOG_ALL_TUNNEL_TRANSFER
+                            Logging.Log( $"RunIncomingMessagePump: {tg}\r\n{tunnel}" );
+#endif
+                            tunnel.MessageReceived(
+                                I2NPMessage.ReadHeader16( (BufRefLen)tg.GatewayMessage ).Message,
+                                msg.HeaderAndPayload.Length );
+                        }
+                    }
+                    else
+                    {
+                        Logging.LogDebug( $"RunIncomingMessagePump: Tunnel not found for TunnelGateway. Dropped. {tg}" );
+                    }
+                    break;
+
+                case I2NPMessage.MessageTypes.TunnelData:
+                    var td = (TunnelDataMessage)msg.Message;
+                    tunnels = TunnelIds.FindTunnelFromTunnelId( td.TunnelId );
+
+                    if ( tunnels?.Any() ?? false )
+                    {
+                        foreach ( var tunnel in tunnels )
+                        {
+#if LOG_ALL_TUNNEL_TRANSFER
+                            Logging.LogDebug( string.Format( "RunIncomingMessagePump: TunnelData ({0}): {1}.",
+                                td, tunnel ) );
+#endif
+                            tunnel.MessageReceived( td, msg.HeaderAndPayload.Length );
+                        }
+                    }
+                    else
+                    {
+                        Logging.LogDebug( $"RunIncomingMessagePump: Tunnel not found for TunnelData. Dropped. {td}" );
+                    }
+                    break;
+
+                default:
+                    Logging.LogDebugData( () => $"TunnelProvider.RunIncomingMessagePump: Unhandled message ({msg.Message})" );
+                    I2NPMessageReceived?.Invoke( msg, from );
+                    break;
             }
         }
 

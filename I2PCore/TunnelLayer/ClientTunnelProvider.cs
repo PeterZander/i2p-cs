@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -91,7 +91,6 @@ namespace I2PCore.TunnelLayer
             var tunnel = (InboundTunnel)TunnelMgr.CreateTunnel( this, config );
             if ( tunnel != null )
             {
-                tunnel.GarlicMessageReceived += new Action<GarlicMessage>( GarlicMessageReceived );
                 TunnelMgr.AddTunnel( tunnel );
                 client.AddInboundPending( tunnel );
                 PendingTunnels[tunnel] = client;
@@ -416,10 +415,6 @@ namespace I2PCore.TunnelLayer
         #endregion
 
         #region Client communication
-
-        void GarlicMessageReceived( GarlicMessage msg )
-        {
-        }
 
         #endregion
 

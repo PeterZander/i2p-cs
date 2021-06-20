@@ -7,6 +7,7 @@ using System.Threading;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
 using System.Collections.Concurrent;
+using I2PCore.SessionLayer;
 
 namespace I2PCore.TunnelLayer
 {
@@ -85,7 +86,7 @@ namespace I2PCore.TunnelLayer
 
         public TunnelTester()
         {
-            InboundTunnel.DeliveryStatusReceived += InboundTunnel_DeliveryStatusReceived;
+            Router.DeliveryStatusReceived += Router_DeliveryStatusReceived;
 
             Worker = new Thread( Run )
             {
@@ -255,7 +256,7 @@ namespace I2PCore.TunnelLayer
                     $"TunnelTester: Starting outbound tunnel {outtunnel.TunnelDebugTrace} test with tunnels: {tunneldbginfo}" );
         }
 
-        void InboundTunnel_DeliveryStatusReceived( DeliveryStatusMessage dstatus )
+        void Router_DeliveryStatusReceived( DeliveryStatusMessage dstatus, InboundTunnel from )
         {
             var probe = OutstandingProbeIds[dstatus.StatusMessageId];
             if ( probe == null ) return;
