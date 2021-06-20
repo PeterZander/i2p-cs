@@ -1,4 +1,4 @@
-#define RUN_TUNNEL_TESTS
+﻿#define RUN_TUNNEL_TESTS
 
 using System;
 using System.Collections.Generic;
@@ -21,6 +21,7 @@ using System.Diagnostics;
 
 namespace I2PCore.TunnelLayer
 {
+    public enum TunnelPoolSelection { RejectExploratory, AllowExploratory, RequireExploratory }
     public class TunnelProvider
     {
         public static TunnelProvider Inst { get; protected set; }
@@ -34,9 +35,9 @@ namespace I2PCore.TunnelLayer
         /// <summary>
         /// Non-tunnel build messages received.
         /// </summary>
-        public static event Action<II2NPHeader> I2NPMessageReceived;
+        public static event Action<II2NPHeader,InboundTunnel> I2NPMessageReceived;
 
-        private const double TunnelSelectionElitism = 5.0;
+        private const double TunnelSelectionElitism = 200.0;
 
         // The byte value have no real meaning, the dictionaries are hash sets.
         ConcurrentDictionary<InboundTunnel, byte> PendingInbound = new ConcurrentDictionary<InboundTunnel, byte>();
@@ -338,7 +339,7 @@ namespace I2PCore.TunnelLayer
 
             if ( config.Direction == TunnelConfig.TunnelDirection.Outbound )
             {
-                var replytunnel = GetInboundTunnel( true );
+                var replytunnel = GetInboundTunnel( TunnelPoolSelection.RequireExploratory );
                 var tunnel = new OutboundTunnel( owner, config, replytunnel.Config.Info.Hops.Count );
 
                 var req = tunnel.CreateBuildRequest( replytunnel );
@@ -356,7 +357,7 @@ namespace I2PCore.TunnelLayer
             }
             else
             {
-                var outtunnel = GetEstablishedOutboundTunnel( true );
+                var outtunnel = GetEstablishedOutboundTunnel( TunnelPoolSelection.RequireExploratory );
                 if ( outtunnel == null )
                 {
                     Logging.LogDebug( $"TunnelProvider: Inbound tunnel {config.Pool} " +
@@ -453,50 +454,68 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        public InboundTunnel GetInboundTunnel( bool allowexplo )
+        public InboundTunnel GetInboundTunnel( TunnelPoolSelection poolsel )
         {
-            var result = GetEstablishedInboundTunnel( allowexplo );
+            var result = GetEstablishedInboundTunnel( poolsel );
             if ( result != null ) return result;
-            if ( !allowexplo ) return null;
+            if ( poolsel == TunnelPoolSelection.RejectExploratory ) return null;
 
             return AddZeroHopTunnel();
         }
 
-        public InboundTunnel GetEstablishedInboundTunnel( bool allowexplo )
+        IEnumerable<T> PoolSelection<T>( IEnumerable<T> tunnels, TunnelPoolSelection poolsel ) where T: Tunnel
         {
-            var tunnels = EstablishedInbound
-                .ToArray()
-                .Where( t =>
-                    t.Key.Config.Pool == TunnelConfig.TunnelPool.Client 
-                    || ( allowexplo && t.Key.Config.Pool == TunnelConfig.TunnelPool.Exploratory ) )
-                .Select( t => t.Key );
+            IEnumerable<T> result = null;
 
-            return SelectTunnel<InboundTunnel>( tunnels );
+            switch ( poolsel )
+            {
+                case TunnelPoolSelection.AllowExploratory:
+                    result = tunnels
+                            .Where( t =>
+                                    t.Config.Pool == TunnelConfig.TunnelPool.Client
+                                    || t.Config.Pool == TunnelConfig.TunnelPool.Exploratory );
+                    break;
+
+                case TunnelPoolSelection.RequireExploratory:
+                    result = tunnels
+                            .Where( t =>
+                                    t.Config.Pool == TunnelConfig.TunnelPool.Exploratory );
+                    break;
+
+                case TunnelPoolSelection.RejectExploratory:
+                    result = tunnels
+                            .Where( t =>
+                                    t.Config.Pool == TunnelConfig.TunnelPool.Client );
+                    break;
+            }
+
+            return result;
         }
 
-        public OutboundTunnel GetEstablishedOutboundTunnel( bool allowexplo )
+        public InboundTunnel GetEstablishedInboundTunnel( TunnelPoolSelection poolsel )
         {
-            var tunnels = EstablishedOutbound
-                .ToArray()
-                .Where( t => allowexplo
-                    || t.Key.Config.Pool != TunnelConfig.TunnelPool.Exploratory )
-                .Select( t => t.Key );
+            var tunnels = PoolSelection( GetInboundTunnels(), poolsel );
+            return SelectTunnel( tunnels );
+        }
 
-            return SelectTunnel<OutboundTunnel>( tunnels );
+        public OutboundTunnel GetEstablishedOutboundTunnel( TunnelPoolSelection poolsel )
+        {
+            var tunnels = PoolSelection( GetOutboundTunnels(), poolsel );
+            return SelectTunnel( tunnels );
         }
 
         public IEnumerable<OutboundTunnel> GetOutboundTunnels()
         {
             return EstablishedOutbound
-                .ToArray()
-                .Select( t => (OutboundTunnel)t.Key );
+                .Keys
+                .ToArray();
         }
 
         public IEnumerable<InboundTunnel> GetInboundTunnels()
         {
             return EstablishedInbound
-                .ToArray()
-                .Select( t => (InboundTunnel)t.Key );
+                .Keys
+                .ToArray();
         }
 
         void RunIncomingMessagePump()
@@ -768,7 +787,7 @@ namespace I2PCore.TunnelLayer
             }
         }
 
-        internal void HandleTunnelBuildReply( VariableTunnelBuildReplyMessage msg )
+        internal void HandleVariableTunnelBuildReply( VariableTunnelBuildReplyMessage msg )
         {
             var matching = PendingOutbound
                 .Where( po => po.Key.TunnelBuildReplyMessageId == msg.MessageId )
@@ -947,7 +966,7 @@ namespace I2PCore.TunnelLayer
             tunnel.Shutdown();
         }
 
-        public static T SelectTunnel<T>( IEnumerable<Tunnel> tunnels ) where T : Tunnel
+        public static T SelectTunnel<T>( IEnumerable<T> tunnels ) where T : Tunnel
         {
             if ( tunnels.Any() )
             {
@@ -955,8 +974,8 @@ namespace I2PCore.TunnelLayer
                     GenerateTunnelWeight, TunnelSelectionElitism );
 
 #if LOG_TUNNEL_SELECTION
-                var available = string.Join( ',', tunnels.Select( t => t.CreationTime.DeltaToNow.ToString( "MS" ) ) );
-                Logging.LogDebug( $"TunnelProvider: SelectTunnel {result}, ({available})" );
+                var available = string.Join( ", ", tunnels.Select( t => $"{t.TunnelDebugTrace} {t.CreationTime.DeltaToNow:MS}" ) );
+                Logging.LogDebug( $"TunnelProvider: SelectTunnel {result}, ( {available} )" );
 #endif
                 return result;
             }
