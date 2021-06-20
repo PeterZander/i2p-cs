@@ -478,6 +478,7 @@ namespace I2PCore.TransportLayer
                         }
 
                         TransportProvider.Inst.CurrentlyUnknownRouters.Add( dest, data );
+                        return false;
                     }
                 }
             }
@@ -507,7 +508,7 @@ namespace I2PCore.TransportLayer
             catch ( RouterUnresolvableException ex )
             {
                 if ( dest != null ) NetDb.Inst.Statistics.DestinationInformationFaulty( dest );
-                Logging.LogTransport( $"TransportProvider.Send: Unresolvable router: {ex.Message}" );
+                Logging.LogDebug( $"TransportProvider.Send: Unresolvable router: {ex.Message}" );
 
                 return false;
             }
@@ -516,7 +517,7 @@ namespace I2PCore.TransportLayer
                 if ( transp != null ) TransportProvider.Inst.Remove( transp );
 
                 if ( dest != null ) NetDb.Inst.Statistics.DestinationInformationFaulty( dest );
-                Logging.LogTransport( $"TransportProvider.Send: Exception {ex.GetType()}, {ex.Message}" );
+                Logging.LogDebug( $"TransportProvider.Send: Exception {ex.GetType()}, {ex.Message}" );
 
                 throw;
             }
