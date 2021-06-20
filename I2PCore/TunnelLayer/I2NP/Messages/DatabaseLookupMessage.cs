@@ -107,7 +107,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
             writer.Write( key.Hash );
             writer.Write( from.Hash );
-            writer.Write8( (byte)( (byte)flags & ~(byte)LookupTypes.Tunnel ) );
+            writer.Write8( (byte)( flags & ~LookupTypes.Tunnel ) );
             writer.Write16( 0 );
         }
 
@@ -116,7 +116,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             I2PIdentHash tunnelgw,
             I2PTunnelId tunnelid,
             LookupTypes flags, 
-            IEnumerable<I2PIdentHash> excludelist,
+            IEnumerable<I2PIdentHash> excludelist = null,
             DatabaseLookupKeyInfo keyinfo = null )
         {
             var excludecount = excludelist == null ? 0 : excludelist.Count();
@@ -132,7 +132,8 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             var forceflags = flags | LookupTypes.Tunnel;
             if ( keyinfo != null )
             {
-                forceflags &= ~LookupTypes.Encryption & ~LookupTypes.ECIES;
+                forceflags &= ~LookupTypes.Encryption;
+                forceflags &= ~LookupTypes.ECIES;
 
                 forceflags |= keyinfo.EncryptionFlag ? LookupTypes.Encryption : 0;
                 forceflags |= keyinfo.ECIESFlag ? LookupTypes.ECIES : 0;
@@ -177,7 +178,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
 
             writer.Write( key.Hash );
             writer.Write( from.Hash );
-            writer.Write8( (byte)( (byte)flags & ~0x01 ) );
+            writer.Write8( (byte)( flags & ~LookupTypes.Tunnel ) );
 
             if ( excludecount > 0 )
             {
@@ -198,7 +199,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
             CachedKey = new I2PIdentHash( reader );
             CachedFrom = new I2PIdentHash( reader );
             CachedLookupType = (LookupTypes)reader.Read8();
-            if ( ( (byte)CachedLookupType & 0x01 ) != 0 ) CachedTunnelId = new I2PTunnelId( reader );
+            if ( ( CachedLookupType & LookupTypes.Tunnel ) != 0 ) CachedTunnelId = new I2PTunnelId( reader );
 
             var excludecount = reader.ReadFlip16();
             for ( int i = 0; i < excludecount; ++i )
@@ -206,7 +207,7 @@ namespace I2PCore.TunnelLayer.I2NP.Messages
                 CachedExcludeList.Add( new DatabaseSearchReplyMessage( reader ) );
             }
 
-            if ( ( (byte)CachedLookupType & 0x02 ) != 0 )
+            if ( ( CachedLookupType & LookupTypes.Encryption ) != 0 )
             {
                 CachedReplyKey = new I2PSessionKey( reader );
 
