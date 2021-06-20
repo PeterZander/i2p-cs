@@ -30,10 +30,13 @@ namespace I2PCore.Data
                 I2PSigningPublicKey spubkey,
                 I2PSigningPrivateKey sprivkey )
         {
+            var now = DateTime.UtcNow;
+
             Header = new I2PLeaseSet2Header(
                 dest,
-                new I2PDateShort( DateTime.UtcNow ),
-                I2PLeaseSet2Header.HeaderFlagTypes.None );
+                new I2PDateShort( now ),
+                I2PLeaseSet2Header.HeaderFlagTypes.None,
+                (ushort)( leases.OrderByDescending( l => l.Expire ).First().Expire - now ).TotalSeconds );
             Options = new I2PMapping();
 
             PublicKeysField = pubkeys;
@@ -42,7 +45,7 @@ namespace I2PCore.Data
             PrivateSigningKey = sprivkey;
         }
 
-        static readonly byte[] ThreeArray = { 3 };
+        static readonly BufLen ThreeBL = BufUtils.To8BL( 3 );
         
         public I2PLeaseSet2( BufRef reader )
         {
@@ -72,7 +75,7 @@ namespace I2PCore.Data
             Signature = new I2PSignature( reader, Header.Destination.Certificate );
 
             var spkey = Header.Destination.SigningPublicKey;
-            var versig = I2PSignature.DoVerify( spkey, Signature, new BufLen( ThreeArray ), body );
+            var versig = I2PSignature.DoVerify( spkey, Signature, ThreeBL, body );
             if ( !versig )
             {
                 var msg = $"I2PLeaseSet: I2PSignature.DoVerify failed: {spkey.Certificate.SignatureType}";
@@ -85,13 +88,10 @@ namespace I2PCore.Data
         {
             var ar = WriteBody().ToByteArray();
 
-            if ( Signature is null )
-            {
-                Signature = new I2PSignature(
-                    new BufRefLen(
-                        I2PSignature.DoSign( PrivateSigningKey, new BufLen( ThreeArray ), new BufLen( ar ) ) ),
-                    PrivateSigningKey.Certificate );
-            }
+            Signature = new I2PSignature(
+                new BufRefLen(
+                    I2PSignature.DoSign( PrivateSigningKey, ThreeBL, new BufLen( ar ) ) ),
+                PrivateSigningKey.Certificate );
 
             dest.Write( ar );
             Signature.Write( dest );
@@ -145,11 +145,12 @@ namespace I2PCore.Data
                 }
             }
         }
+
         public void AddLease( I2PIdentHash tunnelgw, I2PTunnelId tunnelid, I2PDate enddate )
         {
-            if ( (DateTime)enddate > DateTime.UtcNow ) return;
-
             RemoveExpired();
+
+            if ( (DateTime)enddate > DateTime.UtcNow ) return;
 
             var endshort = new I2PDateShort( enddate );
 
