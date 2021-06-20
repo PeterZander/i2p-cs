@@ -187,6 +187,22 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        static string BandwidthCapabilitiesField = "XOR";
+        const string BandwidthCapabilitiesCharacters = "KLMNOPRUX";
+        public static string BandwidthCapabilities
+        {
+            get => BandwidthCapabilitiesField;
+            set
+            {
+                if ( value.Any( c => !BandwidthCapabilitiesCharacters.Contains( c ) ) )
+                {
+                    throw new ArgumentException( $"BandwidthCapabilities can only be one of '{BandwidthCapabilitiesCharacters}'" );
+                }
+
+                BandwidthCapabilitiesField = value;
+            }
+        }
+
         public RouterContext(): this( (I2PCertificate)null )
         {
         }
@@ -296,7 +312,7 @@ namespace I2PCore.SessionLayer
 
                     var caps = new I2PMapping();
 
-                    var capsstring = "LPR";
+                    var capsstring = BandwidthCapabilities;
                     if ( FloodfillEnabled ) capsstring += "f";
 
                     caps["caps"] = capsstring;
