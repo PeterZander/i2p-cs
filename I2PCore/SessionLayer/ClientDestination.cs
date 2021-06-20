@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using I2PCore.Data;
@@ -11,12 +11,15 @@ using System.Threading;
 using System.Collections.Generic;
 using static I2PCore.SessionLayer.RemoteDestinationsLeasesUpdates;
 using static System.Configuration.ConfigurationManager;
+using System.Threading.Tasks;
 
 namespace I2PCore.SessionLayer
 {
     public class ClientDestination : IClient
     {
         static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 3 );
+
+        static TickSpan MinTimeBetweenFloodfillLSUpdates = TickSpan.Seconds( 20 );
 
         public static TickSpan InitiatorInactivityLimit = TickSpan.Minutes( 5 );
 
@@ -138,19 +141,39 @@ namespace I2PCore.SessionLayer
             get => SignedLeasesField;
             set
             {
-#if DEBUG_TMP
-                if ( !value.VerifySignature( Destination.SigningPublicKey ) )
+#if DEBUG
+                try
                 {
-                    throw new ArgumentException( "Lease set signature error" );
+                    if ( value is I2PLeaseSet )
+                    {
+                        var test1 = new I2PLeaseSet( new BufRefLen( value.ToByteArray() ) );
+                    }
+                    else
+                    {
+                        var test2 = new I2PLeaseSet2( new BufRefLen( value.ToByteArray() ) );
+                    }
+                } 
+                catch( Exception ex )
+                {
+                    Logging.LogDebug( $"{this}: Signature mismatch {ex}" );
                 }
 #endif
+                if ( SignedLeasesField != null
+                    && SignedLeases.Leases.Count() == value.Leases.Count()
+                    && SignedLeases.Leases.All( l => 
+                        value.Leases.Any( 
+                                l2 => l.TunnelGw == l2.TunnelGw 
+                                        && l.TunnelId == l2.TunnelId ) ) )
+                {
+                    return;
+                }
 
                 SignedLeasesField = value;
                 MyRemoteDestinations.LeaseSetIsUpdated();
 
-                if ( PublishDestination )
+                if ( PublishDestination && EstablishedLeases.Count() >= TargetInboundTunnelCount )
                 {
-                    NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
+                    UpdateFloodfillsWithSignedLeases();
                 }
             }
         }
@@ -318,12 +341,12 @@ namespace I2PCore.SessionLayer
 
         protected InboundTunnel SelectInboundTunnel()
         {
-            return TunnelProvider.SelectTunnel<InboundTunnel>( InboundEstablishedPool.Keys );
+            return TunnelProvider.SelectTunnel( InboundEstablishedPool.Keys );
         }
 
         protected OutboundTunnel SelectOutboundTunnel()
         {
-            return TunnelProvider.SelectTunnel<OutboundTunnel>( OutboundEstablishedPool.Keys );
+            return TunnelProvider.SelectTunnel( OutboundEstablishedPool.Keys );
         }
 
         public static ILease SelectLease( ILeaseSet ls )
@@ -475,7 +498,7 @@ namespace I2PCore.SessionLayer
 #if LOG_ALL_LEASE_MGMT
                 Logging.LogDebug( $"{this}: GarlicMessageReceived: {decr}: {string.Join( ',', decr.Cloves.Select( c => c.Message ) ) }" );
 #endif
-                List<I2NPMessage> DestinationMessages = null;
+                List<DataMessage> DestinationMessages = null;
 
                 foreach ( var clove in decr.Cloves )
                 {
@@ -568,15 +591,93 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        internal void DestinationMessageReceived( I2NPMessage message )
+        internal void DestinationMessageReceived( DataMessage message )
         {
 #if LOG_ALL_LEASE_MGMT
             Logging.LogDebug( $"{this}: DestinationMessageReceived: {message}" );
 #endif
-            if ( message.MessageType == I2NPMessage.MessageTypes.Data && DataReceived != null )
+            DataReceived?.Invoke( this, message.DataMessagePayload );
+        }
+
+        TickCounter LastSignedLeasesFloodfillUpdate = TickCounter.Now;
+        SemaphoreSlim UpdateFloodfillsWithSignedLeasesOnce = new SemaphoreSlim( 1, 1 );
+
+        internal void UpdateFloodfillsWithSignedLeases()
+        {
+            if ( !UpdateFloodfillsWithSignedLeasesOnce.Wait( 0 ) )
             {
-                var dmsg = (DataMessage)message;
-                DataReceived( this, dmsg.DataMessagePayload );
+                return;
+            }
+
+            if ( LastSignedLeasesFloodfillUpdate.DeltaToNow < MinTimeBetweenFloodfillLSUpdates )
+            {
+                ThreadPool.QueueUserWorkItem( async a =>
+                {
+                    try
+                    {
+                        await Task.Delay( MinTimeBetweenFloodfillLSUpdates.ToMilliseconds );
+                        LastSignedLeasesFloodfillUpdate.SetNow();
+                        NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
+                    }
+                    finally
+                    {
+                        UpdateFloodfillsWithSignedLeasesOnce.Release();
+                    }
+                } );
+                
+                return;
+            }
+
+            try
+            {
+                LastSignedLeasesFloodfillUpdate.SetNow();
+                NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
+            }
+            finally
+            {
+                UpdateFloodfillsWithSignedLeasesOnce.Release();
+            }
+        }
+
+        internal void UpdateSignedLeases()
+        {
+            var newleases = EstablishedLeasesField
+                .OrderByDescending( l => l.Expire )
+                .Take( TargetInboundTunnelCount )
+                .ToArray();
+
+            if ( ThisDestinationInfo is null )
+            {
+                try
+                {
+                    SignLeasesRequest?.Invoke( this, newleases );
+                }
+                catch ( Exception ex )
+                {
+                    Logging.LogDebug( ex );
+                }
+            }
+            else
+            {
+                // Auto sign
+                if ( PrivateKeys.Any( pk => pk.Certificate.PublicKeyType != I2PKeyType.KeyTypes.ElGamal2048 ) )
+                {
+                    SignedLeases = new I2PLeaseSet2(
+                        Destination,
+                        newleases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId, new I2PDateShort( l.Expire ) ) ),
+                        MySessions.PublicKeys,
+                        Destination.SigningPublicKey,
+                        ThisDestinationInfo.PrivateSigningKey );
+                }
+                else
+                {
+                    SignedLeases = new I2PLeaseSet(
+                        Destination,
+                        newleases.Select( l => new I2PLease( l.TunnelGw, l.TunnelId, new I2PDate( l.Expire ) ) ),
+                        MySessions.PublicKeys[0],
+                        Destination.SigningPublicKey,
+                        ThisDestinationInfo.PrivateSigningKey );
+                }
             }
         }
 
@@ -585,32 +686,7 @@ namespace I2PCore.SessionLayer
             EstablishedLeasesField.Add( new I2PLease2( tunnel.Destination,
                             tunnel.GatewayTunnelId ) );
 
-            if ( ThisDestinationInfo is null )
-            {
-                if ( ( (IClient)this ).InboundTunnelsNeeded <= 0 )
-                {
-                    try
-                    {
-                        SignLeasesRequest?.Invoke( this, EstablishedLeasesField );
-                    }
-                    catch ( Exception ex )
-                    {
-                        Logging.LogDebug( ex );
-                    }
-                }
-            }
-            else
-            {
-                if ( !EstablishedLeases.Any() ) return;
-
-                // Auto sign
-                SignedLeases = new I2PLeaseSet2(
-                    Destination,
-                    EstablishedLeases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId, new I2PDateShort( l.Expire ) ) ),
-                    MySessions.PublicKeys,
-                    Destination.SigningPublicKey,
-                    ThisDestinationInfo.PrivateSigningKey );
-            }
+            UpdateSignedLeases();
         }
 
         internal virtual void RemoveTunnelFromEstablishedLeaseSet( InboundTunnel tunnel )
