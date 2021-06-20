@@ -39,3 +39,4 @@ _ReSharper*/
 .vs
 /Backup
 /packages
+*.kate-swp
