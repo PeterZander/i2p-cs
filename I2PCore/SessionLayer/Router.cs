@@ -24,6 +24,8 @@ namespace I2PCore.SessionLayer
         static TransitTunnelProvider TransitTunnelMgr;
         private static Thread Worker;
 
+        public static event Action<II2NPHeader,InboundTunnel> UnhandledI2NPMessage;
+
         internal static event Action<DeliveryStatusMessage,InboundTunnel> DeliveryStatusReceived;
 
         /// <summary>
@@ -219,7 +221,14 @@ namespace I2PCore.SessionLayer
                     break;
 
                 default:
-                    Logging.LogDebug( $"TunnelProvider_I2NPMessageReceived: Unhandled message ({msg.Message})" );
+                    if ( UnhandledI2NPMessage is null )
+                    {
+                        Logging.LogDebug( $"Router: I2NPMessageReceived: Unhandled message ({msg.Message})" );
+                    }
+                    else
+                    {
+                        ThreadPool.QueueUserWorkItem( a => UnhandledI2NPMessage?.Invoke( msg, from ) );
+                    }
                     break;
             }
         }
