@@ -213,9 +213,14 @@ namespace I2PCore
             Update( hash, ds => Interlocked.Increment( ref ds.FloodfillUpdateSuccess ), true );
         }
 
-        public void IdentResolveTimeout( I2PIdentHash hash )
+        public void IdentResolveRITimeout( I2PIdentHash hash )
         {
-            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveTimeout ), false );
+            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveRITimeout ), false );
+        }
+
+        public void IdentResolveLSTimeout( I2PIdentHash hash )
+        {
+            Update( hash, ds => Interlocked.Increment( ref ds.IdentResolveLSTimeout ), false );
         }
 
         public void IdentResolveSuccess( I2PIdentHash hash )
@@ -286,7 +291,7 @@ namespace I2PCore
 #endif
 
             result |= TestInactive( 
-                        () => OffsetCompare( d.FloodfillUpdateTimeout, 5, d.FloodfillUpdateSuccess, 1.5 ),
+                        () => OffsetCompare( d.FloodfillUpdateTimeout, 5, d.FloodfillUpdateSuccess, 2 ),
                         "FloodfillUpdateTimeout" );
 
             result |= TestInactive( 
@@ -298,7 +303,7 @@ namespace I2PCore
                         "TunnelBuildTimeout" );
 
             result |= TestInactive( 
-                        () => OffsetCompare( d.IdentResolveTimeout, 20, d.IdentResolveSuccess + d.IdentResolveReply * 0.2, 5 ),
+                        () => OffsetCompare( d.IdentResolveRITimeout, 50, d.IdentResolveSuccess + d.IdentResolveReply * 0.7, 5 ),
                         "IdentResolveTimeout" );
 
             result |= TestInactive( 

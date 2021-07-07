@@ -26,7 +26,8 @@ namespace I2PCore
         public long InformationFaulty;
         public long SlowHandshakeConnect;
 
-        public long IdentResolveTimeout;
+        public long IdentResolveRITimeout;
+        public long IdentResolveLSTimeout;
         public long IdentResolveSuccess;
         public long IdentResolveReply;
 
@@ -71,7 +72,7 @@ namespace I2PCore
                 - TunnelBuildTimeout * 1.0f )
                 + DiminishingReturns( FloodfillUpdateSuccess * 1.0f - FloodfillUpdateTimeout * 3.0f );
             score += DiminishingReturns( SuccessfulTunnelTest * 0.3f - FailedTunnelTest * 0.1f );
-            score += DiminishingReturns( IdentResolveSuccess + IdentResolveReply * 0.3f - IdentResolveTimeout );
+            score += DiminishingReturns( IdentResolveSuccess + IdentResolveReply * 0.3f - IdentResolveRITimeout - IdentResolveLSTimeout );
             score -= IsFirewalled ? MaxScore / 4f : 0f;
 
             CachedScore = score + MaxScore * ( MaxBandwidthSeen / RoutersStatistics.BandwidthMax )
@@ -146,7 +147,8 @@ namespace I2PCore
             SuccessfulTunnelTest = TryGet( mapping, "SuccessfulTunnelTest" );
             FailedTunnelTest = TryGet( mapping, "FailedTunnelTest" );
             IsFirewalled = TryGet( mapping, "IsFirewalled" ) != 0;
-            IdentResolveTimeout = TryGet( mapping, "IdentResolveTimeout" );
+            IdentResolveRITimeout = TryGet( mapping, "IdentResolveRITimeout" );
+            IdentResolveLSTimeout = TryGet( mapping, "IdentResolveLSTimeout" );
             IdentResolveSuccess = TryGet( mapping, "IdentResolveSuccess" );
             IdentResolveReply = TryGet( mapping, "IdentResolveReply" );
         }
@@ -169,7 +171,8 @@ namespace I2PCore
             mapping["SuccessfulTunnelTest"] = SuccessfulTunnelTest.ToString();
             mapping["FailedTunnelTest"] = FailedTunnelTest.ToString();
             mapping["IsFirewalled"] = IsFirewalled ? "1" : "0";
-            mapping["IdentResolveTimeout"] = IdentResolveTimeout.ToString();
+            mapping["IdentResolveRITimeout"] = IdentResolveRITimeout.ToString();
+            mapping["IdentResolveLSTimeout"] = IdentResolveLSTimeout.ToString();
             mapping["IdentResolveSuccess"] = IdentResolveSuccess.ToString();
             mapping["IdentResolveReply"] = IdentResolveReply.ToString();
 
