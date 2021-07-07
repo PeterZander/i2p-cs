@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using I2PCore.Data;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
@@ -13,20 +14,21 @@ namespace I2PCore.SessionLayer
     /// </summary>
     public class EGAESSessionKeyOrigin
     {
-        public static readonly TickSpan SentTagLifetime = TickSpan.Minutes( 30 );
-        public static readonly TickSpan ACKedTagLifetime = SentTagLifetime - TickSpan.Minutes( 3 );
-        public static readonly TickSpan UnACKedTagLifetime = TickSpan.Minutes( 3 );
+        public static TickSpan SentTagLifetime = TickSpan.Minutes( 30 );
+        public static TickSpan ACKedTagLifetime = SentTagLifetime - TickSpan.Minutes( 3 );
+        public static TickSpan UnACKedTagLifetime = TickSpan.Minutes( 3 );
+        public static TickSpan WaitForLSUpdateACK = TickSpan.Seconds( 45 );
 
         public int LowWatermarkForNewTags
         {
-            get => Owner?.LowWatermarkForNewTags ?? 7;
-            set => Owner.LowWatermarkForNewTags = value;
+            get => Owner?.Owner?.Owner?.LowWatermarkForNewTags ?? 7;
+            set => Owner.Owner.Owner.LowWatermarkForNewTags = value;
         }
 
         public int NewTagsWhenGenerating
         {
-            get => Owner?.NewTagsWhenGenerating ?? 15;
-            set => Owner.NewTagsWhenGenerating = value;
+            get => Owner?.Owner?.Owner?.NewTagsWhenGenerating ?? 15;
+            set => Owner.Owner.Owner.NewTagsWhenGenerating = value;
         }
 
         class SessionAndTags
@@ -44,11 +46,21 @@ namespace I2PCore.SessionLayer
         TimeWindowDictionary<I2PSessionKey, SessionAndTags> AckedTags =
             new TimeWindowDictionary<I2PSessionKey, SessionAndTags>( ACKedTagLifetime );
 
-        readonly ClientDestination Owner;
+        class LeaseSetUpdateACK
+        {
+            /// <summary>MessageId of the DeliveryStatusMessage of the ACK.</summary>
+            public uint MessageId;
+            public DateTime ExpireTimeForLeaseSet;
+        }
+        
+        TimeWindowDictionary<uint,LeaseSetUpdateACK> NotAckedLSUpdates =
+            new TimeWindowDictionary<uint,LeaseSetUpdateACK>( WaitForLSUpdateACK );
+
+        readonly Session Owner;
         readonly I2PDestination MyDestination;
         readonly I2PIdentHash RemoteDestination;
 
-        public EGAESSessionKeyOrigin( ClientDestination owner, I2PDestination mydest, I2PIdentHash remotedest )
+        internal EGAESSessionKeyOrigin( Session owner, I2PDestination mydest, I2PIdentHash remotedest )
         {
             Owner = owner;
             MyDestination = mydest;
@@ -79,13 +91,19 @@ namespace I2PCore.SessionLayer
                     AckedTags[tags.SessionKey] = tags;
                 }
             }
+
+            if ( NotAckedLSUpdates.TryRemove( msg.StatusMessageId, out var lsupdate ) )
+            {
+                Logging.LogDebug( $"{this}: Remote LS update ACKed, expire {lsupdate.ExpireTimeForLeaseSet}" );
+
+                Owner.ACKedLeaseSetExpireTime = lsupdate.ExpireTimeForLeaseSet;
+            }
         }
 
         public GarlicMessage Encrypt(
                     IEnumerable<I2PPublicKey> remotepublickeys,
                     ILeaseSet publishedleases,
                     InboundTunnel replytunnel,
-                    bool needsleaseupdate,
                     params GarlicClove[] cloves )
         {
             var ( sessiontag, sessionkey ) = PopAckedTag();
@@ -95,7 +113,6 @@ namespace I2PCore.SessionLayer
                     sessionkey,
                     publishedleases,
                     replytunnel,
-                    needsleaseupdate,
                     cloves );
 
             return EncryptEG( remotepublickeys, publishedleases, replytunnel, cloves );
@@ -127,6 +144,12 @@ namespace I2PCore.SessionLayer
                                 replytunnel.Destination, replytunnel.GatewayTunnelId ) ),
             };
 
+            NotAckedLSUpdates[newtags.MessageId] = new LeaseSetUpdateACK
+            {
+                ExpireTimeForLeaseSet = publishedleases.Expire,
+                MessageId = ackstatus.MessageId,
+            };
+
             newcloves.AddRange( cloves );
 
             var garlic = new Garlic( newcloves );
@@ -149,7 +172,6 @@ namespace I2PCore.SessionLayer
                 I2PSessionKey sessionkey,
                 ILeaseSet publishedleases,
                 InboundTunnel replytunnel,
-                bool needsleaseupdate,
                 params GarlicClove[] cloves )
         {
             SessionAndTags newsessionandtags = null;
@@ -172,16 +194,31 @@ namespace I2PCore.SessionLayer
                                     replytunnel.Destination, replytunnel.GatewayTunnelId ) );
                 newcloveslist.Add( ackclove );
 
-                if ( needsleaseupdate )
+                if ( DateTime.UtcNow > Owner.ACKedLeaseSetExpireTime + Session.RemoteLeaseSetUpdateMargin )
                 {
                     Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
 
                     var myleases = new DatabaseStoreMessage( publishedleases );
+                    var lsack = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
+
                     newcloveslist.Add(
                         new GarlicClove(
                             new GarlicCloveDeliveryDestination(
                                 myleases,
                                 RemoteDestination ) ) );
+
+                    newcloveslist.Add(
+                        new GarlicClove(
+                            new GarlicCloveDeliveryTunnel(
+                                    lsack,
+                                    replytunnel.Destination, replytunnel.GatewayTunnelId ) ) );
+
+
+                    NotAckedLSUpdates[lsack.StatusMessageId] = new LeaseSetUpdateACK
+                    {
+                        ExpireTimeForLeaseSet = publishedleases.Expire,
+                        MessageId = lsack.MessageId,
+                    };
                 }
 
                 newcloves = newcloveslist.ToArray();
@@ -251,7 +288,7 @@ namespace I2PCore.SessionLayer
 
         public override string ToString()
         {
-            return $"{GetType().Name} {RemoteDestination}";
+            return $"{Owner.Owner.Owner} {GetType().Name} {RemoteDestination.Id32Short}";
         }
     }
 }

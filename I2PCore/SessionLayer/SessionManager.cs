@@ -1,9 +1,11 @@
+using System;
 using I2PCore.Data;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
+using I2PCore.Utils;
 
 namespace I2PCore.SessionLayer
 {
@@ -33,12 +35,13 @@ namespace I2PCore.SessionLayer
         /// </summary>
         public List<I2PPublicKey> PublicKeys { get; set; }
 
-        protected readonly ConcurrentDictionary<I2PIdentHash, EGAESSessionKeyOrigin> SessionKeys =
-                new ConcurrentDictionary<I2PIdentHash, EGAESSessionKeyOrigin>();
+        internal readonly ConcurrentDictionary<I2PIdentHash,Session> Sessions =
+                new ConcurrentDictionary<I2PIdentHash,Session>();
 
         EGAESDecryptReceivedSessions IncommingSessions;
 
-        readonly ClientDestination Owner;
+        internal readonly ClientDestination Owner;
+
         public SessionManager( ClientDestination owner )
         {
             Owner = owner;
@@ -59,29 +62,89 @@ namespace I2PCore.SessionLayer
             return IncommingSessions.DecryptMessage( message );
         }
 
+        Session GetSession( I2PIdentHash dest )
+        {
+            return Sessions.GetOrAdd(
+                        dest,
+                        ( d ) => new Session(
+                                    this,
+                                    Owner.Destination,
+                                    dest ) );
+        }
         public GarlicMessage Encrypt(
             I2PIdentHash dest,
             IEnumerable<I2PPublicKey> remotepublickeys,
             ILeaseSet publishedleases,
             InboundTunnel replytunnel,
-            bool needsleaseupdate,
             params GarlicClove[] cloves )
         {
-            var sk = SessionKeys.GetOrAdd(
-                        dest,
-                        ( d ) => new EGAESSessionKeyOrigin(
-                                    Owner,
-                                    Owner.Destination,
-                                    dest ) );
-
-            return sk.Encrypt(
-                    remotepublickeys,
-                    publishedleases,
-                    replytunnel,
-                    needsleaseupdate,
-                    cloves );
+            var sess = GetSession( dest );
+            return sess.Encrypt( remotepublickeys, publishedleases, replytunnel, cloves );
         }
 
+        public void MyPublishedLeasesUpdated()
+        {
+            foreach( var sess in Sessions )
+            {
+                sess.Value.MyPublishedLeasesUpdated( sess.Key );
+            }
+        }
+
+        public void LeaseSetReceived( ILeaseSet ls )
+        {
+            if ( ls.Destination.IdentHash == Owner.Destination.IdentHash )
+            {
+                // that is me
+                Logging.LogDebug(
+                    $"{Owner}: Sessions: LeaseSetReceived: " +
+                    $"discarding my lease set." );
+                return;
+            }
+
+            if ( ls.Expire < DateTime.UtcNow )
+            {
+                Logging.LogDebug(
+                    $"{Owner}: Sessions: LeaseSetReceived: " +
+                    $"discarding expired lease set. {ls}" );
+                return;
+            }
+
+            var sess = GetSession( ls.Destination.IdentHash );
+            sess.LeaseSetReceived( ls );
+        }
+
+        public ILeaseSet GetLeaseSet( I2PIdentHash dest )
+        {
+            var sess = GetSession( dest );
+
+            if ( sess?.RemoteLeaseSet is null )
+            {
+                var cachedls = NetDb.Inst.FindLeaseSet( dest );
+                if ( cachedls != null )
+                {
+                    LeaseSetReceived( cachedls );
+                    return cachedls;
+                }
+
+                return null;
+            }
+
+            return sess.RemoteLeaseSet;
+        }
+
+        public ILease GetTunnelPair( I2PIdentHash dest, OutboundTunnel outtunnel )
+        {
+            var sess = GetSession( dest );
+            return sess.GetTunnelPair( outtunnel );
+        }
+
+        public void RemoteIsActive( I2PIdentHash dest )
+        {
+            if ( Sessions.TryGetValue( dest, out var sess ) )
+            {
+                sess.RemoteIsActive( dest );
+            }
+        }
 
         public DatabaseLookupKeyInfo KeyGenerator( I2PIdentHash ffrouterid )
         {

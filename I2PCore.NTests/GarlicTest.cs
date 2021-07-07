@@ -443,7 +443,6 @@ namespace I2PTests
                         destpublishedleases.PublicKeys,
                         origpublishedleases,
                         replytunnel,
-                        false,
                         cloves.ToArray() );
 
                 var recgarlic = recv.DecryptMessage( new GarlicMessage( (BufRefLen)tmsg.Payload.Clone() ) );
