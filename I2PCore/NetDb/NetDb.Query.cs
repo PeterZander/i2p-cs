@@ -179,7 +179,6 @@ namespace I2PCore
                 {
                     Id = ri.Key,
                     Dist = ri.Key ^ refkey,
-                    Q = ri.Value.CachedStatistics,
                 } )
                 .OrderBy( p => p.Dist )
                 .Take( count )

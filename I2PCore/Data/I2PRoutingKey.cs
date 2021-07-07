@@ -6,27 +6,24 @@ namespace I2PCore.Data
 {
     public class I2PRoutingKey: I2PType
     {
-        private readonly bool NextDay;
         private readonly I2PIdentHash Identity;
 
-        public I2PRoutingKey( I2PIdentHash ident, bool nextday )
+        public I2PRoutingKey( I2PIdentHash ident )
         {
             Identity = ident;
-            NextDay = nextday;
         }
 
         BufLen HashCache;
-        int HashCacheDay = -1;
+        DateTime HashCacheDay = DateTime.MinValue;
 
         public BufLen Hash
         {
             get
             {
-                var cachecopy = HashCache;
-                var daynow = DateTime.UtcNow.Day;
-                if ( cachecopy != null && HashCacheDay == daynow ) return cachecopy;
+                var daynow = DateTime.UtcNow.Date;
+                if ( HashCache != null && HashCacheDay == daynow ) return HashCache;
 
-                HashCache = new BufLen( I2PHashSHA256.GetHash( Identity.Hash, new BufLen( GenerateDTBuf( NextDay ) ) ) );
+                HashCache = new BufLen( I2PHashSHA256.GetHash( Identity.Hash, new BufLen( GenerateDTBuf() ) ) );
                 HashCacheDay = daynow;
 
                 return HashCache;
@@ -34,25 +31,17 @@ namespace I2PCore.Data
         }
 
         static byte[] DTBufCache = null;
-        static byte[] DTNextBufCache = null;
-        static int DTBufCacheDay = -1;
+        static DateTime DTBufCacheDay = DateTime.MinValue;
 
-        private static byte[] GenerateDTBuf( bool next )
+        private static byte[] GenerateDTBuf()
         {
-            var cachecopy = DTBufCache;
-            var nextcachecopy = DTNextBufCache;
-            var daynow = DateTime.UtcNow.Day;
-            if ( cachecopy != null && DTBufCacheDay == daynow ) return next ? nextcachecopy : cachecopy;
+            var daynow = DateTime.UtcNow.Date;
+            if ( DTBufCache != null && DTBufCacheDay == daynow ) return DTBufCache;
 
-            var dtbuf = Encoding.ASCII.GetBytes( $"{DateTime.UtcNow:yyyyMMdd}" );
-            DTBufCache = dtbuf;
-
-            var nextdtbuf = Encoding.ASCII.GetBytes( $"{DateTime.UtcNow.AddDays( 1 ):yyyyMMdd}" );
-            DTNextBufCache = nextdtbuf;
-
+            DTBufCache = Encoding.ASCII.GetBytes( $"{daynow:yyyyMMdd}" );
             DTBufCacheDay = daynow;
 
-            return next ? nextdtbuf : dtbuf;
+            return DTBufCache;
         }
 
         public void Write( BufRefStream dest )

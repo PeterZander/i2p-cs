@@ -84,15 +84,17 @@ namespace I2PCore.Data
         }
 
         I2PRoutingKey RoutingKeyCache;
-        int RoutingKeyCacheDay = -1;
+        DateTime RoutingKeyCacheDay = DateTime.MinValue;
         public I2PRoutingKey RoutingKey
         {
             get
             {
-                var daynow = DateTime.UtcNow.Day;
+                var daynow = DateTime.UtcNow.Date;
                 if ( RoutingKeyCache != null && RoutingKeyCacheDay == daynow ) return RoutingKeyCache;
+                
+                RoutingKeyCache = new I2PRoutingKey( this );
                 RoutingKeyCacheDay = daynow;
-                RoutingKeyCache = new I2PRoutingKey( this, false );
+
                 return RoutingKeyCache;
             }
         }
