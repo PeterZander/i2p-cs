@@ -136,7 +136,7 @@ namespace I2PCore
                 }
 
 #if DEBUG
-            var delta = roulette.AbsDevFit / 20;
+            var delta = roulette.AbsDevFit / 2;
             var min = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.MinFit ) < delta ).Take( 10 );
             var avg = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.AverageFit ) < delta ).Take( 10 );
             var max = roulette.Wheel.Where( sp => Math.Abs( sp.Fit - roulette.MaxFit ) < delta ).Take( 10 );

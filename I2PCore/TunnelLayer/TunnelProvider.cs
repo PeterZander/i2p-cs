@@ -37,7 +37,7 @@ namespace I2PCore.TunnelLayer
         /// </summary>
         public static event Action<II2NPHeader,InboundTunnel> I2NPMessageReceived;
 
-        private const double TunnelSelectionElitism = 200.0;
+        private const double TunnelSelectionElitism = 20.0;
 
         // The byte value have no real meaning, the dictionaries are hash sets.
         ConcurrentDictionary<InboundTunnel, byte> PendingInbound = new ConcurrentDictionary<InboundTunnel, byte>();
@@ -966,12 +966,12 @@ namespace I2PCore.TunnelLayer
             tunnel.Shutdown();
         }
 
-        public static T SelectTunnel<T>( IEnumerable<T> tunnels ) where T : Tunnel
+        public static T SelectTunnel<T>( IEnumerable<T> tunnels, double elitism = TunnelSelectionElitism ) where T : Tunnel
         {
             if ( tunnels.Any() )
             {
                 var result = (T)tunnels.RandomWeighted(
-                    GenerateTunnelWeight, TunnelSelectionElitism );
+                    GenerateTunnelWeight, elitism );
 
 #if LOG_TUNNEL_SELECTION
                 var available = string.Join( ", ", tunnels.Select( t => $"{t.TunnelDebugTrace} {t.CreationTime.DeltaToNow:MS}" ) );
@@ -989,7 +989,8 @@ namespace I2PCore.TunnelLayer
 
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
             result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
-            result += t.CreationTime.DeltaToNowSeconds * 10;
+            result += t.CreationTime.DeltaToNowSeconds;
+            result += t.CreationTime.DeltaToNow < TickSpan.Seconds( 30 ) ? penalty : 0;
             if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
             if ( t.Expired ) result += penalty;

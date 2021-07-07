@@ -13,7 +13,7 @@ namespace I2PCore.TunnelLayer
 {
     public class ClientTunnelProvider: ITunnelOwner
     {
-        public static double NewTunnelCreationFactor = 1.5;
+        public static double NewTunnelCreationFactor = 2;
 
         List<IClient> Clients = new List<IClient>();
 
