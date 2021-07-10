@@ -353,7 +353,7 @@ namespace I2PCore.TunnelLayer
             }
 
             // Success
-            if ( testresult.Pass > 0 && testresult.Pass >= testresult.Fail )
+            if ( testresult.Pass > 0 && testresult.Pass * 2 >= testresult.Fail )
             {
                 Logging.LogDebug( $"TunnelTester: Run result: Tunnel {run.TunnelUnderTest} passed tests. " +
                     $"Successes: {testresult.Pass}, Failures {testresult.Fail}." );
@@ -380,7 +380,6 @@ namespace I2PCore.TunnelLayer
                 $"Successes: {testresult.Pass}, Failures {testresult.Fail}." );
 
             TunnelProvider.Inst.TunnelTestFailed( run.TunnelUnderTest );
-            run.TunnelUnderTest.Shutdown();
 
             if ( TestRunFinished != null ) ThreadPool.QueueUserWorkItem( a => TestRunFinished( false, testresult, run ) );
         }

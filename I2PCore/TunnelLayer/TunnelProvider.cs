@@ -962,8 +962,12 @@ namespace I2PCore.TunnelLayer
         {
             tunnel.Owner?.TunnelFailed( tunnel );
 
-            RemoveTunnel( tunnel );
-            tunnel.Shutdown();
+            // If inbound, it might receieve something. Let it expire normally.
+            if ( tunnel is OutboundTunnel )
+            {
+                RemoveTunnel( tunnel );
+                tunnel.Shutdown();
+            }
         }
 
         public static T SelectTunnel<T>( IEnumerable<T> tunnels, double elitism = TunnelSelectionElitism ) where T : Tunnel
