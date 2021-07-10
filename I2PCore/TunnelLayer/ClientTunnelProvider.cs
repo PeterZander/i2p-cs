@@ -23,25 +23,8 @@ namespace I2PCore.TunnelLayer
         ConcurrentDictionary<Tunnel, IClient> Destinations = 
             new ConcurrentDictionary<Tunnel, IClient>();
 
-        ConcurrentDictionary<Tunnel, TunnelUnderReplacement> RunningReplacements = 
-            new ConcurrentDictionary<Tunnel, TunnelUnderReplacement>();
-
         internal TunnelProvider TunnelMgr;
         public SuccessRatio ClientTunnelBuildSuccessRatio = new SuccessRatio();
-
-        protected class TunnelUnderReplacement
-        {
-            internal TunnelUnderReplacement( Tunnel old, IClient dest ) 
-            { 
-                OldTunnel = old;
-                Client = dest;
-            }
-
-            internal readonly Tunnel OldTunnel;
-            internal readonly IClient Client;
-
-            internal List<Tunnel> NewTunnels = new List<Tunnel>();
-        }
 
         internal ClientTunnelProvider( TunnelProvider tp )
         {
@@ -133,8 +116,6 @@ namespace I2PCore.TunnelLayer
                     }
                 }
 
-                ReplaceTunnels.Do( CheckForTunnelReplacementTimeout );
-
                 LogStatus.Do( LogStatusReport );
             } );
         }
@@ -217,8 +198,6 @@ namespace I2PCore.TunnelLayer
         #region TunnelEvents
         public void TunnelEstablished( Tunnel tunnel )
         {
-            TunnelUnderReplacement replace = null;
-
             ClientTunnelBuildSuccessRatio.Success();
 
             if ( !PendingTunnels.TryRemove( tunnel, out var client ) )
@@ -235,22 +214,6 @@ namespace I2PCore.TunnelLayer
             catch ( Exception ex )
             {
                 Logging.Log( ex );
-            }
-
-            replace = RunningReplacements.Where( p => 
-                p.Value.NewTunnels.Any( 
-                    t => t.Equals( tunnel ) ) )
-                .Select( p => p.Value )
-                .FirstOrDefault();
-
-            if ( replace != null ) RunningReplacements.TryRemove( replace.OldTunnel, out _ );
-
-            if ( replace != null )
-            {
-                Logging.LogDebug( $"ClientTunnelProvider: TunnelEstablished: Successfully replaced old tunnel {replace.OldTunnel} with new tunnel {tunnel}" );
-
-                RunningReplacements.TryRemove( replace.OldTunnel, out _ );
-                return;
             }
         }
 
@@ -272,58 +235,6 @@ namespace I2PCore.TunnelLayer
             {
                 Logging.Log( ex );
             }
-
-            var replace = FindReplaceRecord( tunnel );
-
-            if ( replace != null )
-            {
-                Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
-                    $"Failed replacing {replace.OldTunnel} with {tunnel}" );
-
-                if ( replace.OldTunnel.Expired )
-                {
-                    Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
-                        $"Old tunnel expired. {replace.OldTunnel}" );
-
-                    client.RemoveTunnel( replace.OldTunnel, RemovalReason.Expired );
-                }
-
-                tunnel.Shutdown();
-                ReplaceTunnel( tunnel, client, replace );
-            }
-            else
-            {
-/*
-                Logging.LogDebug( $"ClientTunnelProvider: TunnelBuildTimeout: " +
-                    $"Unable to find a matching tunnel under replacement for {tunnel}" );
- */
-            }
-        }
-
-        protected void TunnelReplacementNeeded( Tunnel tunnel )
-        {
-            if ( !Destinations.TryGetValue( tunnel, out var client ) )
-            {
-                Logging.LogDebug( $"ClientTunnelProvider: WARNING. Unable to find client for TunnelReplacementNeeded {tunnel}" );
-                return;
-            }
-
-            if ( !RunningReplacements.TryGetValue( tunnel, out var replace ) ) return; // Already being replaced
-
-            // Too many tunnels already?
-            if ( tunnel is InboundTunnel )
-            {
-                if ( client.InboundTunnelsNeeded < 0 ) return;
-            }
-            else
-            {
-                if ( client.OutboundTunnelsNeeded < 0 ) return;
-            }
-
-            replace = new TunnelUnderReplacement( tunnel, client );
-            RunningReplacements[tunnel] = replace;
-
-            ReplaceTunnel( tunnel, client, replace );
         }
 
         public void TunnelFailed( Tunnel tunnel )
@@ -335,7 +246,6 @@ namespace I2PCore.TunnelLayer
             }
 
             client.RemoveTunnel( tunnel, RemovalReason.Failed );
-            FindReplacement( tunnel, client );
         }
 
         public void TunnelExpired( Tunnel tunnel )
@@ -347,99 +257,9 @@ namespace I2PCore.TunnelLayer
             }
 
             client.RemoveTunnel( tunnel, RemovalReason.Expired );
-            FindReplacement( tunnel, client );
-        }
-
-        internal void FindReplacement( Tunnel tunnel, IClient client )
-        {
-            var replace = FindReplaceRecord( tunnel );
-
-            if ( replace != null )
-            {
-                Logging.LogDebug( $"ClientTunnelProvider: TunnelTimeout: Failed replacing {replace.OldTunnel}" +
-                    $" with {tunnel}" );
-
-                /*
-                if ( replace.OldTunnel.Expired )
-                {
-                    Logging.LogDebug( "ClientTunnelProvider: TunnelTimeout: Old tunnel expired. " + replace.OldTunnel.ToString() );
-
-                    client.RemovePoolTunnel( replace.OldTunnel );
-                }*/
-
-                ReplaceTunnel( tunnel, client, replace );
-            }
-        }
-        #endregion
-
-        private void ReplaceTunnel( Tunnel tunnel, IClient client, TunnelUnderReplacement replace )
-        {
-            if ( tunnel != replace.OldTunnel )
-            {
-                replace.NewTunnels.RemoveAll( t => t.Equals( tunnel ) );
-            }
-
-            while ( replace.NewTunnels.Count < NewTunnelCreationFactor )
-            {
-                switch ( tunnel.Config.Direction )
-                {
-                    case TunnelConfig.TunnelDirection.Outbound:
-                        var newouttunnel = CreateOutboundTunnel( client, null );
-                        replace.NewTunnels.Add( newouttunnel );
-                        Logging.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
-                            tunnel, newouttunnel ) );
-                        break;
-
-                    case TunnelConfig.TunnelDirection.Inbound:
-                        var newintunnel = CreateInboundTunnel( client, null );
-                        replace.NewTunnels.Add( newintunnel );
-                        Logging.LogDebug( () => string.Format( "ClientTunnelProvider: ReplaceTunnel: Started to replace {0} with {1}.",
-                            tunnel, newintunnel ) );
-                        break;
-
-                    default:
-                        throw new NotImplementedException( "Only out and inbound tunnels should be reported here." );
-                }
-            }
-        }
-
-        #region Queue mgmt
-
-        private TunnelUnderReplacement FindReplaceRecord( Tunnel newtunnel )
-        {
-            var replace = RunningReplacements
-                    .Where( p => 
-                        p.Value.NewTunnels.Any( t => t.Equals( newtunnel ) ) )
-                    .Select( p => p.Value )
-                    .FirstOrDefault();
-
-            return replace;
         }
 
         #endregion
-
-        #region Client communication
-
-        #endregion
-
-        private void CheckForTunnelReplacementTimeout()
-        {
-            IEnumerable<Tunnel> timeoutlist;
-
-            timeoutlist = Destinations
-                .Where( t => t.Key.NeedsRecreation )
-                .Select( t => t.Key )
-                .ToArray();
-
-            foreach ( var one in timeoutlist )
-            {
-                /*
-                Logging.LogDebug( "TunnelProvider: CheckForTunnelReplacementTimeout: " + one.Pool.ToString() + 
-                    " tunnel " + one.TunnelDebugTrace + " needs to be replaced." );
-                 */
-                TunnelReplacementNeeded( one );
-            }
-        }
 
         public override string ToString()
         {
