@@ -82,11 +82,11 @@ namespace I2PCore.SessionLayer
             return sess.Encrypt( remotepublickeys, publishedleases, replytunnel, cloves );
         }
 
-        public void MyPublishedLeasesUpdated()
+        public void MySignedLeasesUpdated()
         {
             foreach( var sess in Sessions )
             {
-                sess.Value.MyPublishedLeasesUpdated( sess.Key );
+                sess.Value.MySignedLeasesUpdated( sess.Key );
             }
         }
 
@@ -96,7 +96,7 @@ namespace I2PCore.SessionLayer
             {
                 // that is me
                 Logging.LogDebug(
-                    $"{Owner}: Sessions: LeaseSetReceived: " +
+                    $"{this}: Sessions: LeaseSetReceived: " +
                     $"discarding my lease set." );
                 return;
             }
@@ -104,7 +104,7 @@ namespace I2PCore.SessionLayer
             if ( ls.Expire < DateTime.UtcNow )
             {
                 Logging.LogDebug(
-                    $"{Owner}: Sessions: LeaseSetReceived: " +
+                    $"{this}: Sessions: LeaseSetReceived: " +
                     $"discarding expired lease set. {ls}" );
                 return;
             }
@@ -138,6 +138,14 @@ namespace I2PCore.SessionLayer
             return sess.GetTunnelPair( outtunnel );
         }
 
+        internal void DataSentToRemote( I2PIdentHash dest )
+        {
+            if ( Sessions.TryGetValue( dest, out var sess ) )
+            {
+                sess.DataSentToRemote( dest );
+            }
+        }
+
         public void RemoteIsActive( I2PIdentHash dest )
         {
             if ( Sessions.TryGetValue( dest, out var sess ) )
@@ -149,6 +157,11 @@ namespace I2PCore.SessionLayer
         public DatabaseLookupKeyInfo KeyGenerator( I2PIdentHash ffrouterid )
         {
             return IncommingSessions.KeyGenerator( ffrouterid );
+        }
+
+        public override string ToString()
+        {
+            return $"{Owner} {GetType().Name}";
         }
     }
 }

@@ -2,19 +2,16 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using I2PCore.Data;
-using I2PCore.TransportLayer;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore.TunnelLayer.I2NP.Messages;
 using I2PCore.Utils;
-using System.Threading;
 using System.Collections.Generic;
 using static System.Configuration.ConfigurationManager;
-using System.Threading.Tasks;
 
 namespace I2PCore.SessionLayer
 {
-    public class ClientDestination : IClient
+    public partial class ClientDestination : IClient
     {
         static readonly TimeSpan MinLeaseLifetime = TimeSpan.FromMinutes( 3 );
 
@@ -56,7 +53,7 @@ namespace I2PCore.SessionLayer
         /// <summary>
         /// Client states.
         /// </summary>
-        public enum ClientStates { NoTunnels, NoLeases, Established }
+        public enum ClientStates { NoTunnels, NoLeases, Established, BuildingTunnels }
 
         /// <summary>
         /// Occurs when client state changed.
@@ -140,35 +137,13 @@ namespace I2PCore.SessionLayer
             get => SignedLeasesField;
             set
             {
-#if DEBUG
-                try
-                {
-                    if ( value is I2PLeaseSet )
-                    {
-                        var test1 = new I2PLeaseSet( new BufRefLen( value.ToByteArray() ) );
-                    }
-                    else
-                    {
-                        var test2 = new I2PLeaseSet2( new BufRefLen( value.ToByteArray() ) );
-                    }
-                } 
-                catch( Exception ex )
-                {
-                    Logging.LogDebug( $"{this}: Signature mismatch {ex}" );
-                }
-#endif
-                if ( SignedLeasesField != null
-                    && SignedLeases.Leases.Count() == value.Leases.Count()
-                    && SignedLeases.Leases.All( l => 
-                        value.Leases.Any( 
-                                l2 => l.TunnelGw == l2.TunnelGw 
-                                        && l.TunnelId == l2.TunnelId ) ) )
-                {
+                TestLeaseSet( value );
+
+                if ( IsSameLeaseSet( SignedLeasesField, value ) )
                     return;
-                }
 
                 SignedLeasesField = value;
-                MySessions.MyPublishedLeasesUpdated();
+                MySessions.MySignedLeasesUpdated();
 
                 if ( PublishDestination && EstablishedLeases.Count() >= TargetInboundTunnelCount )
                 {
@@ -185,51 +160,6 @@ namespace I2PCore.SessionLayer
         public I2PDestination Destination { get; private set; }
 
         public readonly bool PublishDestination;
-
-        int IClient.InboundTunnelsNeeded
-        {
-            get
-            {
-                var stable = InboundEstablishedPool.Count( t => !t.Key.NeedsRecreation );
-                var result = TargetInboundTunnelCount
-                            - stable
-                            - InboundPending.Count;
-
-#if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( $"{this}: TargetInboundTunnelCount: {TargetInboundTunnelCount} " +
-                            $"Stable: {stable} Pending: {InboundPending.Count} Result: {result}" );
-#endif
-
-                return result;
-            }
-        }
-
-        int IClient.OutboundTunnelsNeeded
-        {
-            get
-            {
-                var stable = OutboundEstablishedPool.Count( t => !t.Key.NeedsRecreation );
-                var result = TargetOutboundTunnelCount
-                            - stable
-                            - OutboundPending.Count;
-
-#if LOG_ALL_TUNNEL_TRANSFER
-                Logging.LogDebug( $"{this}: TargetOutboundTunnelCount: {TargetOutboundTunnelCount} " +
-                            $"Stable: {stable} Pending: {OutboundPending.Count} Result: {result}" );
-#endif
-
-                return result;
-            }
-        }
-
-        bool IClient.ClientTunnelsStatusOk
-        {
-            get
-            {
-                return InboundEstablishedPool.Count >= TargetInboundTunnelCount
-                    && OutboundEstablishedPool.Count >= TargetOutboundTunnelCount;
-            }
-        }
 
         readonly protected ConcurrentDictionary<OutboundTunnel, byte> OutboundPending =
                 new ConcurrentDictionary<OutboundTunnel, byte>();
@@ -334,358 +264,9 @@ namespace I2PCore.SessionLayer
             }
         }
 
-        internal InboundTunnel SelectInboundTunnel()
-        {
-            return TunnelProvider.SelectTunnel( InboundEstablishedPool.Keys, 5 );
-        }
-
-        internal OutboundTunnel SelectOutboundTunnel()
-        {
-            return TunnelProvider.SelectTunnel( OutboundEstablishedPool.Keys, 5 );
-        }
-
-        public static ILease SelectLease( IEnumerable<ILease> ls )
-        {
-            var result = ls
-                    .Where( l => l.Expire > DateTime.UtcNow + MinLeaseLifetime )
-                    .OrderByDescending( l => l.Expire )
-                    .Take( 2 );
-
-            if ( !result.Any() )
-            {
-                result = ls
-                    .Where( l => l.Expire > DateTime.UtcNow )
-                    .OrderByDescending( l => l.Expire )
-                    .Take( 2 );
-            }
-
-            return result.Random();
-        }
-
-        void IClient.AddOutboundPending( OutboundTunnel tunnel )
-        {
-            OutboundPending[tunnel] = 0;
-        }
-
-        void IClient.AddInboundPending( InboundTunnel tunnel )
-        {
-            InboundPending[tunnel] = 0;
-        }
-
-        void IClient.TunnelEstablished( Tunnel tunnel )
-        {
-            RemovePendingTunnel( tunnel );
-
-            if ( tunnel is OutboundTunnel ot )
-            {
-                OutboundEstablishedPool[ot] = 0;
-            }
-
-            if ( tunnel is InboundTunnel it )
-            {
-                InboundEstablishedPool[it] = 0;
-
-                it.TunnelShutdown += InboundTunnel_TunnelShutdown;
-                it.GarlicMessageReceived += InboundTunnel_GarlicMessageReceived;
-
-                AddTunnelToEstablishedLeaseSet( it );
-            }
-
-            UpdateClientState();
-        }
-
-        void IClient.RemoveTunnel( Tunnel tunnel, RemovalReason reason )
-        {
-            RemovePendingTunnel( tunnel );
-            RemovePoolTunnel( tunnel, reason );
-
-            UpdateClientState();
-        }
-
-        PeriodicAction KeepRemotesUpdated = new PeriodicAction( TickSpan.Seconds( 10 ) );
         PeriodicAction QueueStatusLog = new PeriodicAction( TickSpan.Seconds( 15 ) );
 
-        void IClient.Execute()
-        {
-            if ( Terminated ) return;
-
-            if ( AutomaticIdleUpdateRemotes )
-            {
-                KeepRemotesUpdated.Do( () =>
-                {
-                    UpdateClientState();
-                } );
-            }
-
-            QueueStatusLog.Do( () =>
-            {
-                Logging.LogInformation(
-                    $"{this}: Established tunnels in: {InboundEstablishedPool.Count,2}, " +
-                    $"out: {OutboundEstablishedPool.Count,2}. " +
-                    $"Pending in: {InboundPending.Count,2}, out {OutboundPending.Count,2}" );
-            } );
-        }
-
-        void RemovePendingTunnel( Tunnel tunnel )
-        {
-            if ( tunnel is OutboundTunnel ot )
-            {
-                OutboundPending.TryRemove( ot, out _ );
-            }
-
-            if ( tunnel is InboundTunnel it )
-            {
-                InboundPending.TryRemove( it, out _ );
-            }
-        }
-
-        void RemovePoolTunnel( Tunnel tunnel, RemovalReason reason )
-        {
-            if ( tunnel is OutboundTunnel ot )
-            {
-                OutboundEstablishedPool.TryRemove( ot, out _ );
-            }
-
-            if ( tunnel is InboundTunnel it )
-            {
-                var removed = InboundEstablishedPool.TryRemove( it, out _ );
-                RemoveTunnelFromEstablishedLeaseSet( (InboundTunnel)tunnel );
-
-                if ( removed && reason != RemovalReason.Expired )
-                {
-                    UpdateSignedLeases();
-                }
-            }
-        }
-
-        void InboundTunnel_TunnelShutdown( Tunnel tunnel )
-        {
-            tunnel.TunnelShutdown -= InboundTunnel_TunnelShutdown;
-
-            if ( tunnel is InboundTunnel )
-            {
-                ((InboundTunnel)tunnel).GarlicMessageReceived -= InboundTunnel_GarlicMessageReceived;
-            }
-        }
-
-        void InboundTunnel_GarlicMessageReceived( GarlicMessage msg )
-        {
-            try
-            {
-                /*
-                var info = FreenetBase64.Encode( new BufLen( ThisDestinationInfo.ToByteArray() ) );
-                var g = FreenetBase64.Encode( new BufLen( msg.Garlic.ToByteArray() ) );
-                var st = $"DestinationInfo:\r\n{string.Join( "\r\n", info.Chunks( 40 ).Select( s => $"\"{s}\" +" ) )}" +
-                    $"\r\nGarlic (EG):\r\n{string.Join( "\r\n", g.Chunks( 40 ).Select( s => $"\"{s}\" +" ) )}";
-                File.WriteAllText( $"Garlic_{DateTime.Now.ToLongTimeString()}.b64", st );
-                */
-
-                var decr = MySessions.DecryptMessage( msg );
-                if ( decr == null )
-                {
-                    Logging.LogWarning( $"{this}: GarlicMessageReceived: Failed to decrypt garlic." );
-                    return;
-                }
-
-#if LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this}: GarlicMessageReceived: {decr}: {string.Join( ',', decr.Cloves.Select( c => c.Message ) ) }" );
-#endif
-                List<DataMessage> DestinationMessages = null;
-
-                foreach ( var clove in decr.Cloves )
-                {
-                    try
-                    {
-                        switch ( clove.Delivery.Delivery )
-                        {
-                            case GarlicCloveDelivery.DeliveryMethod.Local:
-#if LOG_ALL_LEASE_MGMT
-                                Logging.LogDebug(
-                                    $"{this}: GarlicMessageReceived: Delivered Local: {clove.Message}" );
-#endif
-                                TunnelProvider.Inst.DistributeIncomingMessage( null, clove.Message.CreateHeader16 );
-                                break;
-
-                            case GarlicCloveDelivery.DeliveryMethod.Router:
-                                var dest = ( (GarlicCloveDeliveryRouter)clove.Delivery ).Destination;
-#if LOG_ALL_LEASE_MGMT
-                                Logging.LogDebug(
-                                    $"{this}: GarlicMessageReceived: Delivered Router: {dest.Id32Short} {clove.Message}" );
-#endif
-                                ThreadPool.QueueUserWorkItem( a => TransportProvider.Send( dest, clove.Message ) );
-                                break;
-
-                            case GarlicCloveDelivery.DeliveryMethod.Tunnel:
-                                var tone = (GarlicCloveDeliveryTunnel)clove.Delivery;
-#if LOG_ALL_LEASE_MGMT
-                                Logging.LogDebug(
-                                    $"{this}: GarlicMessageReceived: " +
-                                    $"Delivered Tunnel: {tone.Destination.Id32Short} " +
-                                    $"TunnelId: {tone.Tunnel} {clove.Message}" );
-#endif
-                                ThreadPool.QueueUserWorkItem( a => TransportProvider.Send(
-                                        tone.Destination,
-                                        new TunnelGatewayMessage(
-                                            clove.Message,
-                                            tone.Tunnel ) ) );
-                                break;
-
-                            case GarlicCloveDelivery.DeliveryMethod.Destination:
-#if LOG_ALL_LEASE_MGMT
-                                Logging.LogDebug(
-                                    $"{this}: GarlicMessageReceived: " +
-                                    $"Delivered Destination: {clove.Message}" );
-#endif
-                                switch ( clove?.Message )
-                                {
-                                    case DatabaseStoreMessage dbsmsg when dbsmsg?.LeaseSet != null:
-                                        MySessions.RemoteIsActive( dbsmsg.LeaseSet?.Destination?.IdentHash );
-
-                                        if ( dbsmsg.LeaseSet.Expire > DateTime.UtcNow )
-                                        {
-                                            Logging.LogDebug( $"{this}: New lease set received in stream for {dbsmsg.LeaseSet.Destination} {dbsmsg.LeaseSet}." );
-                                            MySessions.LeaseSetReceived( dbsmsg.LeaseSet );
-                                            ThreadPool.QueueUserWorkItem( a => UpdateClientState() );
-                                        }
-                                        break;
-
-                                    case DataMessage dmsg when DataReceived != null:
-                                        if ( DestinationMessages is null )
-                                                DestinationMessages = new List<DataMessage>();
-                                        DestinationMessages.Add( dmsg );
-                                        break;
-
-                                    default:
-                                        Logging.LogDebug( $"{this}: Garlic discarded {clove.Message}" );
-                                        break;
-                                }
-                                break;
-                        }
-                    }
-                    catch ( Exception ex )
-                    {
-                        Logging.Log( "ClientDestination GarlicDecrypt Clove", ex );
-                    }
-                }
-
-                if ( DestinationMessages != null )
-                {
-                    foreach( var dmsg in DestinationMessages )
-                    {
-                        ThreadPool.QueueUserWorkItem( a => DestinationMessageReceived( dmsg ) );
-                    }
-                }
-            }
-            catch ( Exception ex )
-            {
-                Logging.Log( "ClientDestination GarlicDecrypt", ex );
-            }
-        }
-
-        internal void DestinationMessageReceived( DataMessage message )
-        {
-#if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( $"{this}: DestinationMessageReceived: {message}" );
-#endif
-            DataReceived?.Invoke( this, message.DataMessagePayload );
-        }
-
-        TickCounter LastSignedLeasesFloodfillUpdate = TickCounter.Now;
-        SemaphoreSlim UpdateFloodfillsWithSignedLeasesOnce = new SemaphoreSlim( 1, 1 );
-
-        internal void UpdateFloodfillsWithSignedLeases()
-        {
-            if ( !UpdateFloodfillsWithSignedLeasesOnce.Wait( 0 ) )
-            {
-                return;
-            }
-
-            if ( LastSignedLeasesFloodfillUpdate.DeltaToNow < MinTimeBetweenFloodfillLSUpdates )
-            {
-                ThreadPool.QueueUserWorkItem( async a =>
-                {
-                    try
-                    {
-                        await Task.Delay( MinTimeBetweenFloodfillLSUpdates.ToMilliseconds );
-                        LastSignedLeasesFloodfillUpdate.SetNow();
-                        NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
-                    }
-                    finally
-                    {
-                        UpdateFloodfillsWithSignedLeasesOnce.Release();
-                    }
-                } );
-                
-                return;
-            }
-
-            try
-            {
-                LastSignedLeasesFloodfillUpdate.SetNow();
-                NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
-            }
-            finally
-            {
-                UpdateFloodfillsWithSignedLeasesOnce.Release();
-            }
-        }
-
-        internal void UpdateSignedLeases()
-        {
-            var newleases = EstablishedLeasesField
-                .Where( l => ( l.Expire - DateTime.UtcNow ).TotalMinutes > 2 )
-                .ToArray();
-
-            if ( ThisDestinationInfo is null )
-            {
-                try
-                {
-                    SignLeasesRequest?.Invoke( this, newleases );
-                }
-                catch ( Exception ex )
-                {
-                    Logging.LogDebug( ex );
-                }
-            }
-            else
-            {
-                // Auto sign
-                if ( PrivateKeys.Any( pk => pk.Certificate.PublicKeyType != I2PKeyType.KeyTypes.ElGamal2048 ) )
-                {
-                    SignedLeases = new I2PLeaseSet2(
-                        Destination,
-                        newleases.Select( l => new I2PLease2( l.TunnelGw, l.TunnelId, new I2PDateShort( l.Expire ) ) ),
-                        MySessions.PublicKeys,
-                        Destination.SigningPublicKey,
-                        ThisDestinationInfo.PrivateSigningKey );
-                }
-                else
-                {
-                    SignedLeases = new I2PLeaseSet(
-                        Destination,
-                        newleases.Select( l => new I2PLease( l.TunnelGw, l.TunnelId, new I2PDate( l.Expire ) ) ),
-                        MySessions.PublicKeys[0],
-                        Destination.SigningPublicKey,
-                        ThisDestinationInfo.PrivateSigningKey );
-                }
-            }
-        }
-
-        internal void AddTunnelToEstablishedLeaseSet( InboundTunnel tunnel )
-        {
-            EstablishedLeasesField.Add( new I2PLease2( tunnel.Destination,
-                            tunnel.GatewayTunnelId ) );
-
-            UpdateSignedLeases();
-        }
-
-        internal virtual void RemoveTunnelFromEstablishedLeaseSet( InboundTunnel tunnel )
-        {
-            EstablishedLeasesField = new List<ILease>( 
-                EstablishedLeasesField
-                    .Where( l => l.TunnelGw != tunnel.Destination || l.TunnelId != tunnel.GatewayTunnelId ) );
-        }
-
+        PeriodicAction KeepClientStateUpdated = new PeriodicAction( TickSpan.Seconds( 10 ) );
         protected void UpdateClientState()
         {
             if ( InboundEstablishedPool.IsEmpty || OutboundEstablishedPool.IsEmpty )
@@ -694,54 +275,13 @@ namespace I2PCore.SessionLayer
                 return;
             }
 
+            if ( !( (IClient)this ).ClientTunnelsStatusOk )
+            {
+                ClientState = ClientStates.BuildingTunnels;
+                return;
+            }
+
             ClientState = ClientStates.Established;
-        }
-
-        class PreconditionState
-        {
-            public ClientStates ClientState;
-            public OutboundTunnel OutTunnel;
-            public ILease RemoteLease;
-            public ILeaseSet RemoteLeaseSet;
-        }
-
-        PreconditionState CheckSendPreconditions( I2PIdentHash dest )
-        {
-            if ( InboundEstablishedPool.IsEmpty )
-            {
-                return new PreconditionState { ClientState = ClientStates.NoTunnels };
-            }
-
-            var leaseset = MySessions.GetLeaseSet( dest );
-
-            if ( leaseset is null )
-            {
-                return new PreconditionState { ClientState = ClientStates.NoLeases };
-            }
-
-            var outtunnel = SelectOutboundTunnel();
-
-            if ( outtunnel is null )
-            {
-                return new PreconditionState { ClientState = ClientStates.NoTunnels };
-            }
-
-            var l = MySessions.GetTunnelPair( dest, outtunnel );
-
-            if ( l is null )
-            {
-                return new PreconditionState { ClientState = ClientStates.NoLeases };
-            }
-
-            Logging.LogDebug( $"{this}: CheckSendPreconditions: Using tunnels: {outtunnel} -> {l}" );
-
-            return new PreconditionState
-                            {
-                                ClientState = ClientStates.Established,
-                                OutTunnel = outtunnel,
-                                RemoteLease = l,
-                                RemoteLeaseSet = leaseset,
-                            };
         }
 
         /// <summary>
@@ -772,95 +312,10 @@ namespace I2PCore.SessionLayer
 
             var result = Send( dest, clove );
 
+            // Do not call this Send internally as it will keep the session going forever
+            MySessions.DataSentToRemote( dest.IdentHash );
+
             return result;
-        }
-
-        /// <summary>
-        /// Send cloves to the destination through a local out tunnel
-        /// after encrypting them for the Destination.
-        /// </summary>
-        /// <returns>The send.</returns>
-        /// <param name="dest">The Destination</param>
-        /// <param name="cloves">Cloves</param>
-        internal ClientStates Send( I2PDestination dest, params GarlicClove[] cloves )
-        {
-            if ( Terminated ) throw new InvalidOperationException( $"Destination {this} is terminated." );
-
-            var replytunnel = SelectInboundTunnel();
-
-            var remoteleases = MySessions.GetLeaseSet( dest.IdentHash );
-            if ( remoteleases is null )
-            { 
-                return ClientStates.NoLeases;
-            }
-
-            var remotepubkeys = remoteleases
-                    .PublicKeys;
-
-            var msg = MySessions.Encrypt(
-                dest.IdentHash,
-                remotepubkeys,
-                SignedLeases,
-                replytunnel,
-                cloves );
-
-            return Send( dest, msg );
-        }
-
-        /// <summary>
-        /// Send a I2NPMessage to the Destination through a local out tunnel.
-        /// </summary>
-        /// <returns>The send.</returns>
-        /// <param name="dest">The Destination</param>
-        /// <param name="msg">I2NPMessage</param>
-        internal ClientStates Send( I2PDestination dest, I2NPMessage msg )
-        {
-            if ( Terminated ) throw new InvalidOperationException( $"This Destination {this} is terminated." );
-
-            var result = CheckSendPreconditions( dest.IdentHash );
-
-            if ( result.ClientState != ClientStates.Established )
-            {
-                switch ( result.ClientState )
-                {
-                    case ClientStates.NoTunnels:
-                        Logging.LogDebug( $"{this}: No inbound tunnels available." );
-                        break;
-
-                    case ClientStates.NoLeases:
-                        Logging.LogDebug( $"{this}: No leases available." );
-                        LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
-                        break;
-                }
-                return result.ClientState;
-            }
-
-            // Remote leases getting old?
-            var newestlease = result.RemoteLeaseSet.Expire;
-            var leasehorizon = newestlease - DateTime.UtcNow;
-
-            if ( leasehorizon.TotalSeconds < 0 )
-            {
-#if !LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this} Send: Leases for {dest.IdentHash.Id32Short} have all expired ({Tunnel.TunnelLifetime}). Looking up." );
-#endif
-                LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
-                return ClientStates.NoLeases;
-            }
-            else if ( leasehorizon < MinLeaseLifetime )
-            {
-#if !LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this} Send: Leases for {dest.IdentHash.Id32Short} is getting old ({leasehorizon}). Looking up." );
-#endif
-                LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
-            }
-
-            result.OutTunnel.Send(
-                new TunnelMessageTunnel(
-                    msg,
-                    result.RemoteLease.TunnelGw, result.RemoteLease.TunnelId ) );
-
-            return ClientStates.Established;
         }
 
         /// <summary>
@@ -904,14 +359,6 @@ namespace I2PCore.SessionLayer
             Logging.LogDebug(
                     $"{this}: Lease set for {hash.Id32Short} found ({ls.Expire})." );
 
-            MySessions.LeaseSetReceived( ls );
-        }
-
-        void Ext_LeaseSetUpdates( ILeaseSet ls )
-        {
-#if DEBUG
-            Logging.LogTransport( $"{this} Ext_LeaseSetUpdates: {ls} {ls.Destination.IdentHash.Id32Short} {ls.Expire}" );
-#endif            
             MySessions.LeaseSetReceived( ls );
         }
 

@@ -27,11 +27,13 @@ namespace I2PCore.SessionLayer
         /// <summary>
         /// Expiry time of the newest ACKed LeaseSet transferred to RemoteDestination
         /// </summary>
-        internal DateTime ACKedLeaseSetExpireTime = DateTime.MinValue;
+        protected DateTime ACKedLeaseSetExpireTime = DateTime.MinValue;
+
+        readonly TimeSpan TimeCompareEpsilon = TimeSpan.FromSeconds( 2 );
 
         public ILeaseSet RemoteLeaseSet { get; protected set; }
 
-        TickCounter LastSendOrReceive = new TickCounter();
+        TickCounter LastSendToRemote = new TickCounter();
 
         internal Session( SessionManager owner, I2PDestination mydest, I2PIdentHash remotedest )
         {
@@ -51,16 +53,15 @@ namespace I2PCore.SessionLayer
             InboundTunnel replytunnel,
             params GarlicClove[] cloves )
         {
-            LastSendOrReceive.SetNow();
             return EGAESKeys.Encrypt( remotepublickeys, publishedleases, replytunnel, cloves );
         }
 
-        internal void MyPublishedLeasesUpdated( I2PIdentHash dest )
+        internal void MySignedLeasesUpdated( I2PIdentHash dest )
         {
             // Send ASAP
             ACKedLeaseSetExpireTime = DateTime.MinValue;
 
-            if ( LastSendOrReceive.DeltaToNow < SessionInactivityTimeout )
+            if ( LastSendToRemote.DeltaToNow < SessionInactivityTimeout )
             {
                 SendLeaseSetUpdate( dest );
             }
@@ -68,28 +69,32 @@ namespace I2PCore.SessionLayer
 
         public void LeaseSetReceived( ILeaseSet ls )
         {
-            if ( RemoteLeaseSet != null && ls.Expire < RemoteLeaseSet.Expire )
+            lock ( OutboundRemoteLeasePairs )
             {
+                if ( RemoteLeaseSet != null 
+                        && ls.Expire < RemoteLeaseSet.Expire + TimeCompareEpsilon )
+                {
+                    Logging.LogDebug(
+                        $"{this} Session: LeaseSetReceived: ignoring older remote LS {ls}" );
+
+                    return;
+                }
+
                 Logging.LogDebug(
-                    $"{Owner} Session: LeaseSetReceived: discarding older LS {ls.Destination}" );
+                    $"{this} Session: LeaseSetReceived: updating remote LS {ls}" );
 
-                return;
-            }
+                RemoteLeaseSet = ls;
 
-            Logging.LogDebug(
-                $"{Owner} Session: LeaseSetReceived: updating LS for {ls.Destination}" );
+                // Did a remote pair dissappear?
+                var nolongeravailable = OutboundRemoteLeasePairs
+                            .Where( p => !ls.Leases.Any( l => l.TunnelId == p.Value.TunnelId
+                                                                && l.TunnelGw == p.Value.TunnelGw ) )
+                            .ToArray();
 
-            RemoteLeaseSet = ls;
-
-            // Did a remote pair dissappear?
-            var nolongeravailable = OutboundRemoteLeasePairs
-                        .Where( p => !ls.Leases.Any( l => l.TunnelId == p.Value.TunnelId
-                                                            && l.TunnelGw == p.Value.TunnelGw ) )
-                        .ToArray();
-
-            foreach( var toremove in nolongeravailable )
-            {
-                OutboundRemoteLeasePairs.TryRemove( toremove.Key, out var _ );
+                foreach( var toremove in nolongeravailable )
+                {
+                    OutboundRemoteLeasePairs.TryRemove( toremove.Key, out var _ );
+                }
             }
         }
 
@@ -97,6 +102,9 @@ namespace I2PCore.SessionLayer
         {
             if ( RemoteLeaseSet != null )
             {
+                Logging.LogDebug(
+                    $"{this} Session: SendLeaseSetUpdate: sending LS to {dest.Id32Short}" );
+
                 Owner.Owner.Send( 
                         RemoteLeaseSet.Destination,
                         Encrypt( 
@@ -106,13 +114,28 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        internal void DataSentToRemote( I2PIdentHash dest )
+        {
+            LastSendToRemote.SetNow();
+        }
+
         internal void RemoteIsActive( I2PIdentHash dest )
         {
-            if ( DateTime.UtcNow > ACKedLeaseSetExpireTime + RemoteLeaseSetUpdateMargin
-                    && LastSendOrReceive.DeltaToNow < SessionInactivityTimeout )
+            if ( RemoteNeedsLeaseSetUpdate
+                    && LastSendToRemote.DeltaToNow < SessionInactivityTimeout )
             {
                 SendLeaseSetUpdate( dest );
             }
+        }
+
+        internal bool RemoteNeedsLeaseSetUpdate
+        {
+            get => Owner.Owner.SignedLeases.Expire > ACKedLeaseSetExpireTime + TimeCompareEpsilon;
+        }
+
+        internal void RemoteLeaseSetUpdateACKReceived( DateTime expiration )
+        {
+            ACKedLeaseSetExpireTime = expiration;
         }
 
         TimeWindowDictionary<OutboundTunnel,ILease> OutboundRemoteLeasePairs = 
@@ -159,5 +182,10 @@ namespace I2PCore.SessionLayer
 
             return result;
         }
-    }
+
+        public override string ToString()
+        {
+            return $"{Owner.Owner} {MyDestination} -> {RemoteDestination?.Id32Short}";
+        }
+   }
 }

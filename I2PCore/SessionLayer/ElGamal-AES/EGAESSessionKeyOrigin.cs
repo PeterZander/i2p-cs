@@ -96,7 +96,7 @@ namespace I2PCore.SessionLayer
             {
                 Logging.LogDebug( $"{this}: Remote LS update ACKed, expire {lsupdate.ExpireTimeForLeaseSet}" );
 
-                Owner.ACKedLeaseSetExpireTime = lsupdate.ExpireTimeForLeaseSet;
+                Owner.RemoteLeaseSetUpdateACKReceived( lsupdate.ExpireTimeForLeaseSet );
             }
         }
 
@@ -194,7 +194,7 @@ namespace I2PCore.SessionLayer
                                     replytunnel.Destination, replytunnel.GatewayTunnelId ) );
                 newcloveslist.Add( ackclove );
 
-                if ( DateTime.UtcNow > Owner.ACKedLeaseSetExpireTime + Session.RemoteLeaseSetUpdateMargin )
+                if ( Owner.RemoteNeedsLeaseSetUpdate )
                 {
                     Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
 
