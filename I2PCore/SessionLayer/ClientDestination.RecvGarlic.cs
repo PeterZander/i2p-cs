@@ -114,24 +114,22 @@ namespace I2PCore.SessionLayer
 
                 if ( DestinationMessages != null )
                 {
-                    foreach( var dmsg in DestinationMessages )
+                    ThreadPool.QueueUserWorkItem( a => 
                     {
-                        ThreadPool.QueueUserWorkItem( a => DestinationMessageReceived( dmsg ) );
-                    }
+                        foreach( var dmsg in DestinationMessages )
+                        {
+#if LOG_ALL_LEASE_MGMT
+                            Logging.LogDebug( $"{this}: DestinationMessageReceived: {dmsg}" );
+#endif
+                            DataReceived?.Invoke( this, dmsg.DataMessagePayload );
+                        }
+                    } );
                 }
             }
             catch ( Exception ex )
             {
                 Logging.Log( "ClientDestination GarlicDecrypt", ex );
             }
-        }
-
-        internal void DestinationMessageReceived( DataMessage message )
-        {
-#if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( $"{this}: DestinationMessageReceived: {message}" );
-#endif
-            DataReceived?.Invoke( this, message.DataMessagePayload );
         }
     }
 }

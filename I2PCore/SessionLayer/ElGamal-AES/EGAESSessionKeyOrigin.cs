@@ -175,7 +175,7 @@ namespace I2PCore.SessionLayer
                 params GarlicClove[] cloves )
         {
             SessionAndTags newsessionandtags = null;
-            var newcloves = cloves;
+            var clovelist = cloves.ToList();
 
             var availabletags = AckedTags.Sum( t => t.Value.Tags.Count );
             if ( availabletags <= LowWatermarkForNewTags )
@@ -185,49 +185,46 @@ namespace I2PCore.SessionLayer
 #endif
                 newsessionandtags = GenerateNewTags();
 
-                var newcloveslist = new List<GarlicClove>( cloves );
-
                 var ackstatus = new DeliveryStatusMessage( newsessionandtags.MessageId );
                 var ackclove = new GarlicClove(
                                 new GarlicCloveDeliveryTunnel(
                                     ackstatus,
                                     replytunnel.Destination, replytunnel.GatewayTunnelId ) );
-                newcloveslist.Add( ackclove );
-
-                if ( Owner.RemoteNeedsLeaseSetUpdate )
-                {
-                    Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
-
-                    var myleases = new DatabaseStoreMessage( publishedleases );
-                    var lsack = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
-
-                    newcloveslist.Add(
-                        new GarlicClove(
-                            new GarlicCloveDeliveryDestination(
-                                myleases,
-                                RemoteDestination ) ) );
-
-                    newcloveslist.Add(
-                        new GarlicClove(
-                            new GarlicCloveDeliveryTunnel(
-                                    lsack,
-                                    replytunnel.Destination, replytunnel.GatewayTunnelId ) ) );
-
-
-                    NotAckedLSUpdates[lsack.StatusMessageId] = new LeaseSetUpdateACK
-                    {
-                        ExpireTimeForLeaseSet = publishedleases.Expire,
-                        MessageId = lsack.MessageId,
-                    };
-                }
-
-                newcloves = newcloveslist.ToArray();
+                clovelist.Add( ackclove );
             }
+
+            if ( Owner.RemoteNeedsLeaseSetUpdate )
+            {
+                Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
+
+                var myleases = new DatabaseStoreMessage( publishedleases );
+                var lsack = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
+
+                clovelist.Add(
+                    new GarlicClove(
+                        new GarlicCloveDeliveryDestination(
+                            myleases,
+                            RemoteDestination ) ) );
+
+                clovelist.Add(
+                    new GarlicClove(
+                        new GarlicCloveDeliveryTunnel(
+                                lsack,
+                                replytunnel.Destination, replytunnel.GatewayTunnelId ) ) );
+
+
+                NotAckedLSUpdates[lsack.StatusMessageId] = new LeaseSetUpdateACK
+                {
+                    ExpireTimeForLeaseSet = publishedleases.Expire,
+                    MessageId = lsack.MessageId,
+                };
+            }
+
 #if LOG_ALL_LEASE_MGMT
             Logging.LogInformation( $"{this}: Encrypting with session key {sessionkey}" );
 #endif
 
-            var garlic = new Garlic( newcloves );
+            var garlic = new Garlic( clovelist );
             return Garlic.AESEncryptGarlic(
                     garlic,
                     sessionkey,

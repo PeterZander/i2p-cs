@@ -147,7 +147,7 @@ namespace I2PCore.SessionLayer
 
                 if ( PublishDestination && EstablishedLeases.Count() >= TargetInboundTunnelCount )
                 {
-                    UpdateFloodfillsWithSignedLeases();
+                    NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
                 }
             }
         }

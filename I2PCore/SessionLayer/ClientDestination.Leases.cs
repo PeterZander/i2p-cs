@@ -15,43 +15,6 @@ namespace I2PCore.SessionLayer
         TickCounter LastSignedLeasesFloodfillUpdate = TickCounter.Now;
         SemaphoreSlim UpdateFloodfillsWithSignedLeasesOnce = new SemaphoreSlim( 1, 1 );
 
-        internal void UpdateFloodfillsWithSignedLeases()
-        {
-            if ( !UpdateFloodfillsWithSignedLeasesOnce.Wait( 0 ) )
-            {
-                return;
-            }
-
-            if ( LastSignedLeasesFloodfillUpdate.DeltaToNow < MinTimeBetweenFloodfillLSUpdates )
-            {
-                ThreadPool.QueueUserWorkItem( async a =>
-                {
-                    try
-                    {
-                        await Task.Delay( MinTimeBetweenFloodfillLSUpdates.ToMilliseconds );
-                        LastSignedLeasesFloodfillUpdate.SetNow();
-                        NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
-                    }
-                    finally
-                    {
-                        UpdateFloodfillsWithSignedLeasesOnce.Release();
-                    }
-                } );
-                
-                return;
-            }
-
-            try
-            {
-                LastSignedLeasesFloodfillUpdate.SetNow();
-                NetDb.Inst.FloodfillUpdate.TrigUpdateLeaseSet( SignedLeases );
-            }
-            finally
-            {
-                UpdateFloodfillsWithSignedLeasesOnce.Release();
-            }
-        }
-
         internal void UpdateSignedLeases()
         {
             var newleases = EstablishedLeasesField
