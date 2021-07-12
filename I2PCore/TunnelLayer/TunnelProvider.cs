@@ -972,6 +972,11 @@ namespace I2PCore.TunnelLayer
 
         public static T SelectTunnel<T>( IEnumerable<T> tunnels, double elitism = TunnelSelectionElitism ) where T : Tunnel
         {
+            tunnels = tunnels
+                    .Where( t => !t.Terminated
+                                    && !t.Expired
+                                    && t.CreationTime.DeltaToNow < TickSpan.Minutes( 10 ) );
+
             if ( tunnels.Any() )
             {
                 var result = (T)tunnels.RandomWeighted(
@@ -993,13 +998,13 @@ namespace I2PCore.TunnelLayer
 
             var result = t.Metrics.MinLatencyMeasured?.ToMilliseconds ?? penalty;
             result += t.Metrics.BuildTimePerHop?.ToMilliseconds ?? penalty;
-            result += t.CreationTime.DeltaToNowSeconds;
+            result += t.CreationTime.DeltaToNow.ToMilliseconds / 60;
             result += t.CreationTime.DeltaToNow < TickSpan.Seconds( 30 ) ? penalty : 0;
             if ( t.NeedsRecreation ) result += penalty;
             if ( t.Pool == TunnelConfig.TunnelPool.Exploratory ) result += penalty / 2.0;
-            if ( t.Expired ) result += penalty;
-            if ( t.Terminated ) result += 10 * penalty;
             if ( !t.Metrics.PassedTunnelTest ) result += penalty;
+            if ( t.Expired ) result += 10 * penalty;
+            if ( t.Terminated ) result += 10 * penalty;
             if ( t is ZeroHopTunnel ) result += 10 * penalty;
 
             return -result;
