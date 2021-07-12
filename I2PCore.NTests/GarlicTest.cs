@@ -449,7 +449,7 @@ namespace I2PTests
                 var tmsg = origko.Encrypt(
                         destpublishedleases.PublicKeys,
                         replytunnel,
-                        cloves.ToArray() );
+                        cloves.ToList() );
 
                 var recgarlic = recv.DecryptMessage( new GarlicMessage( (BufRefLen)tmsg.Payload.Clone() ) );
 
