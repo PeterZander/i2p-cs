@@ -42,8 +42,8 @@ namespace I2PCore.SessionLayer
         TimeWindowDictionary<uint,SessionAndTags> NotAckedTags =
             new TimeWindowDictionary<uint, SessionAndTags>( UnACKedTagLifetime );
 
-        TimeWindowDictionary<I2PSessionKey, SessionAndTags> AckedTags =
-            new TimeWindowDictionary<I2PSessionKey, SessionAndTags>( ACKedTagLifetime );
+        TimeWindowDictionary<I2PSessionTag, I2PSessionKey> AckedTags =
+            new TimeWindowDictionary<I2PSessionTag, I2PSessionKey>( ACKedTagLifetime );
 
         readonly ClientDestination Context;
         readonly I2PDestination MyDestination;
@@ -61,16 +61,10 @@ namespace I2PCore.SessionLayer
             if ( NotAckedTags.TryRemove( msg.StatusMessageId, out var tags ) )
             {
                 Logging.LogDebug( $"{this}: SessionKey {tags.SessionKey} ACKed, {tags.Tags.Count} tags." );
-                if ( AckedTags.TryGetValue( tags.SessionKey, out var tagpool ) )
+
+                foreach( var tag in tags.Tags )
                 {
-                    foreach ( var tag in tags.Tags )
-                    {
-                        tagpool.Tags[tag.Key] = 1;
-                    }
-                }
-                else
-                { 
-                    AckedTags[tags.SessionKey] = tags;
+                    AckedTags[tag.Key] = tags.SessionKey;
                 }
             }
         }
@@ -96,9 +90,11 @@ namespace I2PCore.SessionLayer
                     InboundTunnel replytunnel,
                     IList<GarlicClove> cloves )
         {
-            var newtags = GenerateNewTags();
+            var newsessionandtags = CheckAvailableTags( cloves, replytunnel );
+
 #if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination.Id32Short} {newtags.SessionKey}, {newtags.MessageId}" );
+
+            Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination.Id32Short} {newsessionandtags.SessionKey}, {newsessionandtags.MessageId}" );
 #endif
 
             var garlic = new Garlic( cloves );
@@ -112,8 +108,8 @@ namespace I2PCore.SessionLayer
             return Garlic.EGEncryptGarlic(
                     garlic,
                     pkey,
-                    newtags.SessionKey,
-                    newtags.Tags.Select( t => t.Key ).ToList() );
+                    newsessionandtags?.SessionKey,
+                    newsessionandtags?.Tags.Select( t => t.Key ).ToList() );
         }
 
         protected GarlicMessage EncryptAES(
@@ -122,23 +118,7 @@ namespace I2PCore.SessionLayer
                 InboundTunnel replytunnel,
                 IList<GarlicClove> cloves )
         {
-            SessionAndTags newsessionandtags = null;
-
-            var availabletags = AckedTags.Sum( t => t.Value.Tags.Count );
-            if ( availabletags <= LowWatermarkForNewTags )
-            {
-#if LOG_ALL_LEASE_MGMT
-                Logging.LogDebug( $"{this}: Tag level low {availabletags}. Sending more." );
-#endif
-                newsessionandtags = GenerateNewTags();
-
-                var ackstatus = new DeliveryStatusMessage( newsessionandtags.MessageId );
-                var ackclove = new GarlicClove(
-                                new GarlicCloveDeliveryTunnel(
-                                    ackstatus,
-                                    replytunnel.Destination, replytunnel.GatewayTunnelId ) );
-                cloves.Add( ackclove );
-            }
+            var newsessionandtags = CheckAvailableTags( cloves, replytunnel );
 
 #if LOG_ALL_LEASE_MGMT
             Logging.LogInformation( $"{this}: Encrypting with session key {sessionkey}" );
@@ -155,34 +135,30 @@ namespace I2PCore.SessionLayer
 
         ( I2PSessionTag, I2PSessionKey ) PopAckedTag()
         {
-        again:
-            var onekey = AckedTags.Random();
-            if ( BufUtils.EqualsDefaultValue( onekey ) )
-                    return ( null, null );
-
-            var session = onekey.Value;
-
-            var tag = session.Tags.FirstOrDefault();
-            if ( BufUtils.EqualsDefaultValue( tag ) )
+            var onetag = AckedTags.Random();
+            if ( BufUtils.EqualsDefaultValue( onetag )
+                || !AckedTags.TryRemove( onetag.Key, out var sessionkey ) )
             {
-                AckedTags.Remove( onekey.Key );
-                goto again;
+                return ( null, null );
             }
 
-            session.Tags.Remove( tag.Key );
-            if ( session.Tags.IsEmpty )
-            {
-                AckedTags.Remove( onekey.Key );
-            }
-            else
-            {
-                AckedTags.Touch( onekey.Key );
-            }
-
-            return ( tag.Key, session.SessionKey );
+            return ( onetag.Key, sessionkey );
         }
 
-        private SessionAndTags GenerateNewTags()
+        private SessionAndTags CheckAvailableTags( IList<GarlicClove> cloves, InboundTunnel replytunnel )
+        {
+            var availabletags = AckedTags.Count;
+            if ( availabletags <= LowWatermarkForNewTags )
+            {
+#if LOG_ALL_LEASE_MGMT
+                Logging.LogDebug( $"{this}: Tag level low {availabletags}. Sending more." );
+#endif
+                return GenerateNewTags( cloves, replytunnel );
+            }
+            return null;
+        }
+
+        private SessionAndTags GenerateNewTags( IList<GarlicClove> cloves, InboundTunnel replytunnel )
         {
             var result = new List<I2PSessionTag>();
             var sessionkey = new I2PSessionKey();
@@ -198,7 +174,15 @@ namespace I2PCore.SessionLayer
                 sat.Tags[new I2PSessionTag()] = 1;
             }
 
+            // Wait for ACK
             NotAckedTags[sat.MessageId] = sat;
+
+            var ackstatus = new DeliveryStatusMessage( sat.MessageId );
+            var ackclove = new GarlicClove(
+                            new GarlicCloveDeliveryTunnel(
+                                ackstatus,
+                                replytunnel.Destination, replytunnel.GatewayTunnelId ) );
+            cloves.Add( ackclove );
 
             return sat;
         }
