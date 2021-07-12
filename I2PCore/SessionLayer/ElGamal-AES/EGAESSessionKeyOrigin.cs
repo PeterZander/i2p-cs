@@ -17,18 +17,17 @@ namespace I2PCore.SessionLayer
         public static TickSpan SentTagLifetime = TickSpan.Minutes( 30 );
         public static TickSpan ACKedTagLifetime = SentTagLifetime - TickSpan.Minutes( 3 );
         public static TickSpan UnACKedTagLifetime = TickSpan.Minutes( 3 );
-        public static TickSpan WaitForLSUpdateACK = TickSpan.Seconds( 45 );
 
-        public int LowWatermarkForNewTags
+        public virtual int LowWatermarkForNewTags
         {
-            get => Owner?.Owner?.Owner?.LowWatermarkForNewTags ?? 7;
-            set => Owner.Owner.Owner.LowWatermarkForNewTags = value;
+            get => Context.LowWatermarkForNewTags;
+            set => Context.LowWatermarkForNewTags = value;
         }
 
-        public int NewTagsWhenGenerating
+        public virtual int NewTagsWhenGenerating
         {
-            get => Owner?.Owner?.Owner?.NewTagsWhenGenerating ?? 15;
-            set => Owner.Owner.Owner.NewTagsWhenGenerating = value;
+            get => Context.NewTagsWhenGenerating;
+            set => Context.NewTagsWhenGenerating = value;
         }
 
         class SessionAndTags
@@ -46,35 +45,18 @@ namespace I2PCore.SessionLayer
         TimeWindowDictionary<I2PSessionKey, SessionAndTags> AckedTags =
             new TimeWindowDictionary<I2PSessionKey, SessionAndTags>( ACKedTagLifetime );
 
-        class LeaseSetUpdateACK
-        {
-            /// <summary>MessageId of the DeliveryStatusMessage of the ACK.</summary>
-            public uint MessageId;
-            public DateTime ExpireTimeForLeaseSet;
-        }
-        
-        TimeWindowDictionary<uint,LeaseSetUpdateACK> NotAckedLSUpdates =
-            new TimeWindowDictionary<uint,LeaseSetUpdateACK>( WaitForLSUpdateACK );
-
-        readonly Session Owner;
+        readonly ClientDestination Context;
         readonly I2PDestination MyDestination;
         readonly I2PIdentHash RemoteDestination;
 
-        internal EGAESSessionKeyOrigin( Session owner, I2PDestination mydest, I2PIdentHash remotedest )
+        internal EGAESSessionKeyOrigin( ClientDestination context, I2PDestination mydest, I2PIdentHash remotedest )
         {
-            Owner = owner;
+            Context = context;
             MyDestination = mydest;
             RemoteDestination = remotedest;
-
-            Router.DeliveryStatusReceived += Router_DeliveryStatusReceived;
         }
 
-        public void Terminate()
-        {
-            Router.DeliveryStatusReceived -= Router_DeliveryStatusReceived;
-        }
-
-        protected void Router_DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
+        internal void DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
         {
             if ( NotAckedTags.TryRemove( msg.StatusMessageId, out var tags ) )
             {
@@ -91,68 +73,35 @@ namespace I2PCore.SessionLayer
                     AckedTags[tags.SessionKey] = tags;
                 }
             }
-
-            if ( NotAckedLSUpdates.TryRemove( msg.StatusMessageId, out var lsupdate ) )
-            {
-                Logging.LogDebug( $"{this}: Remote LS update ACKed, expire {lsupdate.ExpireTimeForLeaseSet}" );
-
-                Owner.RemoteLeaseSetUpdateACKReceived( lsupdate.ExpireTimeForLeaseSet );
-            }
         }
 
         public GarlicMessage Encrypt(
                     IEnumerable<I2PPublicKey> remotepublickeys,
-                    ILeaseSet publishedleases,
                     InboundTunnel replytunnel,
-                    params GarlicClove[] cloves )
+                    IList<GarlicClove> cloves )
         {
             var ( sessiontag, sessionkey ) = PopAckedTag();
             if ( sessionkey != null )
                 return EncryptAES(
                     sessiontag,
                     sessionkey,
-                    publishedleases,
                     replytunnel,
                     cloves );
 
-            return EncryptEG( remotepublickeys, publishedleases, replytunnel, cloves );
+            return EncryptEG( remotepublickeys, replytunnel, cloves );
         }
 
         protected GarlicMessage EncryptEG(
                     IEnumerable<I2PPublicKey> remotepublickeys,
-                    ILeaseSet publishedleases,
                     InboundTunnel replytunnel,
-                    params GarlicClove[] cloves )
+                    IList<GarlicClove> cloves )
         {
             var newtags = GenerateNewTags();
 #if LOG_ALL_LEASE_MGMT
-            Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination} {newtags.SessionKey}, {newtags.MessageId}" );
+            Logging.LogDebug( $"{this}: Encrypting with ElGamal to {RemoteDestination.Id32Short} {newtags.SessionKey}, {newtags.MessageId}" );
 #endif
 
-            var myleases = new DatabaseStoreMessage( publishedleases );
-            var ackstatus = new DeliveryStatusMessage( newtags.MessageId );
-
-            var newcloves = new List<GarlicClove>
-            {
-                new GarlicClove(
-                            new GarlicCloveDeliveryDestination(
-                                myleases,
-                                RemoteDestination ) ),
-                new GarlicClove(
-                            new GarlicCloveDeliveryTunnel(
-                                ackstatus,
-                                replytunnel.Destination, replytunnel.GatewayTunnelId ) ),
-            };
-
-            NotAckedLSUpdates[newtags.MessageId] = new LeaseSetUpdateACK
-            {
-                ExpireTimeForLeaseSet = publishedleases.Expire,
-                MessageId = ackstatus.MessageId,
-            };
-
-            newcloves.AddRange( cloves );
-
-            var garlic = new Garlic( newcloves );
+            var garlic = new Garlic( cloves );
 
             // Use enum value as priority
             var pkey = remotepublickeys
@@ -170,12 +119,10 @@ namespace I2PCore.SessionLayer
         protected GarlicMessage EncryptAES(
                 I2PSessionTag sessiontag,
                 I2PSessionKey sessionkey,
-                ILeaseSet publishedleases,
                 InboundTunnel replytunnel,
-                params GarlicClove[] cloves )
+                IList<GarlicClove> cloves )
         {
             SessionAndTags newsessionandtags = null;
-            var clovelist = cloves.ToList();
 
             var availabletags = AckedTags.Sum( t => t.Value.Tags.Count );
             if ( availabletags <= LowWatermarkForNewTags )
@@ -190,41 +137,14 @@ namespace I2PCore.SessionLayer
                                 new GarlicCloveDeliveryTunnel(
                                     ackstatus,
                                     replytunnel.Destination, replytunnel.GatewayTunnelId ) );
-                clovelist.Add( ackclove );
-            }
-
-            if ( Owner.RemoteNeedsLeaseSetUpdate )
-            {
-                Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
-
-                var myleases = new DatabaseStoreMessage( publishedleases );
-                var lsack = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
-
-                clovelist.Add(
-                    new GarlicClove(
-                        new GarlicCloveDeliveryDestination(
-                            myleases,
-                            RemoteDestination ) ) );
-
-                clovelist.Add(
-                    new GarlicClove(
-                        new GarlicCloveDeliveryTunnel(
-                                lsack,
-                                replytunnel.Destination, replytunnel.GatewayTunnelId ) ) );
-
-
-                NotAckedLSUpdates[lsack.StatusMessageId] = new LeaseSetUpdateACK
-                {
-                    ExpireTimeForLeaseSet = publishedleases.Expire,
-                    MessageId = lsack.MessageId,
-                };
+                cloves.Add( ackclove );
             }
 
 #if LOG_ALL_LEASE_MGMT
             Logging.LogInformation( $"{this}: Encrypting with session key {sessionkey}" );
 #endif
 
-            var garlic = new Garlic( clovelist );
+            var garlic = new Garlic( cloves );
             return Garlic.AESEncryptGarlic(
                     garlic,
                     sessionkey,
@@ -285,7 +205,7 @@ namespace I2PCore.SessionLayer
 
         public override string ToString()
         {
-            return $"{Owner.Owner.Owner} {GetType().Name} {RemoteDestination.Id32Short}";
+            return $"{Context} {GetType().Name} {RemoteDestination.Id32Short}";
         }
     }
 }

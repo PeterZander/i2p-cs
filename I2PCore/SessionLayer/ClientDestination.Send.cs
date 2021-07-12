@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using I2PCore.Data;
 using I2PCore.TunnelLayer;
 using I2PCore.TunnelLayer.I2NP.Data;
@@ -81,9 +82,8 @@ namespace I2PCore.SessionLayer
             var msg = MySessions.Encrypt(
                 dest.IdentHash,
                 remotepubkeys,
-                SignedLeases,
                 replytunnel,
-                cloves );
+                new List<GarlicClove>( cloves ) );
 
             return Send( dest, msg );
         }
@@ -100,20 +100,19 @@ namespace I2PCore.SessionLayer
 
             var result = CheckSendPreconditions( dest.IdentHash );
 
-            if ( result.ClientState != ClientStates.Established )
+            switch ( result.ClientState )
             {
-                switch ( result.ClientState )
-                {
-                    case ClientStates.NoTunnels:
-                        Logging.LogDebug( $"{this}: No inbound tunnels available." );
-                        break;
+                case ClientStates.Established:
+                    break;
 
-                    case ClientStates.NoLeases:
-                        Logging.LogDebug( $"{this}: No leases available." );
-                        LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
-                        break;
-                }
-                return result.ClientState;
+                case ClientStates.NoTunnels:
+                    Logging.LogDebug( $"{this}: No inbound tunnels available." );
+                    return result.ClientState;
+
+                case ClientStates.NoLeases:
+                    Logging.LogDebug( $"{this}: No leases available." );
+                    LookupDestination( dest.IdentHash, HandleDestinationLookupResult, null );
+                    return result.ClientState;
             }
 
             // Remote leases getting old?

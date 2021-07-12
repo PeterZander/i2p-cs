@@ -345,16 +345,23 @@ namespace I2PTests
 
         class TestEGAESSessionKeyOrigin : EGAESSessionKeyOrigin
         {
-            public void DeliveryStatusReceived( DeliveryStatusMessage msg )
+            public override int LowWatermarkForNewTags
             {
-                Router_DeliveryStatusReceived( msg, null );
+                get => 5;
+                set => throw new NotImplementedException();
+            }
+
+            public override int NewTagsWhenGenerating
+            {
+                get => 15;
+                set => throw new NotImplementedException();
             }
 
             public TestEGAESSessionKeyOrigin( 
-                    ClientDestination owner,
+                    ClientDestination context,
                     I2PDestination mydest, 
                     I2PIdentHash remotedest )
-                        : base( owner, mydest, remotedest )
+                        : base( context, mydest, remotedest )
             {
 
             }
@@ -441,7 +448,6 @@ namespace I2PTests
             {
                 var tmsg = origko.Encrypt(
                         destpublishedleases.PublicKeys,
-                        origpublishedleases,
                         replytunnel,
                         cloves.ToArray() );
 
@@ -458,7 +464,7 @@ namespace I2PTests
 
                 foreach ( DeliveryStatusMessage dsm in dsmsgs )
                 {
-                    origko.DeliveryStatusReceived( dsm );
+                    origko.DeliveryStatusReceived( dsm, replytunnel );
                 }
 
                 cloves.Clear();

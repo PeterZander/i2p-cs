@@ -10,19 +10,24 @@ using I2PCore.TunnelLayer.I2NP.Messages;
 
 namespace I2PCore.SessionLayer
 {
-
     internal class Session
     {
         public static TimeSpan RemoteLeaseSetUpdateMargin = TimeSpan.FromMinutes( 3 );
 
         public static TickSpan SessionInactivityTimeout = TickSpan.Minutes( 25 );
 
-        readonly internal SessionManager Owner;
+        public static TickSpan WaitForLSUpdateACK = TickSpan.Seconds( 45 );
+
+        readonly internal ClientDestination Context;
 
         readonly I2PDestination MyDestination;
         readonly I2PIdentHash RemoteDestination;
 
         readonly EGAESSessionKeyOrigin EGAESKeys;
+
+        TimeWindowDictionary<uint,LeaseSetUpdateACK> NotAckedLSUpdates =
+            new TimeWindowDictionary<uint,LeaseSetUpdateACK>( WaitForLSUpdateACK );
+
 
         /// <summary>
         /// Expiry time of the newest ACKed LeaseSet transferred to RemoteDestination
@@ -35,25 +40,31 @@ namespace I2PCore.SessionLayer
 
         TickCounter LastSendToRemote = new TickCounter();
 
-        internal Session( SessionManager owner, I2PDestination mydest, I2PIdentHash remotedest )
+        internal Session( ClientDestination context, I2PDestination mydest, I2PIdentHash remotedest )
         {
-            Owner = owner;
+            Context = context;
             MyDestination = mydest;
             RemoteDestination = remotedest;
 
             EGAESKeys = new EGAESSessionKeyOrigin(
-                                    this,
+                                    Context,
                                     mydest,
                                     remotedest );
         }
 
         internal GarlicMessage Encrypt(
             IEnumerable<I2PPublicKey> remotepublickeys,
-            ILeaseSet publishedleases,
             InboundTunnel replytunnel,
-            params GarlicClove[] cloves )
+            IList<GarlicClove> cloves )
         {
-            return EGAESKeys.Encrypt( remotepublickeys, publishedleases, replytunnel, cloves );
+            if ( RemoteNeedsLeaseSetUpdate )
+            {
+                Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
+
+                GenerateRemoteLSUpdate( cloves, replytunnel );
+            }
+
+            return EGAESKeys.Encrypt( remotepublickeys, replytunnel, cloves );
         }
 
         internal void MySignedLeasesUpdated( I2PIdentHash dest )
@@ -98,20 +109,35 @@ namespace I2PCore.SessionLayer
             }
         }
 
+        internal void DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
+        {
+            EGAESKeys.DeliveryStatusReceived( msg, from );
+
+            if ( NotAckedLSUpdates.TryRemove( msg.StatusMessageId, out var lsupdate ) )
+            {
+                Logging.LogDebug( $"{this}: Remote LS update ACKed, expire {lsupdate.ExpireTimeForLeaseSet}" );
+
+                RemoteLeaseSetUpdateACKReceived( lsupdate.ExpireTimeForLeaseSet );
+            }
+        }
+
         internal void SendLeaseSetUpdate( I2PIdentHash dest )
         {
-            if ( RemoteLeaseSet != null )
-            {
-                Logging.LogDebug(
-                    $"{this} Session: SendLeaseSetUpdate: sending LS to {dest.Id32Short}" );
+            if ( RemoteLeaseSet is null )
+                return;
 
-                Owner.Owner.Send( 
-                        RemoteLeaseSet.Destination,
-                        Encrypt( 
-                                RemoteLeaseSet.PublicKeys,
-                                Owner.Owner.SignedLeases,
-                                Owner.Owner.SelectInboundTunnel() ) );
-            }
+            Logging.LogDebug(
+                $"{this} Session: SendLeaseSetUpdate: sending LS to {dest.Id32Short}" );
+
+            var replytunnel = Context.SelectInboundTunnel();
+            var cloves = GenerateRemoteLSUpdate( new List<GarlicClove>(), replytunnel );
+
+            Context.Send( 
+                    RemoteLeaseSet.Destination,
+                    Encrypt( 
+                            RemoteLeaseSet.PublicKeys,
+                            replytunnel,
+                            cloves ) );
         }
 
         internal void DataSentToRemote( I2PIdentHash dest )
@@ -130,12 +156,15 @@ namespace I2PCore.SessionLayer
 
         internal bool RemoteNeedsLeaseSetUpdate
         {
-            get => Owner.Owner.SignedLeases.Expire > ACKedLeaseSetExpireTime + TimeCompareEpsilon;
+            get => Context.SignedLeases.Expire > ACKedLeaseSetExpireTime + TimeCompareEpsilon;
         }
 
         internal void RemoteLeaseSetUpdateACKReceived( DateTime expiration )
         {
-            ACKedLeaseSetExpireTime = expiration;
+            if ( expiration > ACKedLeaseSetExpireTime )
+            {
+                ACKedLeaseSetExpireTime = expiration;
+            }
         }
 
         TimeWindowDictionary<OutboundTunnel,ILease> OutboundRemoteLeasePairs = 
@@ -183,9 +212,44 @@ namespace I2PCore.SessionLayer
             return result;
         }
 
+        class LeaseSetUpdateACK
+        {
+            /// <summary>MessageId of the DeliveryStatusMessage of the ACK.</summary>
+            public uint MessageId;
+            public DateTime ExpireTimeForLeaseSet;
+        }
+
+         IList<GarlicClove> GenerateRemoteLSUpdate( IList<GarlicClove> cloves, InboundTunnel replytunnel )
+        {
+            var signedleases = Context.SignedLeases;
+            var myleases = new DatabaseStoreMessage( signedleases );
+            var lsack = new DeliveryStatusMessage( I2NPMessage.GenerateMessageId() );
+
+            cloves.Add(
+                new GarlicClove(
+                    new GarlicCloveDeliveryDestination(
+                        myleases,
+                        RemoteDestination ) ) );
+
+            cloves.Add(
+                new GarlicClove(
+                    new GarlicCloveDeliveryTunnel(
+                            lsack,
+                            replytunnel.Destination, replytunnel.GatewayTunnelId ) ) );
+
+
+            NotAckedLSUpdates[lsack.StatusMessageId] = new LeaseSetUpdateACK
+            {
+                ExpireTimeForLeaseSet = signedleases.Expire,
+                MessageId = lsack.MessageId,
+            };
+
+            return cloves;
+        }
+
         public override string ToString()
         {
-            return $"{Owner.Owner} {MyDestination} -> {RemoteDestination?.Id32Short}";
+            return $"{Context} {MyDestination} -> {RemoteDestination?.Id32Short}";
         }
    }
 }

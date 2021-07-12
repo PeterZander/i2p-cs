@@ -40,11 +40,11 @@ namespace I2PCore.SessionLayer
 
         EGAESDecryptReceivedSessions IncommingSessions;
 
-        internal readonly ClientDestination Owner;
+        internal readonly ClientDestination Context;
 
-        public SessionManager( ClientDestination owner )
+        public SessionManager( ClientDestination context )
         {
-            Owner = owner;
+            Context = context;
             IncommingSessions = new EGAESDecryptReceivedSessions( this );
         }
 
@@ -67,19 +67,18 @@ namespace I2PCore.SessionLayer
             return Sessions.GetOrAdd(
                         dest,
                         ( d ) => new Session(
-                                    this,
-                                    Owner.Destination,
+                                    Context,
+                                    Context.Destination,
                                     dest ) );
         }
         public GarlicMessage Encrypt(
             I2PIdentHash dest,
             IEnumerable<I2PPublicKey> remotepublickeys,
-            ILeaseSet publishedleases,
             InboundTunnel replytunnel,
-            params GarlicClove[] cloves )
+            IList<GarlicClove> cloves )
         {
             var sess = GetSession( dest );
-            return sess.Encrypt( remotepublickeys, publishedleases, replytunnel, cloves );
+            return sess.Encrypt( remotepublickeys, replytunnel, cloves );
         }
 
         public void MySignedLeasesUpdated()
@@ -92,7 +91,7 @@ namespace I2PCore.SessionLayer
 
         public void LeaseSetReceived( ILeaseSet ls )
         {
-            if ( ls.Destination.IdentHash == Owner.Destination.IdentHash )
+            if ( ls.Destination.IdentHash == Context.Destination.IdentHash )
             {
                 // that is me
                 Logging.LogDebug(
@@ -111,6 +110,14 @@ namespace I2PCore.SessionLayer
 
             var sess = GetSession( ls.Destination.IdentHash );
             sess.LeaseSetReceived( ls );
+        }
+
+        internal void DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
+        {
+            foreach( var sess in Sessions )
+            {
+                sess.Value.DeliveryStatusReceived( msg, from );
+            }
         }
 
         public ILeaseSet GetLeaseSet( I2PIdentHash dest )
@@ -161,7 +168,7 @@ namespace I2PCore.SessionLayer
 
         public override string ToString()
         {
-            return $"{Owner} {GetType().Name}";
+            return $"{Context} {GetType().Name}";
         }
     }
 }

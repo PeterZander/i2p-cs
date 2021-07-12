@@ -194,6 +194,7 @@ namespace I2PCore.SessionLayer
 
             NetDb.Inst.LeaseSetUpdates += Ext_LeaseSetUpdates;
             NetDb.Inst.IdentHashLookup.LeaseSetReceived += Ext_LeaseSetUpdates;
+            Router.DeliveryStatusReceived += Router_DeliveryStatusReceived;
         }
 
         // Let the router sign leases
@@ -215,6 +216,7 @@ namespace I2PCore.SessionLayer
         {
             NetDb.Inst.IdentHashLookup.LeaseSetReceived -= Ext_LeaseSetUpdates;
             NetDb.Inst.LeaseSetUpdates -= Ext_LeaseSetUpdates;
+            Router.DeliveryStatusReceived -= Router_DeliveryStatusReceived;
 
             Router.ShutdownClient( this );
             Terminated = true;
@@ -360,6 +362,11 @@ namespace I2PCore.SessionLayer
                     $"{this}: Lease set for {hash.Id32Short} found ({ls.Expire})." );
 
             MySessions.LeaseSetReceived( ls );
+        }
+
+        protected void Router_DeliveryStatusReceived( DeliveryStatusMessage msg, InboundTunnel from )
+        {
+            MySessions.DeliveryStatusReceived( msg, from );
         }
 
         public override string ToString()
