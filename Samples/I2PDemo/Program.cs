@@ -8,8 +8,6 @@ using System.Threading;
 using I2PCore.Utils;
 using I2PCore.SessionLayer;
 using System.Net;
-using I2PCore.TunnelLayer.I2NP.Messages;
-using I2PCore.TunnelLayer.I2NP.Data;
 using I2PCore;
 using System.Linq;
 using System.Collections.Generic;
@@ -29,7 +27,6 @@ namespace I2PDemo
         static void Main( string[] args )
         {
             PeriodicAction SendInterval = new PeriodicAction( TickSpan.Seconds( 20 ) );
-            PeriodicAction LookupInterval = new PeriodicAction( TickSpan.Minutes( 4 ) );
 
             Logging.LogToDebug = false;
             Logging.LogToConsole = true;
@@ -164,9 +161,9 @@ namespace I2PDemo
                 MyDestinationInfo,
                 true, out _ );
 #endif
+            PublishedDestination.Name = "PublishedDestination";
             PublishedDestination.ClientStateChanged += MyDestination_ClientStateChanged;
             PublishedDestination.DataReceived += MyDestination_DataReceived;
-            PublishedDestination.Name = "PublishedDestination";
 
             var ls = new I2PLeaseSet( MyDestinationInfo.Destination, null, 
                     MyDestinationInfo.Destination.PublicKey,
@@ -182,9 +179,9 @@ namespace I2PDemo
                     false,
                     out _ );
 
+            MyOrigin.Name = "MyOrigin";
             MyOrigin.ClientStateChanged += MyOrigin_ClientStateChanged;
             MyOrigin.DataReceived += MyOrigin_DataReceived;
-            MyOrigin.Name = "MyOrigin";
 
             Logging.LogInformation( $"MyDestination: {PublishedDestination.Destination.IdentHash} {MyDestinationInfo.Destination.Certificate}" );
 
@@ -202,34 +199,35 @@ namespace I2PDemo
 
                         if ( MyOrigin.ClientState == ClientDestination.ClientStates.Established )
                         {
-                            if ( LookedUpDestination == null )
+                            SendInterval.Do( () =>
                             {
-                                MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
-                            }
-                            else
-                            {
-                                LookupInterval.Do( () =>
+                                if ( sendevents < 20 )
                                 {
-                                    // Keep remote leases up to date
-                                    MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
-                                } );
-
-                                SendInterval.Do( () =>
-                                {
-                                    if ( sendevents++ < 20 )
+                                    if ( LookedUpLeaseSet == null )
                                     {
-                                        // Send some data to the MyDestination
-                                        DataSent = new BufLen(
-                                                        BufUtils.RandomBytes(
-                                                            (int)( 1 + BufUtils.RandomDouble( 25 ) * 1024 ) ) );
-
-                                        var ok = MyOrigin.Send( LookedUpDestination, DataSent );
-                                        Logging.LogInformation( $"Program {MyOrigin}: Send[{sendevents}] to {LookedUpDestination.IdentHash.Id32Short} {ok}, {DataSent:15}" );
+                                        MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
+                                        return;
                                     }
 
-                                    if ( sendevents > 70 ) sendevents = 0;
-                                } );
-                            }
+                                    // Send some data to the MyDestination
+                                    DataSent = new BufLen(
+                                                    BufUtils.RandomBytes(
+                                                        (int)( 1 + BufUtils.RandomDouble( 25 ) * 1024 ) ) );
+
+                                    var ok = MyOrigin.Send( LookedUpLeaseSet.Destination, DataSent );
+                                    Logging.LogInformation( $"Program {MyOrigin}: Send[{sendevents}] to " +
+                                            $"{LookedUpLeaseSet.Destination.IdentHash.Id32Short} {ok}, {DataSent}" );
+
+                                    if ( ok == ClientDestination.ClientStates.Established )
+                                    {
+                                        ++sendevents;
+                                    }
+                                }
+                                else
+                                {
+                                    if ( ++sendevents > 50 ) sendevents = 0;
+                                }
+                            } );
                         }
                     }
                 }
@@ -250,33 +248,33 @@ namespace I2PDemo
 
         static void MyOrigin_ClientStateChanged( ClientDestination dest, ClientDestination.ClientStates state )
         {
-            Logging.LogInformation( $"Program {MyOrigin}: Client state {state}" );
+            Logging.LogInformation( $"Program {dest}: Client state {state}" );
         }
 
-        static I2PDestination LookedUpDestination;
+        static ILeaseSet LookedUpLeaseSet;
         static BufLen DataSent;
 
         static void MyDestination_ClientStateChanged( ClientDestination dest, ClientDestination.ClientStates state )
         {
-            Logging.LogInformation( $"Program {MyDestination}: Client state {state}" );
+            Logging.LogInformation( $"Program {dest}: Client state {state}" );
         }
         
         static void MyDestination_DataReceived( ClientDestination dest, BufLen data )
         {
             var compareok = DataSent is null ? false : DataSent == data;
-            Logging.LogInformation( $"Program {MyDestination}: MyDestination data received. Matches send: {compareok} {data:15}" );
+            Logging.LogInformation( $"Program {dest}: MyDestination data received. Matches send: {compareok} {data}" );
             var ok = PublishedDestination.Send( MyOrigin.Destination, data );
-            Logging.LogInformation( $"Program {MyDestination}: Send to {MyOrigin.Destination.IdentHash.Id32Short} {ok}" );
+            Logging.LogInformation( $"Program {dest}: Send to {MyOrigin.Destination.IdentHash.Id32Short} {ok}" );
         }
 
         static void MyOrigin_DataReceived( ClientDestination dest, BufLen data )
         {
-            Logging.LogInformation( $"Program {MyOrigin}: data received. {data:15}" );
+            Logging.LogInformation( $"Program {dest}: data received. {data}" );
         }
 
         static void MyDestination_SignLeasesRequest( ClientDestination dest, IEnumerable<ILease> ls )
         {
-            Logging.LogInformation( $"Program {MyDestination}: Signing {ls} for publishing" );
+            Logging.LogInformation( $"Program {dest}: Signing {ls} for publishing" );
             PublishedDestination.PrivateKeys = new List<I2PPrivateKey>( new I2PPrivateKey[] { MyDestinationInfo.PrivateKey } );
             PublishedDestination.SignedLeases = new I2PLeaseSet(
                     MyDestination,
@@ -290,14 +288,14 @@ namespace I2PDemo
         {
             Logging.LogInformation( $"Program {MyOrigin}: LookupResult {hash.Id32Short} {ls}" );
 
-            if ( ls is null )
+            if ( ls is null && LookedUpLeaseSet is null )
             {
                 // Try again
                 MyOrigin.LookupDestination( PublishedDestination.Destination.IdentHash, LookupResult );
                 return;
             }
 
-            LookedUpDestination = ls.Destination;
+            LookedUpLeaseSet = ls;
         }
 
         static bool Connected = false;
