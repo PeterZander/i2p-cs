@@ -12,9 +12,6 @@ namespace I2PCore.SessionLayer
 {
     public partial class ClientDestination : IClient
     {
-        TickCounter LastSignedLeasesFloodfillUpdate = TickCounter.Now;
-        SemaphoreSlim UpdateFloodfillsWithSignedLeasesOnce = new SemaphoreSlim( 1, 1 );
-
         internal void UpdateSignedLeases()
         {
             var newleases = EstablishedLeasesField

@@ -21,20 +21,9 @@ namespace I2PCore.SessionLayer
 
         public static ILease SelectLease( IEnumerable<ILease> ls )
         {
-            var result = ls
-                    .Where( l => l.Expire > DateTime.UtcNow + MinLeaseLifetime )
-                    .OrderByDescending( l => l.Expire )
-                    .Take( 2 );
-
-            if ( !result.Any() )
-            {
-                result = ls
+            return ls
                     .Where( l => l.Expire > DateTime.UtcNow )
-                    .OrderByDescending( l => l.Expire )
-                    .Take( 2 );
-            }
-
-            return result.Random();
+                    .RandomWeighted( l => l.Expire.ToFileTime(), 4 );
         }
 
         void RemovePendingTunnel( Tunnel tunnel )
