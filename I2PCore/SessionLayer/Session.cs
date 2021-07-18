@@ -55,9 +55,10 @@ namespace I2PCore.SessionLayer
         internal GarlicMessage Encrypt(
             IEnumerable<I2PPublicKey> remotepublickeys,
             InboundTunnel replytunnel,
-            IList<GarlicClove> cloves )
+            IList<GarlicClove> cloves,
+            bool checkremotelsage = true )
         {
-            if ( RemoteNeedsLeaseSetUpdate )
+            if ( checkremotelsage && RemoteNeedsLeaseSetUpdate )
             {
                 Logging.LogDebug( $"{this}: Sending my leases to remote {RemoteDestination.Id32Short}." );
 
@@ -137,7 +138,8 @@ namespace I2PCore.SessionLayer
                     Encrypt( 
                             RemoteLeaseSet.PublicKeys,
                             replytunnel,
-                            cloves ) );
+                            cloves,
+                            false ) );
         }
 
         internal void DataSentToRemote( I2PIdentHash dest )
@@ -177,7 +179,7 @@ namespace I2PCore.SessionLayer
 
             if ( OutboundRemoteLeasePairs.TryGetValue( outtunnel, out var lease ) )
             {
-                if ( lease.Expire > DateTime.UtcNow + TimeSpan.FromMinutes( 1 ) )
+                if ( lease.Expire > DateTime.UtcNow )
                 {
                     return lease;
                 }
