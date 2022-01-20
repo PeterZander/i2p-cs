@@ -271,9 +271,13 @@ namespace I2PCore.SessionLayer
         public void Save( string filename )
         {
             var fullpath = GetFullPath( filename );
-            var dir = Path.GetDirectoryName(fullpath);
-            if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
+
+            var dir = Path.GetDirectoryName( fullpath );
+            if ( !Directory.Exists( dir ) )
+            {
+                Directory.CreateDirectory( dir );
+            }
+
             using ( var fs = new FileStream( fullpath, FileMode.Create, FileAccess.Write ) )
             {
                 var dest = new BufRefStream();
